@@ -1,153 +1,191 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style>
 <meta name="description" content="Interactive SQL guide for AWS data engineering interviews in PostgreSQL, with real in-browser Postgres, exercises, quizzes, and Redshift, Athena and RDS/Aurora chapters.">
 <link rel="icon" href="../icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="../icon-180.png">
+<link rel="manifest" href="../manifest.webmanifest">
 <title>SQL for AWS Data Engineers</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;600;700;800&family=Source+Code+Pro:wght@400;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
 <style>
-/* Layout: W3-style reference — dark top bar, left lesson index, single reading column, modal SQL playground */
+/* Layout: W3Schools-style reference — sticky top bar, lesson tree on the left, one lesson at a time with Prev/Next, modal SQL playground.
+   Same design system as the other aws-de guides (Bricolage Grotesque / IBM Plex Sans / JetBrains Mono, surface + line tokens). */
 :root{
-  --bg:#ffffff; --fg:#1f2a26; --muted:#5b6b65; --line:#dfe6e3; --panel:#f3f6f5; --side:#eaf0ee; --sidehover:#d7e3df;
-  --accent:#04885b; --accentfg:#ffffff; --accentsoft:#e1f3ec; --top:#1e2622; --topfg:#e9f1ee;
-  --code:#f4f6f4; --codefg:#1b2420; --kw:#0b6bcb; --str:#b0432a; --com:#6f8a7e; --fn:#8a3fbf; --num:#aa6a00;
-  --note:#fff7d6; --noteline:#e8c44a; --tip:#e3f1fb; --tipline:#3d8fd1; --warn:#fde8e6; --warnline:#d4553f; --iq:#efeafb; --iqline:#7a5cc9;
-  --display:"Source Sans 3",system-ui,-apple-system,"Segoe UI",sans-serif;
-  --body:"Source Sans 3",system-ui,-apple-system,"Segoe UI",sans-serif;
-  --mono:"Source Code Pro",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --bg:#F5F7F9; --surface:#FFFFFF; --ink:#17202A; --muted:#566170; --line:#DCE2E8;
+  --accent:#1F6FB2; --accent-ink:#FFFFFF; --accent-soft:#E3EEF8;
+  --teal:#0E7468; --teal-soft:#E0F2EF; --warn:#9A6700; --warn-soft:#FFF4D6; --bad:#B42318; --bad-soft:#FDECEA;
+  --iq:#6B3FA0; --iq-soft:#F1EAFA; --rs:#C2410C; --ath:#7A4FC9;
+  --code-bg:#F0F3F6; --code-ink:#1D2733;
+  --k:#A21CAF; --s:#0F7B3E; --c:#7A8594; --n:#B45309; --f:#1D4ED8;
+  --display:"Bricolage Grotesque",ui-sans-serif,system-ui,sans-serif;
+  --body:"IBM Plex Sans",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
 }
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
-  --bg:#141917; --fg:#dde6e2; --muted:#93a39d; --line:#2b3531; --panel:#1b221f; --side:#1a201e; --sidehover:#25302c;
-  --accent:#34c38f; --accentfg:#0d1512; --accentsoft:#183a2d; --top:#0c100e; --topfg:#dde6e2;
-  --code:#1d2522; --codefg:#dbe5e0; --kw:#6fb6ff; --str:#f0937a; --com:#7f978d; --fn:#c79bf0; --num:#e4b45a;
-  --note:#2f2a14; --noteline:#a8892a; --tip:#14283a; --tipline:#3d8fd1; --warn:#3a1d19; --warnline:#d4553f; --iq:#251f38; --iqline:#9a80e6; color-scheme:dark}}
+  --bg:#0E1318; --surface:#151C23; --ink:#E5EAF0; --muted:#98A3AF; --line:#26303A;
+  --accent:#6CB4F5; --accent-ink:#0A1622; --accent-soft:#132A3F;
+  --teal:#3CCFBC; --teal-soft:#0F2B28; --warn:#F2C14E; --warn-soft:#2E2610; --bad:#F38B80; --bad-soft:#341716;
+  --iq:#C4A3F0; --iq-soft:#251A35; --rs:#FF8A4C; --ath:#B79BFF;
+  --code-bg:#0A0F14; --code-ink:#D9E1EA;
+  --k:#E38BF2; --s:#7FD99A; --c:#7D8896; --n:#F4B067; --f:#8DB4FF; color-scheme:dark}}
 :root[data-theme="dark"]{
-  --bg:#141917; --fg:#dde6e2; --muted:#93a39d; --line:#2b3531; --panel:#1b221f; --side:#1a201e; --sidehover:#25302c;
-  --accent:#34c38f; --accentfg:#0d1512; --accentsoft:#183a2d; --top:#0c100e; --topfg:#dde6e2;
-  --code:#1d2522; --codefg:#dbe5e0; --kw:#6fb6ff; --str:#f0937a; --com:#7f978d; --fn:#c79bf0; --num:#e4b45a;
-  --note:#2f2a14; --noteline:#a8892a; --tip:#14283a; --tipline:#3d8fd1; --warn:#3a1d19; --warnline:#d4553f; --iq:#251f38; --iqline:#9a80e6; color-scheme:dark}
+  --bg:#0E1318; --surface:#151C23; --ink:#E5EAF0; --muted:#98A3AF; --line:#26303A;
+  --accent:#6CB4F5; --accent-ink:#0A1622; --accent-soft:#132A3F;
+  --teal:#3CCFBC; --teal-soft:#0F2B28; --warn:#F2C14E; --warn-soft:#2E2610; --bad:#F38B80; --bad-soft:#341716;
+  --iq:#C4A3F0; --iq-soft:#251A35; --rs:#FF8A4C; --ath:#B79BFF;
+  --code-bg:#0A0F14; --code-ink:#D9E1EA;
+  --k:#E38BF2; --s:#7FD99A; --c:#7D8896; --n:#F4B067; --f:#8DB4FF; color-scheme:dark}
+
 *{box-sizing:border-box}
-html,body{height:100%}
-body{background:var(--bg);color:var(--fg);font-family:var(--body);font-size:17px;line-height:1.6}
-body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:50;background:var(--top)}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.65}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:50;background:var(--surface)}
 a{color:var(--accent)}
-.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:40;background:var(--top);color:var(--topfg);display:flex;align-items:center;gap:12px;height:54px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
-.brand{font-family:var(--display);font-weight:800;font-size:20px;letter-spacing:.2px;white-space:nowrap;color:var(--topfg);text-decoration:none}
+[hidden]{display:none!important}
+
+/* top bar */
+.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:40;background:var(--surface);border-bottom:1px solid var(--line);
+  display:flex;align-items:center;gap:12px;padding-block:10px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.brand{font-family:var(--display);font-weight:800;font-size:1.15rem;letter-spacing:-.01em;white-space:nowrap;color:var(--ink);text-decoration:none}
 .brand b{color:var(--accent)}
 .top .sp{flex:1}
-.top input{width:min(320px,40vw);background:#ffffff14;border:1px solid #ffffff2a;color:var(--topfg);border-radius:6px;padding:7px 10px;font:inherit;font-size:15px}
-.top input::placeholder{color:#c4d2cc99}
-.tbtn{background:transparent;border:1px solid #ffffff33;color:var(--topfg);border-radius:6px;padding:6px 10px;font:600 14px var(--body);cursor:pointer;white-space:nowrap}
-.tbtn:hover{background:#ffffff14}
-.tbtn.acc{background:var(--accent);color:var(--accentfg);border-color:transparent}
+.top input{width:min(300px,36vw);background:var(--bg);border:1px solid var(--line);color:var(--ink);border-radius:6px;padding:6px 10px;font:inherit;font-size:.9rem}
+.top input::placeholder{color:var(--muted)}
+.tbtn{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:6px;padding:6px 10px;font:600 .9rem var(--body);cursor:pointer;white-space:nowrap}
+.tbtn:hover{background:var(--code-bg)}
+.tbtn.acc{background:var(--accent);color:var(--accent-ink);border-color:transparent}
+.tbtn.acc:hover{filter:brightness(1.07)}
 #menuBtn{display:none}
-.prog{font-size:13px;color:#c4d2cc;white-space:nowrap}
-.wrap{display:grid;grid-template-columns:270px minmax(0,1fr);min-height:calc(100% - 54px)}
-nav.side{background:var(--side);border-right:1px solid var(--line);position:sticky;top:calc(54px + env(safe-area-inset-top,0px));height:calc(100vh - 54px - env(safe-area-inset-top,0px));overflow-y:auto;padding:10px 0 40px;padding-left:env(safe-area-inset-left,0px)}
-.chap>button{all:unset;display:flex;justify-content:space-between;width:100%;box-sizing:border-box;padding:9px 16px 5px;font:700 13px var(--body);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);cursor:pointer}
-.chap>button:focus-visible{outline:2px solid var(--accent)}
-.chap ul{list-style:none;margin:0;padding:0 0 6px}
-.chap li a{display:flex;gap:8px;align-items:baseline;padding:5px 16px 5px 22px;color:var(--fg);text-decoration:none;font-size:15.5px;line-height:1.35}
-.chap li a:hover{background:var(--sidehover)}
-.chap li a.on{background:var(--accent);color:var(--accentfg)}
-.chap li a .ck{width:12px;flex:none;font-size:12px;color:var(--accent)}
-.chap li a.on .ck{color:var(--accentfg)}
+.prog{font-size:.82rem;color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums}
+
+/* sidebar */
+.wrap{display:grid;grid-template-columns:280px minmax(0,1fr);max-width:1240px;margin:0 auto}
+nav.side{position:sticky;top:calc(env(safe-area-inset-top,0px) + 53px);height:calc(100vh - 53px - env(safe-area-inset-top,0px));overflow-y:auto;border-right:1px solid var(--line);padding:12px 12px 40px max(12px,env(safe-area-inset-left,0px));background:var(--bg)}
+.chap>button{all:unset;display:flex;justify-content:space-between;width:100%;box-sizing:border-box;padding:14px 8px 6px;font:600 .72rem var(--body);letter-spacing:.09em;text-transform:uppercase;color:var(--muted);cursor:pointer}
+.chap>button:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+.chap ul{list-style:none;margin:0;padding:0 0 4px}
+.chap li a{display:flex;gap:8px;align-items:baseline;padding:6px 8px;border-radius:5px;color:var(--ink);text-decoration:none;font-size:.93rem;line-height:1.35}
+.chap li a:hover{background:var(--code-bg)}
+.chap li a.on{background:var(--accent);color:var(--accent-ink);font-weight:600}
+.chap li a .ck{width:12px;flex:none;font-size:.8rem;color:var(--teal)}
+.chap li a.on .ck{color:inherit}
+.chap li a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .chap.closed ul{display:none}
+
+/* reading column */
 main{min-width:0;padding-block:28px 80px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
-.page{max-width:860px;margin:0 auto}
-.eyebrow{font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:700}
-h1{font-family:var(--display);font-size:clamp(30px,5vw,42px);line-height:1.15;margin:4px 0 14px;text-wrap:balance;font-weight:800}
-h2{font-family:var(--display);font-size:26px;margin:34px 0 10px;padding-top:14px;border-top:1px solid var(--line);text-wrap:balance}
-h3{font-size:20px;margin:24px 0 6px}
-p,li{max-width:72ch}
-.navbtns{display:flex;justify-content:space-between;gap:10px;margin:18px 0}
-.btn{background:var(--accent);color:var(--accentfg);border:0;border-radius:6px;padding:8px 16px;font:600 15.5px var(--body);cursor:pointer;text-decoration:none;display:inline-block}
-.btn:hover{filter:brightness(1.08)}
-.btn.ghost{background:var(--panel);color:var(--fg);border:1px solid var(--line)}
-.btn:focus-visible,.tbtn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-code{font-family:var(--mono);font-size:.88em;background:var(--code);color:var(--str);padding:1px 5px;border-radius:4px}
-.ex{background:var(--panel);border:1px solid var(--line);border-radius:6px;margin:16px 0;overflow:hidden}
-.ex .exh{display:flex;justify-content:space-between;align-items:center;padding:8px 14px;font-weight:700;font-size:15px}
-.ex .exh span.tag{font-weight:600;font-size:12px;color:var(--muted);letter-spacing:.05em;text-transform:uppercase}
-.ex pre{margin:0 12px;background:var(--code);color:var(--codefg);border-left:4px solid var(--accent);padding:12px 14px;overflow-x:auto;font:14.5px/1.55 var(--mono);white-space:pre}
-.ex.ts pre{border-left-color:var(--kw)}
-.ex .exf{padding:10px 14px}
-.kw{color:var(--kw);font-weight:600}.st{color:var(--str)}.cm{color:var(--com);font-style:italic}.fnc{color:var(--fn)}.nm{color:var(--num)}
-.box{border-left:5px solid;padding:10px 16px;margin:16px 0;border-radius:0 6px 6px 0}
+.page{max-width:820px;margin:0 auto}
+.eyebrow{font:600 .76rem var(--body);text-transform:uppercase;letter-spacing:.09em;color:var(--muted);margin:0}
+h1{font-family:var(--display);font-weight:800;font-size:clamp(1.9rem,4.5vw,2.6rem);line-height:1.1;letter-spacing:-.02em;margin:.2em 0 .4em;text-wrap:balance}
+h2{font-family:var(--display);font-weight:600;font-size:1.45rem;margin:2em 0 .5em;padding-top:1.2em;border-top:1px solid var(--line);text-wrap:balance}
+h3{font-size:1.05rem;margin:1.4em 0 .4em}
+p,li{max-width:70ch}
+.navbtns{display:flex;justify-content:space-between;gap:10px;margin:8px 0 20px}
+.btn{display:inline-flex;align-items:center;gap:6px;background:var(--accent);color:var(--accent-ink);border:0;border-radius:6px;padding:8px 16px;font:600 .92rem var(--body);cursor:pointer;text-decoration:none}
+.btn:hover{filter:brightness(1.07)}
+.btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
+.btn:focus-visible,.tbtn:focus-visible,summary:focus-visible,.top input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+code{font-family:var(--mono);font-size:.86em;background:var(--code-bg);padding:.1em .35em;border-radius:4px;overflow-wrap:anywhere}
+pre code{background:none;padding:0}
+kbd{font:600 .78rem var(--mono);border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:0 5px;background:var(--surface)}
+
+/* example boxes */
+.ex{background:var(--surface);border:1px solid var(--line);border-radius:8px;margin:1.1em 0;overflow:hidden}
+.ex .exh{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:10px 14px 0;font:600 .9rem var(--body);color:var(--ink)}
+.ex .exh span.tag{font:600 .68rem var(--body);letter-spacing:.07em;text-transform:uppercase;flex:none;padding:2px 8px;border-radius:999px;background:var(--accent-soft);color:var(--accent);white-space:nowrap}
+.ex pre{margin:8px 0 0;background:var(--code-bg);color:var(--code-ink);border-top:1px solid var(--line);border-left:3px solid var(--accent);padding:14px 16px;overflow-x:auto;font:400 .86rem/1.6 var(--mono);white-space:pre}
+.ex.rs pre{border-left-color:var(--rs)} .ex.rs .exh span.tag{background:color-mix(in srgb,var(--rs) 14%,transparent);color:var(--rs)}
+.ex.ath pre{border-left-color:var(--ath)} .ex.ath .exh span.tag{background:color-mix(in srgb,var(--ath) 14%,transparent);color:var(--ath)}
+.ex.ms pre{border-left-color:var(--muted)} .ex.ms .exh span.tag{background:var(--code-bg);color:var(--muted)}
+.ex .exf{padding:10px 14px;border-top:1px solid var(--line)}
+.ex .exf:empty{display:none}
+.kw{color:var(--k);font-weight:600}.st{color:var(--s)}.cm{color:var(--c);font-style:italic}.fnc{color:var(--f)}.nm{color:var(--n)}
+
+/* callouts */
+.box{border-left:4px solid var(--muted);background:var(--surface);padding:12px 16px;margin:1.2em 0;border-radius:0 6px 6px 0}
 .box>:first-child{margin-top:0}.box>:last-child{margin-bottom:0}
-.note{background:var(--note);border-color:var(--noteline)}
-.tip{background:var(--tip);border-color:var(--tipline)}
-.warn{background:var(--warn);border-color:var(--warnline)}
-.box b.lbl{display:block;font-size:13px;letter-spacing:.06em;text-transform:uppercase;margin-bottom:2px}
-details.iq{background:var(--iq);border-left:5px solid var(--iqline);border-radius:0 6px 6px 0;margin:10px 0;padding:8px 14px}
-details.iq summary{cursor:pointer;font-weight:700}
-details.iq summary::marker{color:var(--iqline)}
+.box b.lbl{display:block;font-size:.78rem;text-transform:uppercase;letter-spacing:.08em;margin-bottom:2px}
+.box.note{border-color:var(--accent);background:var(--accent-soft)} .box.note b.lbl{color:var(--accent)}
+.box.tip{border-color:var(--teal);background:var(--teal-soft)} .box.tip b.lbl{color:var(--teal)}
+.box.warn{border-color:var(--warn);background:var(--warn-soft)} .box.warn b.lbl{color:var(--warn)}
+details.iq{border:1px solid var(--line);border-left:4px solid var(--iq);background:var(--surface);border-radius:0 8px 8px 0;margin:.6em 0;padding:10px 14px}
+details.iq summary{cursor:pointer;font-weight:600}
+details.iq summary::marker{color:var(--iq)}
+details.iq[open]{background:var(--iq-soft)}
 details.iq[open] summary{margin-bottom:6px}
-.tw{overflow-x:auto;margin:14px 0}
-table.t{border-collapse:collapse;width:100%;font-size:15px;font-variant-numeric:tabular-nums}
-table.t th,table.t td{border:1px solid var(--line);padding:7px 10px;text-align:left;vertical-align:top}
-table.t th{background:var(--panel)}
-table.t tr:nth-child(even) td{background:color-mix(in srgb,var(--panel) 50%,transparent)}
+
+/* tables & figures */
+.tw{overflow-x:auto;margin:1em 0}
+table.t{border-collapse:collapse;width:100%;font-size:.92rem;background:var(--surface)}
+table.t th,table.t td{border:1px solid var(--line);padding:8px 12px;text-align:left;vertical-align:top}
+table.t th{background:var(--code-bg);font-weight:600}
 .flow{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:14px 0}
-.flow span{background:var(--accentsoft);border:1px solid var(--accent);border-radius:6px;padding:4px 10px;font-weight:600;font-size:15px}
+.flow span{background:var(--accent-soft);border:1px solid var(--accent);color:var(--ink);border-radius:6px;padding:4px 10px;font-weight:600;font-size:.92rem}
 .flow i{font-style:normal;color:var(--muted)}
 .venns{display:flex;flex-wrap:wrap;gap:14px;margin:12px 0}
-.venns figure{margin:0;text-align:center;font-size:13px;font-weight:600;color:var(--muted)}
+.venns figure{margin:0;text-align:center;font-size:.8rem;font-weight:600;color:var(--muted)}
 .venns svg{width:120px;height:78px;display:block}
+
 /* exercises */
-.exer{border:1px solid var(--accent);border-radius:6px;margin:18px 0;overflow:hidden}
-.exer .q{background:var(--accentsoft);padding:10px 14px;font-weight:600}
-.exer .q small{display:block;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.06em;font-size:12px}
-.exer textarea,.pg textarea{width:100%;min-height:110px;font:14.5px/1.5 var(--mono);background:var(--code);color:var(--codefg);border:0;border-top:1px solid var(--line);padding:10px 14px;resize:vertical;tab-size:2}
-.exer .bar{display:flex;flex-wrap:wrap;gap:8px;padding:8px 14px;border-top:1px solid var(--line);align-items:center}
-.verdict{font-weight:700}.verdict.ok{color:var(--accent)}.verdict.no{color:var(--warnline)}
-.res{padding:0 14px 12px;overflow-x:auto}
-.res table{border-collapse:collapse;font:13.5px var(--mono);font-variant-numeric:tabular-nums}
+.exer{border:2px solid var(--accent);border-radius:8px;margin:1.6em 0;overflow:hidden;background:var(--surface)}
+.exer .q{padding:12px 16px 10px;font-weight:600}
+.exer .q small{display:block;font-family:var(--display);font-weight:800;color:var(--accent);font-size:1.05rem;margin-bottom:2px}
+.exer textarea,.pg textarea{width:100%;min-height:110px;font:.86rem/1.6 var(--mono);background:var(--code-bg);color:var(--code-ink);border:0;border-top:1px solid var(--line);padding:12px 16px;resize:vertical;tab-size:2}
+.exer textarea:focus-visible,.pg textarea:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.exer .bar{display:flex;flex-wrap:wrap;gap:8px;padding:10px 16px;border-top:1px solid var(--line);align-items:center}
+.verdict{font-weight:600}.verdict.ok{color:var(--teal)}.verdict.no{color:var(--bad)}
+.res{padding:0 16px 12px;overflow-x:auto}
+.res table{border-collapse:collapse;font:.8rem var(--mono);font-variant-numeric:tabular-nums;background:var(--surface)}
 .res th,.res td{border:1px solid var(--line);padding:4px 9px;white-space:nowrap;text-align:left}
-.res th{background:var(--panel)}
+.res th{background:var(--code-bg)}
 .res .null{color:var(--muted);font-style:italic}
-.res .err{color:var(--warnline);font-family:var(--mono);white-space:pre-wrap;font-size:14px}
-.res .meta{color:var(--muted);font-size:13px;margin:6px 0}
+.res .err{color:var(--bad);font-family:var(--mono);white-space:pre-wrap;font-size:.84rem;background:var(--bad-soft);padding:8px 10px;border-radius:6px;margin-top:8px}
+.res .meta{color:var(--muted);font-size:.8rem;margin:8px 0 6px}
+
 /* playground modal */
-.pgwrap{position:fixed;inset:0;z-index:60;background:#0008;display:flex;align-items:stretch;justify-content:center;padding:calc(env(safe-area-inset-top,0px) + 16px) max(16px,env(safe-area-inset-right,0px)) calc(env(safe-area-inset-bottom,0px) + 16px) max(16px,env(safe-area-inset-left,0px))}
-.pgwrap[hidden],[hidden]{display:none!important}
-.pg{background:var(--bg);border-radius:8px;width:min(1200px,100%);display:grid;grid-template-rows:auto 1fr;overflow:hidden;border:1px solid var(--line)}
-.pg .ph{display:flex;gap:8px;align-items:center;padding:8px 12px;background:var(--top);color:var(--topfg);flex-wrap:wrap}
-.pg .ph strong{margin-right:auto}
+.pgwrap{position:fixed;inset:0;z-index:60;background:rgba(10,15,20,.55);display:flex;align-items:stretch;justify-content:center;padding:calc(env(safe-area-inset-top,0px) + 16px) max(16px,env(safe-area-inset-right,0px)) calc(env(safe-area-inset-bottom,0px) + 16px) max(16px,env(safe-area-inset-left,0px))}
+.pg{background:var(--surface);border-radius:10px;width:min(1200px,100%);display:grid;grid-template-rows:auto 1fr;overflow:hidden;border:1px solid var(--line);box-shadow:0 20px 50px rgba(0,0,0,.3)}
+.pg .ph{display:flex;gap:8px;align-items:center;padding:10px 12px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.pg .ph strong{margin-right:auto;font-family:var(--display);font-weight:800;font-size:1.05rem}
 .pg .pb{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);min-height:0}
 .pg .pl{display:flex;flex-direction:column;border-right:1px solid var(--line);min-height:0}
 .pg .pl textarea{flex:1;min-height:200px;border-top:0}
-.pg .pr{overflow:auto;padding-top:10px;min-height:0}
-.keep{font-size:13px;display:inline-flex;gap:5px;align-items:center;white-space:nowrap}
-.ex.rs pre{border-left-color:#c26a00}.ex.ath pre{border-left-color:#7a5cc9}.ex.ms pre{border-left-color:var(--muted)}
-.schema{font:13px var(--mono);padding:8px 12px;border-top:1px solid var(--line);max-height:34%;overflow:auto;color:var(--muted)}
-.schema b{color:var(--fg)}
+.pg .pr{overflow:auto;padding-top:4px;min-height:0}
+.keep{font-size:.82rem;display:inline-flex;gap:5px;align-items:center;white-space:nowrap;color:var(--muted)}
+.keep input{accent-color:var(--accent)}
+.schema{font:.78rem var(--mono);padding:8px 14px;border-top:1px solid var(--line);max-height:34%;overflow:auto;color:var(--muted);background:var(--surface)}
+.schema b{color:var(--ink)}
 .schema div{margin:2px 0;cursor:pointer}
 .schema div:hover b{color:var(--accent)}
+
+/* quiz */
+.quiz .qq{border:1px solid var(--line);border-radius:8px;padding:12px 16px;margin:12px 0;background:var(--surface)}
+.quiz .qq p{margin:0 0 8px;font-weight:600}
+.quiz label{display:block;padding:6px 8px;border-radius:5px;cursor:pointer}
+.quiz label:hover{background:var(--code-bg)}
+.quiz input{accent-color:var(--accent)}
+.quiz .why{margin-top:6px;font-size:.92rem}
+.quiz label.good{background:var(--teal-soft)} .quiz label.bad{background:var(--bad-soft)}
+
+/* home */
+.home-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px;margin:16px 0}
+.home-grid a{display:block;border:1px solid var(--line);border-radius:8px;padding:14px 16px;text-decoration:none;color:var(--ink);background:var(--surface);transition:border-color .15s}
+.home-grid a:hover{border-color:var(--accent)}
+.home-grid a b{display:block;font-family:var(--display);font-weight:600;font-size:1.02rem;margin-bottom:2px}
+.home-grid a span{font-size:.88rem;color:var(--muted)}
+.done-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:30px;padding-top:16px;border-top:1px solid var(--line)}
+
 @media (max-width:860px){
   #menuBtn{display:inline-block}
   .wrap{grid-template-columns:minmax(0,1fr)}
-  nav.side{position:fixed;left:0;top:calc(54px + env(safe-area-inset-top,0px));width:min(300px,86vw);z-index:45;transform:translateX(-105%);transition:transform .2s;height:calc(100% - 54px - env(safe-area-inset-top,0px))}
-  nav.side.open{transform:none;box-shadow:0 0 30px #0006}
-  .top input{width:100%;min-width:0}
+  nav.side{position:fixed;left:0;top:calc(env(safe-area-inset-top,0px) + 53px);bottom:0;height:auto;width:min(86vw,320px);z-index:45;transform:translateX(-102%);transition:transform .2s ease;box-shadow:0 10px 30px rgba(0,0,0,.25);background:var(--surface)}
+  nav.side.open{transform:none}
+  .top input{width:100%;min-width:0;flex:1}
   .prog,.hideM{display:none}
   .pg .pb{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr) minmax(0,1fr)}
   .pg .pl{border-right:0;border-bottom:1px solid var(--line)}
 }
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
-.quiz .qq{border:1px solid var(--line);border-radius:6px;padding:12px 16px;margin:12px 0}
-.quiz .qq p{margin:0 0 8px;font-weight:600}
-.quiz label{display:block;padding:5px 8px;border-radius:4px;cursor:pointer}
-.quiz label:hover{background:var(--panel)}
-.quiz .why{margin-top:6px;font-size:15px}
-.quiz label.good{background:var(--accentsoft)} .quiz label.bad{background:var(--warn)}
-.home-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px;margin:16px 0}
-.home-grid a{display:block;border:1px solid var(--line);border-radius:6px;padding:12px 14px;text-decoration:none;color:var(--fg);background:var(--panel)}
-.home-grid a:hover{border-color:var(--accent)}
-.home-grid a b{display:block;font-size:17px}
-.home-grid a span{font-size:14px;color:var(--muted)}
-kbd{font:12.5px var(--mono);border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:0 5px;background:var(--panel)}
-.done-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:30px;padding-top:14px;border-top:1px solid var(--line)}
 </style>
 
 <header class="top">
@@ -3180,7 +3218,7 @@ L('playground','SQL Playground',`
 <p>A real <b>PostgreSQL 16</b> engine (PGlite, compiled to WebAssembly) runs inside this page with all sample tables. Nothing is sent anywhere.</p>
 <ul><li>By default each run is wrapped in a transaction and rolled back, so examples never break the sample data. Tick <b>Keep changes</b> to persist your work (needed for <code>VACUUM</code>, <code>CREATE INDEX CONCURRENTLY</code>); <b>Reset DB</b> restores everything.</li>
 <li>If your browser blocks WebAssembly, the page falls back to SQLite with a PostgreSQL compatibility layer — the header shows which engine is active.</li>
-<li><span style="color:#c26a00">Orange</span> blocks are Redshift and <span style="color:#7a5cc9">purple</span> blocks are Athena: they're reference syntax for those services and don't run here.</li></ul>
+<li><span style="color:var(--rs)">Orange</span> blocks are Redshift and <span style="color:var(--ath)">violet</span> blocks are Athena: they're reference syntax for those services and don't run here.</li></ul>
 @@run Start anywhere
 SELECT c.first_name, c.country, COUNT(o.order_id) AS orders, COALESCE(SUM(o.sales), 0) AS sales
 FROM customers c LEFT JOIN orders o ON o.customer_id = c.customer_id
@@ -3321,7 +3359,7 @@ function venn(type){
   const leftOnly=`<mask id="${id}m"><rect width="120" height="78" fill="#fff"/><path d="${B}" fill="#000"/></mask><path d="${A}" mask="url(#${id}m)" fill="${fill}"/>`;
   const rightOnly=`<mask id="${id}n"><rect width="120" height="78" fill="#fff"/><path d="${A}" fill="#000"/></mask><path d="${B}" mask="url(#${id}n)" fill="${fill}"/>`;
   const map={inner:both,left:left,right:right,full:left+right,leftanti:leftOnly,rightanti:rightOnly,fullanti:leftOnly+rightOnly};
-  return `<svg viewBox="0 0 120 78" role="img" aria-label="${type} join">${map[type]||''}<path d="${A}" fill="none" stroke="var(--fg)" stroke-width="1.5"/><path d="${B}" fill="none" stroke="var(--fg)" stroke-width="1.5"/><text x="26" y="43" font-size="12" fill="var(--fg)" font-weight="700">A</text><text x="88" y="43" font-size="12" fill="var(--fg)" font-weight="700">B</text></svg>`;
+  return `<svg viewBox="0 0 120 78" role="img" aria-label="${type} join">${map[type]||''}<path d="${A}" fill="none" stroke="var(--ink)" stroke-width="1.5"/><path d="${B}" fill="none" stroke="var(--ink)" stroke-width="1.5"/><text x="26" y="43" font-size="12" fill="var(--ink)" font-weight="700">A</text><text x="88" y="43" font-size="12" fill="var(--ink)" font-weight="700">B</text></svg>`;
 }
 
 /* ---------- body parser ---------- */
@@ -3414,7 +3452,7 @@ let curId='home';
 function home(){
   return `<div class="eyebrow">AWS data engineering interview reference · ${ALL.length} lessons</div><h1>SQL for AWS Data Engineers</h1>
   <p>One place for every SQL concept an AWS data engineering interview can touch, taught in <b>PostgreSQL</b> — the dialect behind Amazon RDS and Aurora PostgreSQL and the ancestor of Amazon Redshift — with dedicated chapters for <b>Redshift</b> and <b>Athena (Trino)</b>. It follows Baraa Khatib Salkini's full SQL course, converted from SQL Server to PostgreSQL, and adds the PostgreSQL internals and AWS patterns interviewers ask about.</p>
-  <div class="box tip"><b class="lbl">How to use this page</b><ul style="margin:4px 0"><li><b>Read</b> lessons in order from the left menu, or search with <kbd>/</kbd>.</li><li><b>Try it Yourself »</b> opens a live editor running <b>real PostgreSQL 16</b> inside your browser on a sample database. <kbd>Ctrl</kbd>+<kbd>Enter</kbd> runs. Changes roll back after each run unless you tick <i>Keep changes</i>.</li><li><b>Exercises</b> check your query against the expected result. <b>Quizzes</b> close each chapter.</li><li><b>Purple boxes</b> are interview questions with model answers.</li><li>Code boxes are labelled: <b>green</b> = PostgreSQL (runs here), <b>orange</b> = Redshift, <b>violet</b> = Athena/Trino, <b>grey</b> = SQL Server for comparison.</li></ul></div>
+  <div class="box tip"><b class="lbl">How to use this page</b><ul style="margin:4px 0"><li><b>Read</b> lessons in order from the left menu, or search with <kbd>/</kbd>.</li><li><b>Try it Yourself »</b> opens a live editor running <b>real PostgreSQL 16</b> inside your browser on a sample database. <kbd>Ctrl</kbd>+<kbd>Enter</kbd> runs. Changes roll back after each run unless you tick <i>Keep changes</i>.</li><li><b>Exercises</b> check your query against the expected result. <b>Quizzes</b> close each chapter.</li><li><b>Purple boxes</b> are interview questions with model answers.</li><li>Code boxes are colour-coded on the left edge: <b>blue</b> = PostgreSQL (runs here), <b>orange</b> = Redshift, <b>violet</b> = Athena/Trino, <b>grey</b> = SQL Server for comparison.</li></ul></div>
   <div class="box note"><b class="lbl">What is from the course and what is added</b>Chapters 1–11 and the warehouse chapter follow the course's topics, order and examples (converted to PostgreSQL). Everything Redshift-, Athena-, RDS- and PostgreSQL-internals-specific, the JSON and transactions chapters, and the Interview Kit are additions for AWS interviews.</div>
   <h2>Chapters</h2><div class="home-grid">${CH.map(c=>`<a href="#${c.lessons[0].id}"><b>${c.title}</b><span>${c.blurb}</span></a>`).join('')}</div>
   <h2>Sample database</h2><p>The course's <i>SalesDB</i> in PostgreSQL naming (snake_case), plus the small <i>MyDatabase</i> tables:</p>
