@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>AWS DE Study Library</title>
+<meta name="description" content="Self-study library for AWS data engineering, APIs, FastAPI and agentic AI: courses, handbooks, roadmaps and interview workbooks.">
+<meta name="theme-color" content="#0a7560">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="AWS DE">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=JetBrains+Mono:wght@500;600&display=swap">
+<style>
+:root{
+  --bg:#f3f6f5;--surface:#fff;--ink:#13201d;--muted:#55655f;--line:#d6e0dc;
+  --accent:#0a7560;--accent-ink:#fff;--accent-soft:#dff1ea;
+  --c-aws:#a15c00;--c-aws-soft:#fbefe1;--c-ai:#5a3db3;--c-ai-soft:#efe9fb;--c-int:#1b5ca6;--c-int-soft:#e5effb;
+  --f-display:"Bricolage Grotesque",ui-sans-serif,system-ui,sans-serif;
+  --f-body:"Atkinson Hyperlegible",ui-sans-serif,system-ui,sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0c1312;--surface:#121c1a;--ink:#e2ebe8;--muted:#93a7a1;--line:#24342f;
+  --accent:#3cc6a2;--accent-ink:#06231b;--accent-soft:#12302a;
+  --c-aws:#f0a95a;--c-aws-soft:#2e2215;--c-ai:#b9a2ff;--c-ai-soft:#221b38;--c-int:#7fb5f2;--c-int-soft:#14243a;
+  color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0c1312;--surface:#121c1a;--ink:#e2ebe8;--muted:#93a7a1;--line:#24342f;
+  --accent:#3cc6a2;--accent-ink:#06231b;--accent-soft:#12302a;
+  --c-aws:#f0a95a;--c-aws-soft:#2e2215;--c-ai:#b9a2ff;--c-ai-soft:#221b38;--c-int:#7fb5f2;--c-int-soft:#14243a;
+  color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:16px;line-height:1.55}
+.wrap{max-width:1080px;margin:0 auto;padding:calc(40px + env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) calc(56px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
+.mark{display:inline-flex;align-items:center;gap:10px;font-family:var(--f-mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.mark b{background:var(--accent);color:var(--accent-ink);padding:3px 8px;border-radius:5px;letter-spacing:.02em}
+h1{font-family:var(--f-display);font-weight:800;font-size:clamp(32px,6vw,54px);line-height:1.04;letter-spacing:-.025em;margin:14px 0 12px;text-wrap:balance}
+.lede{font-size:18px;color:var(--muted);max-width:60ch;margin:0 0 28px}
+.filters{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 22px}
+.filters button{font:600 13px var(--f-mono);border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:999px;padding:7px 13px;cursor:pointer}
+.filters button[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px}
+.card{display:flex;flex-direction:column;gap:10px;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:20px;color:inherit;text-decoration:none;transition:border-color .15s,transform .15s;min-width:0}
+.card:hover,.card:focus-visible{border-color:var(--accent);transform:translateY(-2px)}
+.card:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.tag{align-self:flex-start;font:600 11px var(--f-mono);letter-spacing:.06em;text-transform:uppercase;padding:4px 8px;border-radius:5px}
+.t-aws{color:var(--c-aws);background:var(--c-aws-soft)}.t-ai{color:var(--c-ai);background:var(--c-ai-soft)}.t-int{color:var(--c-int);background:var(--c-int-soft)}
+.card h2{font-family:var(--f-display);font-weight:700;font-size:22px;line-height:1.15;margin:0;text-wrap:balance}
+.card p{margin:0;color:var(--muted);font-size:15px}
+.card .go{margin-top:auto;padding-top:6px;font:600 13px var(--f-mono);color:var(--accent)}
+.tip{margin-top:36px;border-top:1px solid var(--line);padding-top:18px;font-size:14px;color:var(--muted);max-width:70ch}
+.tip b{color:var(--ink)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="mark"><b>AWS DE</b> Study library</div>
+  <h1>Learn AWS data engineering, APIs and agentic AI</h1>
+  <p class="lede">Six self-study guides with lessons, worked code and quizzes. Open any of them in your browser or on your phone. Your progress is saved on the device you study on.</p>
+
+  <div class="filters" role="group" aria-label="Filter guides">
+    <button type="button" data-f="all" aria-pressed="true">All</button>
+    <button type="button" data-f="aws" aria-pressed="false">AWS data engineering</button>
+    <button type="button" data-f="ai" aria-pressed="false">APIs &amp; agentic AI</button>
+    <button type="button" data-f="int" aria-pressed="false">Interview prep</button>
+  </div>
+
+  <div class="grid">
+    <a class="card" data-c="ai" href="api-mastery-track/">
+      <span class="tag t-ai">APIs &amp; agentic AI</span>
+      <h2>API Mastery Track</h2>
+      <p>45 plain-language lessons, from "what is an API" to FastAPI services, data pipelines that call APIs, tool calling and MCP. Quizzes and an A–Z dictionary.</p>
+      <span class="go">Open course →</span>
+    </a>
+    <a class="card" data-c="aws" href="dea-c01/">
+      <span class="tag t-aws">AWS data engineering</span>
+      <h2>DEA-C01 Study Hub</h2>
+      <p>Prep for the AWS Certified Data Engineer – Associate exam: ingestion, storage, operations and security, one lesson per page with quizzes.</p>
+      <span class="go">Open course →</span>
+    </a>
+    <a class="card" data-c="aws" href="redshift/">
+      <span class="tag t-aws">AWS data engineering</span>
+      <h2>Redshift Field Guide</h2>
+      <p>Amazon Redshift from architecture to tuning: distribution and sort keys, COPY, Spectrum, workload management and Serverless.</p>
+      <span class="go">Open guide →</span>
+    </a>
+    <a class="card" data-c="ai" href="agentcore/">
+      <span class="tag t-ai">APIs &amp; agentic AI</span>
+      <h2>AgentCore Runtime Handbook</h2>
+      <p>Take a FastAPI + LangGraph agent from laptop to Amazon Bedrock AgentCore Runtime: containers, deployment, hardening and evaluations.</p>
+      <span class="go">Open handbook →</span>
+    </a>
+    <a class="card" data-c="int" href="lakehouse-roadmap/">
+      <span class="tag t-int">Interview prep</span>
+      <h2>Lakehouse Interview Roadmap</h2>
+      <p>A build-order route through S3, Glue, Athena, Iceberg, orchestration, Redshift and streaming, with the interview weight of each stop.</p>
+      <span class="go">Open roadmap →</span>
+    </a>
+    <a class="card" data-c="int" href="pydsa/">
+      <span class="tag t-int">Interview prep</span>
+      <h2>PyDSA Interview Workbook</h2>
+      <p>Python data structures and algorithms practice framed around data-engineering problems, with brute-force and optimal solutions.</p>
+      <span class="go">Open workbook →</span>
+    </a>
+  </div>
+
+  <p class="tip"><b>On your phone:</b> open this page, then tap <b>Share → Add to Home Screen</b> on iPhone, or <b>⋮ → Add to Home screen</b> in Chrome on Android, to keep the library one tap away.</p>
+</div>
+<script>
+(function(){
+  var btns=document.querySelectorAll('.filters button'),cards=document.querySelectorAll('.card');
+  btns.forEach(function(b){b.addEventListener('click',function(){
+    var f=b.getAttribute('data-f');
+    btns.forEach(function(x){x.setAttribute('aria-pressed',String(x===b));});
+    cards.forEach(function(c){c.hidden=!(f==='all'||c.getAttribute('data-c')===f);});
+  });});
+})();
+</script>
+</body>
+</html>

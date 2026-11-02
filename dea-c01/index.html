@@ -1,0 +1,1716 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style><title>DEA-C01 Study Hub</title>
+<meta name="description" content="AWS Certified Data Engineer – Associate exam prep with lessons and quizzes.">
+<meta name="theme-color" content="#0a7560">
+<link rel="icon" href="../icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="../icon-180.png">
+<link rel="manifest" href="../manifest.webmanifest">
+</head><body>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Source+Sans+3:ital,wght@0,400;0,600;0,700;1,400&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: study handbook — fixed topic tree on the left (drawer on phones), one lesson per page, quiz at the end; dotted words open a definition card */
+:root{
+  --bg:#f6f7f9; --panel:#ffffff; --ink:#18212e; --muted:#5a6676; --line:#dfe3ea;
+  --accent:#0d6b62; --accent-soft:#e2f2ef; --tip:#8a5a00; --tip-soft:#fbf1dc;
+  --warn:#a3322a; --warn-soft:#fbe9e7; --ok:#1f7a3a; --ok-soft:#e5f4e8; --code:#eef1f5;
+  --simple:#3d4fa8; --simple-soft:#eceffb;
+  --display:"Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --body:"Source Sans 3", "Segoe UI", system-ui, sans-serif;
+  --mono:"JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+  --side:290px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#11161d; --panel:#171e27; --ink:#e4e9f0; --muted:#97a3b3; --line:#2a3441;
+  --accent:#4cc3b4; --accent-soft:#16302d; --tip:#e7b85a; --tip-soft:#2d2514;
+  --warn:#f0877d; --warn-soft:#331b19; --ok:#6fd08a; --ok-soft:#16291b; --code:#1e2732;
+  --simple:#9aa9ff; --simple-soft:#1c2140; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#11161d; --panel:#171e27; --ink:#e4e9f0; --muted:#97a3b3; --line:#2a3441;
+  --accent:#4cc3b4; --accent-soft:#16302d; --tip:#e7b85a; --tip-soft:#2d2514;
+  --warn:#f0877d; --warn-soft:#331b19; --ok:#6fd08a; --ok-soft:#16291b; --code:#1e2732;
+  --simple:#9aa9ff; --simple-soft:#1c2140; color-scheme:dark}
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:17px;line-height:1.65}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:30;background:var(--panel)}
+a{color:var(--accent)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--panel);border-bottom:1px solid var(--line);
+  display:flex;align-items:center;gap:12px;padding-block:10px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.brand{font-family:var(--display);font-weight:800;font-size:20px;letter-spacing:-.01em;white-space:nowrap}
+.brand span{color:var(--accent)}
+.prog{margin-left:auto;display:flex;align-items:center;gap:10px;font-size:14px;color:var(--muted);font-variant-numeric:tabular-nums}
+.bar{width:120px;height:6px;border-radius:3px;background:var(--line);overflow:hidden}
+.bar i{display:block;height:100%;background:var(--accent);width:0}
+.menu-btn{display:none;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:8px;padding:6px 10px;font:600 15px var(--body);cursor:pointer}
+
+.wrap{display:grid;grid-template-columns:var(--side) minmax(0,1fr)}
+.side{position:sticky;top:calc(53px + env(safe-area-inset-top,0px));height:calc(100vh - 53px - env(safe-area-inset-top,0px));overflow-y:auto;
+  border-right:1px solid var(--line);background:var(--panel);padding:14px 0 40px}
+.search{margin:0 14px 10px;width:calc(100% - 28px);padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font:15px var(--body)}
+.mod{margin-top:6px}
+.mod h4{margin:12px 16px 4px;font:700 12px var(--body);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);display:flex;justify-content:space-between;gap:8px}
+.mod h4 small{font-weight:600;letter-spacing:.04em;text-transform:none}
+.side a{display:flex;gap:8px;align-items:center;padding:6px 16px 6px 22px;color:var(--ink);text-decoration:none;font-size:15px;line-height:1.35;border-left:3px solid transparent}
+.side a:hover{background:var(--accent-soft)}
+.side a.on{background:var(--accent-soft);border-left-color:var(--accent);font-weight:600}
+.side a .d{width:14px;flex:none;font-size:12px;color:var(--ok)}
+.side a.soon{color:var(--muted)}
+
+main{min-width:0;padding-block:28px 80px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.page{max-width:760px;margin:0 auto}
+.crumb{font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;font-weight:600}
+h1{font-family:var(--display);font-weight:800;font-size:clamp(28px,5vw,38px);line-height:1.15;letter-spacing:-.02em;margin:6px 0 14px;text-wrap:balance}
+h2{font-family:var(--display);font-weight:600;font-size:23px;margin:34px 0 8px;text-wrap:balance}
+h3{font-size:18px;margin:22px 0 6px}
+p,li{max-width:68ch}
+ul,ol{padding-left:22px}
+li{margin:5px 0}
+code{font-family:var(--mono);font-size:.86em;background:var(--code);padding:1px 5px;border-radius:4px;overflow-wrap:anywhere}
+pre{font-family:var(--mono);font-size:13.5px;line-height:1.5;background:var(--code);padding:14px;border-radius:8px;overflow-x:auto;border:1px solid var(--line)}
+pre code{background:none;padding:0;font-size:inherit;overflow-wrap:normal}
+.tbl{overflow-x:auto;margin:12px 0;border:1px solid var(--line);border-radius:8px}
+table{border-collapse:collapse;width:100%;font-size:15px;background:var(--panel)}
+th,td{text-align:left;vertical-align:top;padding:8px 12px;border-bottom:1px solid var(--line)}
+th{background:var(--code);font-weight:700}
+tr:last-child td{border-bottom:0}
+.lead{font-size:19px;color:var(--muted)}
+.learn{border:1px solid var(--line);border-radius:10px;padding:10px 16px;background:var(--panel);margin:16px 0}
+.learn b.l{display:block;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.learn ul{margin:6px 0}
+.box{border-radius:8px;padding:12px 16px;margin:18px 0;border:1px solid}
+.box b.l{display:block;font-size:12px;letter-spacing:.08em;text-transform:uppercase;margin-bottom:2px}
+.box p:first-of-type{margin-top:4px}
+.box p:last-child{margin-bottom:4px}
+.simple{background:var(--simple-soft);border-color:color-mix(in srgb,var(--simple) 35%,transparent)}
+.simple b.l{color:var(--simple)}
+.tip{background:var(--tip-soft);border-color:color-mix(in srgb,var(--tip) 35%,transparent)}
+.tip b.l{color:var(--tip)}
+.key{background:var(--accent-soft);border-color:color-mix(in srgb,var(--accent) 35%,transparent)}
+.key b.l{color:var(--accent)}
+.trap{background:var(--warn-soft);border-color:color-mix(in srgb,var(--warn) 35%,transparent)}
+.trap b.l{color:var(--warn)}
+.lab{background:var(--panel);border-color:var(--line);border-style:dashed}
+.lab b.l{color:var(--muted)}
+
+/* glossary terms */
+.gl{background:none;border:0;padding:0;margin:0;font:inherit;color:inherit;cursor:help;border-bottom:1.5px dotted var(--accent);line-height:inherit}
+.gl:hover{color:var(--accent)}
+.pop{position:fixed;z-index:40;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));
+  width:min(460px,calc(100% - 32px));background:var(--panel);border:1px solid var(--line);border-radius:12px;
+  box-shadow:0 12px 40px rgba(0,0,0,.25);padding:14px 16px 12px}
+.pop .t{font-family:var(--display);font-weight:800;font-size:20px}
+.pop .f{color:var(--accent);font-weight:700;margin-bottom:4px}
+.pop p{margin:4px 0 8px;font-size:16px}
+.pop .row{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:14px}
+.pop button{border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:8px;padding:5px 12px;font:600 14px var(--body);cursor:pointer}
+.gloss{display:grid;gap:0;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--panel);margin-top:12px}
+.gloss .g{padding:10px 14px;border-bottom:1px solid var(--line)}
+.gloss .g:last-child{border-bottom:0}
+.gloss .g b{font-family:var(--display);font-size:17px}
+.gloss .g .f{color:var(--accent);font-weight:600;margin-left:6px}
+.gloss .g p{margin:2px 0 0;font-size:15.5px}
+.gloss h3{margin:0;padding:6px 14px;background:var(--code);font-size:14px;letter-spacing:.06em}
+
+.quiz{margin-top:40px;border-top:2px solid var(--ink);padding-top:14px}
+.quiz h2{margin-top:0}
+.q{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin:14px 0}
+.q .stem{font-weight:600;margin:0 0 10px}
+.q .n{color:var(--muted);font-variant-numeric:tabular-nums;margin-right:6px}
+.opt{display:flex;gap:10px;align-items:flex-start;padding:8px 10px;border:1px solid var(--line);border-radius:8px;margin:6px 0;cursor:pointer;background:var(--bg)}
+.opt input{margin-top:5px;accent-color:var(--accent)}
+.opt.right{border-color:var(--ok);background:var(--ok-soft)}
+.opt.wrong{border-color:var(--warn);background:var(--warn-soft)}
+.qbtn{margin-top:8px;border:0;border-radius:8px;padding:8px 14px;font:600 15px var(--body);cursor:pointer;background:var(--accent);color:var(--panel)}
+.qbtn:disabled{opacity:.45;cursor:default}
+.why{margin-top:10px;font-size:15.5px;padding:10px 12px;border-radius:8px;background:var(--code)}
+.why b{color:var(--ok)}
+.why b.x{color:var(--warn)}
+.score{font-weight:700;font-variant-numeric:tabular-nums}
+
+.foot{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:40px;padding-top:18px;border-top:1px solid var(--line)}
+.nav{flex:1 1 200px;border:1px solid var(--line);border-radius:10px;padding:10px 14px;text-decoration:none;color:var(--ink);background:var(--panel)}
+.nav small{display:block;color:var(--muted);font-size:13px}
+.nav.nx{text-align:right}
+.done-btn{display:inline-flex;align-items:center;gap:8px;margin-top:28px;border:1px solid var(--accent);background:transparent;color:var(--accent);border-radius:8px;padding:9px 16px;font:600 15px var(--body);cursor:pointer}
+.done-btn.is{background:var(--accent);color:var(--panel)}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin:14px 0}
+.card{border:1px solid var(--line);border-radius:10px;padding:12px 14px;background:var(--panel);text-decoration:none;color:var(--ink)}
+.card b{font-family:var(--display);font-size:17px;display:block}
+.card span{font-size:14px;color:var(--muted)}
+.card.soon{opacity:.75}
+.pill{display:inline-block;font-size:12px;font-weight:700;letter-spacing:.04em;padding:1px 8px;border-radius:99px;background:var(--code);color:var(--muted);margin-left:6px;vertical-align:2px}
+
+@media (max-width:900px){
+  .wrap{grid-template-columns:minmax(0,1fr)}
+  .menu-btn{display:block}
+  .side{position:fixed;z-index:25;top:calc(53px + env(safe-area-inset-top,0px));left:0;width:min(86vw,320px);height:calc(100% - 53px - env(safe-area-inset-top,0px));
+    transform:translateX(-102%);transition:transform .2s ease;box-shadow:0 10px 40px rgba(0,0,0,.25);padding-left:env(safe-area-inset-left,0px)}
+  .side.open{transform:none}
+  .bar{width:48px}
+  .prog .lbl{display:none}
+  .top{gap:10px}
+  .brand{font-size:17px;min-width:0;overflow:hidden;text-overflow:ellipsis}
+}
+@media (prefers-reduced-motion:reduce){.side{transition:none}}
+</style>
+
+<header class="top">
+  <button class="menu-btn" id="menuBtn" aria-controls="side" aria-expanded="false">Topics</button>
+  <div class="brand">DEA-C01 <span>Study Hub</span></div>
+  <div class="prog"><span class="lbl">Progress</span><div class="bar"><i id="barFill"></i></div><span id="progTxt">0/0</span></div>
+</header>
+<div class="wrap">
+  <nav class="side" id="side" aria-label="Topics">
+    <input class="search" id="search" type="search" placeholder="Search topics" aria-label="Search topics">
+    <div id="tree"></div>
+  </nav>
+  <main><article class="page" id="page"></article></main>
+</div>
+<div class="pop" id="pop" role="dialog" aria-live="polite" hidden>
+  <div class="t" id="popT"></div><div class="f" id="popF"></div><p id="popM"></p>
+  <div class="row"><a href="#glossary" id="popAll">Open full glossary</a><button type="button" id="popX">Close</button></div>
+</div>
+
+<script>
+/* ---------- glossary: every abbreviation and key term, in plain words ---------- */
+const GLOSSARY=[
+ ["ABAC","Attribute-Based Access Control","Giving permissions by matching labels (tags) on the person and on the resource, e.g. people tagged project=sales can use resources tagged project=sales."],
+ ["ACID","Atomicity, Consistency, Isolation, Durability","Four guarantees that a database change either fully happens or doesn't happen at all, so data never ends up half-updated."],
+ ["API","Application Programming Interface","A defined way for one program to ask another to do something. Every click in the AWS console calls an AWS API behind the scenes."],
+ ["ARN","Amazon Resource Name","The unique 'full address' of one AWS resource, e.g. arn:aws:s3:::my-bucket. Policies use ARNs to say which resources a rule applies to."],
+ ["AWS","Amazon Web Services","Amazon's cloud platform: 200+ services you rent over the internet."],
+ ["AZ","Availability Zone","One or more separate data centres inside a Region, with their own power and network, so a failure in one doesn't take down the others."],
+ ["BI","Business Intelligence","Dashboards and reports that help people make decisions from data."],
+ ["CDC","Change Data Capture","Copying only the rows that were inserted, updated or deleted in a database, instead of copying the whole table again."],
+ ["CDK","Cloud Development Kit","Write AWS infrastructure in a programming language like Python; it generates CloudFormation templates."],
+ ["CI/CD","Continuous Integration / Continuous Delivery","Automatically testing and deploying code every time it changes."],
+ ["CIDR","Classless Inter-Domain Routing","The way to write a range of IP addresses, e.g. 10.0.0.0/16. The number after the slash decides how big the range is: smaller number = bigger range."],
+ ["CLI","Command Line Interface","Typing commands in a terminal instead of clicking, e.g. aws s3 ls."],
+ ["CPU","Central Processing Unit","The 'brain' of a computer that runs instructions. A vCPU is a virtual CPU you rent in the cloud."],
+ ["CRR","Cross-Region Replication","Automatically copying S3 objects from a bucket in one Region to a bucket in another Region."],
+ ["CSV","Comma-Separated Values","A plain text file where each line is a row and commas separate the columns."],
+ ["CTAS","CREATE TABLE AS SELECT","A SQL statement that creates a new table from the result of a query."],
+ ["DAX","DynamoDB Accelerator","An in-memory cache in front of DynamoDB for microsecond reads."],
+ ["DMS","Database Migration Service","AWS service that copies data from one database to another, once or continuously."],
+ ["DNS","Domain Name System","The internet's phone book: turns a name like aws.amazon.com into an IP address."],
+ ["DPU","Data Processing Unit","Glue's billing unit for compute: one DPU is 4 vCPUs and 16 GB of memory."],
+ ["DQDL","Data Quality Definition Language","The simple rule language Glue Data Quality uses, e.g. IsComplete \"id\"."],
+ ["EBS","Elastic Block Store","Virtual hard disks attached to EC2 servers."],
+ ["EC2","Elastic Compute Cloud","AWS virtual servers you rent by the second."],
+ ["ELT","Extract, Load, Transform","Load raw data into the warehouse first, then clean it there with SQL."],
+ ["EMR","Elastic MapReduce","AWS's managed service for big-data frameworks like Apache Spark and Hive."],
+ ["ENI","Elastic Network Interface","A virtual network card. Anything placed inside a VPC (a server, a Glue worker, a Lambda) gets one, with a private IP address."],
+ ["ETL","Extract, Transform, Load","Take data from a source, clean or reshape it, then load it into a target."],
+ ["GB","Gigabyte","About one thousand megabytes. 1,000 GB is about one TB (terabyte)."],
+ ["GSI","Global Secondary Index","An extra index on a DynamoDB table with a different key, so you can look items up another way."],
+ ["HNSW","Hierarchical Navigable Small World","A fast, graph-based index for finding similar vectors (used in AI search)."],
+ ["HTTP","HyperText Transfer Protocol","The language browsers and web APIs use to talk to servers."],
+ ["HTTPS","HTTP Secure","HTTP encrypted with TLS so nobody in between can read or change the data. Uses port 443."],
+ ["IaaS","Infrastructure as a Service","You rent raw servers, storage and network; you manage the operating system and software yourself. Example: EC2."],
+ ["IaC","Infrastructure as Code","Describing your AWS resources in a file so they can be created the same way every time. Examples: CloudFormation, CDK."],
+ ["IAM","Identity and Access Management","The AWS service that controls who can sign in and what each person or service is allowed to do."],
+ ["IGW","Internet Gateway","The 'main gate' that connects a VPC to the public internet."],
+ ["IP","Internet Protocol (address)","A number that identifies a device on a network, like a postal address, e.g. 10.0.1.25."],
+ ["IVF","Inverted File (index)","A vector index that groups similar vectors into clusters and searches only the nearest clusters."],
+ ["JDBC","Java Database Connectivity","A standard way for programs (including Glue) to connect to relational databases."],
+ ["JSON","JavaScript Object Notation","A text format of names and values in curly braces. IAM policies are written in JSON."],
+ ["KMS","Key Management Service","The AWS service that creates and protects encryption keys."],
+ ["LLM","Large Language Model","An AI model that reads and writes text, e.g. Claude."],
+ ["LSI","Local Secondary Index","A DynamoDB index with the same partition key but a different sort key; must be created with the table."],
+ ["MFA","Multi-Factor Authentication","Signing in with a password plus a second proof, like a code from an app on your phone."],
+ ["MSK","Managed Streaming for Apache Kafka","AWS-run Apache Kafka clusters for streaming data."],
+ ["MWAA","Managed Workflows for Apache Airflow","AWS-run Apache Airflow for scheduling and orchestrating pipelines."],
+ ["NACL","Network Access Control List","A firewall for a whole subnet. Has numbered allow and deny rules and is stateless (checks traffic in both directions separately)."],
+ ["NAT","Network Address Translation","A NAT Gateway lets servers in a private subnet go out to the internet and get replies, while nobody outside can start a connection to them."],
+ ["OLAP","Online Analytical Processing","Big analytical queries over lots of rows, e.g. total sales per month. Data warehouses are built for this."],
+ ["OLTP","Online Transaction Processing","Many small, fast reads and writes from an app, e.g. placing an order. Normal app databases are built for this."],
+ ["OS","Operating System","The base software of a computer, e.g. Linux or Windows."],
+ ["OU","Organizational Unit","A folder of AWS accounts inside AWS Organizations, used to apply the same rules to many accounts."],
+ ["PaaS","Platform as a Service","AWS runs the servers and operating system; you use the platform. Example: RDS."],
+ ["PII","Personally Identifiable Information","Data that identifies a person: name, phone number, email, ID numbers."],
+ ["RAM","Resource Access Manager","AWS service for sharing resources (like Lake Formation tables) with other AWS accounts."],
+ ["RBAC","Role-Based Access Control","Giving permissions by job role, e.g. everyone in the Analyst role can read the reports bucket."],
+ ["RDS","Relational Database Service","AWS-managed databases like MySQL, PostgreSQL, Oracle and SQL Server."],
+ ["RPU","Redshift Processing Unit","The compute unit Redshift Serverless bills by."],
+ ["S3","Simple Storage Service","AWS object storage: put files (objects) in buckets. The base of every AWS data lake."],
+ ["SaaS","Software as a Service","Ready-made software you just use over the internet, e.g. Gmail or Salesforce."],
+ ["SAM","Serverless Application Model","A short way of writing CloudFormation for serverless apps (Lambda, API Gateway)."],
+ ["SCP","Service Control Policy","A rule set in AWS Organizations that limits the maximum permissions for every user and role in an account, even admins."],
+ ["SDK","Software Development Kit","A library for calling AWS from code. boto3 is the AWS SDK for Python."],
+ ["SNS","Simple Notification Service","Sends a message to many subscribers at once (email, SMS, Lambda, queues). Used for alerts."],
+ ["SQL","Structured Query Language","The language used to query and change data in tables."],
+ ["SQS","Simple Queue Service","A message queue: one part of a system drops messages in, another picks them up later."],
+ ["SSH","Secure Shell","An encrypted way to log in to a Linux server's command line. Uses port 22."],
+ ["SSO","Single Sign-On","Log in once with your company account and get into many apps, including AWS."],
+ ["STS","Security Token Service","The AWS service that hands out temporary credentials when someone assumes a role."],
+ ["TB","Terabyte","About 1,000 GB. Athena charges per TB of data scanned."],
+ ["TCP","Transmission Control Protocol","The common rule-set for reliable connections: data arrives complete and in order. Databases and HTTPS use it."],
+ ["TLS","Transport Layer Security","The encryption used by HTTPS and database connections to protect data while it travels."],
+ ["TTL","Time To Live","An expiry time after which something is automatically deleted, e.g. DynamoDB items."],
+ ["UDP","User Datagram Protocol","A faster, no-guarantee way to send data (no delivery check). Used for things like DNS lookups and video calls."],
+ ["VPC","Virtual Private Cloud","Your own private, isolated network inside an AWS Region."],
+ ["VPN","Virtual Private Network","An encrypted tunnel over the internet that connects your office network to your VPC."],
+ ["WLM","Workload Management","Redshift's way of splitting memory and concurrency between different groups of queries."],
+ ["vCPU","virtual CPU","One virtual processor core that you rent with a cloud server or service."],
+ ["AQE","Adaptive Query Execution","A Spark 3 feature that re-plans a query while it runs, for example splitting skewed partitions or switching to a broadcast join."],
+ ["CTE","Common Table Expression","A named, temporary result written with WITH name AS (…) at the start of a query. Makes long SQL easier to read."],
+ ["DAG","Directed Acyclic Graph","A set of tasks joined by arrows showing which runs after which, with no loops. Airflow pipelines are DAGs."],
+ ["EFS","Elastic File System","A shared network file system that many servers can mount at once."],
+ ["HDFS","Hadoop Distributed File System","The file system that spreads files across the disks of a Hadoop or EMR cluster. Data is lost when the cluster is deleted."],
+ ["IA","Infrequent Access","S3 storage classes for data you read rarely but need back in milliseconds when you do. Cheaper storage, but you pay per GB retrieved."],
+ ["KB","Kilobyte","About 1,000 bytes."],
+ ["MB","Megabyte","About 1,000 KB. A typical photo is a few MB."],
+ ["OOM","Out Of Memory","An error when a program needs more memory than the machine has."],
+ ["ORC","Optimized Row Columnar","A columnar file format, very similar to Parquet, popular with Hive."],
+ ["PB","Petabyte","About 1,000 TB."],
+ ["RTC","Replication Time Control","An S3 replication option that copies 99.99% of objects within 15 minutes, with monitoring."],
+ ["SCD","Slowly Changing Dimension","How a dimension table handles values that change over time, such as a customer's city. Type 1 overwrites; Type 2 keeps history."],
+ ["SRR","Same-Region Replication","Automatically copying S3 objects to another bucket in the same Region."],
+ ["SSE","Server-Side Encryption","AWS encrypts your data when storing it and decrypts it when you read it. SSE-S3 is the default for all new S3 objects."],
+ ["WORM","Write Once, Read Many","Data that can't be changed or deleted for a set period. S3 Object Lock provides this."],
+ /* concept words */
+ ["stateful","—","A firewall that remembers connections. If it allowed a request, it automatically allows that request's reply back. Security groups are stateful."],
+ ["stateless","—","A firewall with no memory. It checks every packet against the rules, in each direction separately, so you must allow both the request and the reply. NACLs are stateless."],
+ ["security group","—","A virtual firewall attached to one resource (a server, database or Glue connection). Allow rules only, stateful."],
+ ["subnet","—","A smaller slice of a VPC's IP address range that lives in exactly one Availability Zone."],
+ ["route table","—","A list of rules that tells network traffic leaving a subnet where to go next."],
+ ["serverless","—","A service where AWS runs and scales all the servers for you; you never see them and pay only for what you use."],
+ ["principal","—","Whoever is making a request to AWS: a user, a role, an AWS service or another account."],
+ ["ingress","—","Traffic coming in. Same as inbound."],
+ ["egress","—","Traffic going out. Same as outbound."],
+ ["ephemeral port","—","A temporary high-numbered port (1024–65535) that a computer picks for receiving the reply to a request it sent."],
+ ["data sovereignty","—","Rules that data must stay inside a certain country or Region."],
+ ["data lake","—","A central store (on AWS, S3) that holds raw data of any format cheaply. Structure is applied only when you read it."],
+ ["data warehouse","—","A database built for analytics: structured tables, fast SQL over huge data, used by dashboards. On AWS: Redshift."],
+ ["lakehouse","—","A data lake that also supports warehouse features like updates, deletes and transactions, using a table format such as Apache Iceberg."],
+ ["schema-on-read","—","Data is stored as-is; its structure (columns and types) is applied only when someone queries it. How data lakes work."],
+ ["schema-on-write","—","Data must match a fixed table structure before it can be stored. How databases and warehouses work."],
+ ["columnar","—","Storing data column by column instead of row by row, so a query reads only the columns it needs. Parquet and Redshift are columnar."],
+ ["Parquet","—","Apache Parquet: the most common columnar file format for analytics. Compressed, typed, and lets engines skip data they don't need."],
+ ["Avro","—","Apache Avro: a compact row-based file format that stores its schema with the data. Good for streaming and changing schemas."],
+ ["partition","—","In a data lake: a folder that holds rows with the same value of a column, e.g. date=2026-10-29, so queries can skip other folders. In Spark: one chunk of data processed by one task."],
+ ["partition pruning","—","Skipping partitions (folders) that can't match a query's filter, so less data is read."],
+ ["cardinality","—","How many different values a column has. Country has low cardinality; order ID has very high cardinality."],
+ ["idempotent","—","Running the same job twice gives the same result as running it once: no duplicates, no double counting."],
+ ["upsert","—","Update the row if it already exists, insert it if it doesn't. Done in SQL with MERGE."],
+ ["backfill","—","Re-running a pipeline for past dates, for example after fixing a bug or adding a new column."],
+ ["fact table","—","The central table of a star schema holding measurable events, such as each sale with its quantity and amount."],
+ ["dimension table","—","A table describing the who, what, where and when of facts, such as customer, product, store and date."],
+ ["grain","—","What exactly one row of a fact table represents, e.g. one product line on one order."],
+ ["shuffle","—","In Spark, moving data between machines so rows with the same key end up together. Needed for joins and group-bys, and usually the slowest part of a job."],
+ ["data skew","—","When one key or partition holds far more data than the others, so one worker does most of the work and the job waits for it."],
+ ["prefix","—","The start of an S3 object key, such as raw/sales/. The console shows prefixes as folders, but S3 has no real folders."],
+ ["delete marker","—","What S3 adds when you delete an object in a versioned bucket. The object looks deleted, but older versions are kept and can be restored."],
+ ["predicate pushdown","—","Applying a query's filter while reading files, so blocks of data that can't match are skipped. Parquet's min/max statistics make this possible."]
+];
+const GMAP={};GLOSSARY.forEach(([t,f,m])=>GMAP[t.toLowerCase()]={t,f,m});
+const escRe=s=>s.replace(/[.*+?^${}()|[\]\\\/]/g,"\\$&");
+const TERM_RE=new RegExp("(?<![A-Za-z0-9\\-/:.])("+GLOSSARY.map(g=>g[0]).sort((a,b)=>b.length-a.length).map(escRe).join("|")+")s?(?![A-Za-z0-9\\-/])","gi");
+const CASE_SENSITIVE=new Set(GLOSSARY.filter(g=>g[1]!=="—").map(g=>g[0]));
+
+function linkTerms(root){
+  const seen=new Set(),nodes=[];
+  const w=document.createTreeWalker(root,NodeFilter.SHOW_TEXT,{acceptNode:n=>
+    n.parentElement.closest("pre,code,a,button,h1,.crumb,.why,.opt,.gloss,.pop")?NodeFilter.FILTER_REJECT:NodeFilter.FILTER_ACCEPT});
+  while(w.nextNode())nodes.push(w.currentNode);
+  nodes.forEach(n=>{
+    const txt=n.nodeValue;let m,last=0,frag=null;TERM_RE.lastIndex=0;
+    while((m=TERM_RE.exec(txt))){
+      const k=m[1].toLowerCase(),g=GMAP[k];
+      if(!g||seen.has(k))continue;
+      if(CASE_SENSITIVE.has(g.t)&&m[1]!==g.t&&!(g.t==="vCPU"))continue; // abbreviations must match case
+      seen.add(k);frag=frag||document.createDocumentFragment();
+      frag.append(txt.slice(last,m.index));
+      const b=document.createElement("button");b.type="button";b.className="gl";b.dataset.k=k;b.textContent=m[0];
+      b.setAttribute("aria-label",m[0]+": show meaning");frag.append(b);last=m.index+m[0].length;
+    }
+    if(frag){frag.append(txt.slice(last));n.replaceWith(frag);}
+  });
+}
+
+/* ---------- helpers for writing lessons ---------- */
+const T=(label,cls,html)=>`<div class="box ${cls}"><b class="l">${label}</b>${html}</div>`;
+const simple=h=>T("In simple words","simple",h), tip=h=>T("Exam tip","tip",h), key=h=>T("Remember","key",h), trap=h=>T("Common trap","trap",h), lab=h=>T("Hands-on","lab",h);
+const learn=items=>`<div class="learn"><b class="l">In this lesson</b><ul>${items.map(i=>`<li>${i}</li>`).join("")}</ul></div>`;
+const table=(head,rows)=>`<div class="tbl"><table><thead><tr>${head.map(h=>`<th>${h}</th>`).join("")}</tr></thead><tbody>${rows.map(r=>`<tr>${r.map(c=>`<td>${c}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
+
+/* ---------- curriculum ---------- */
+const MODULES=[
+ {id:"start",name:"Start here",week:""},
+ {id:"cloud",name:"Cloud & AWS basics",week:"Week 1"},
+ {id:"net",name:"Networking & VPC",week:"Week 1"},
+ {id:"iam",name:"IAM (access control)",week:"Week 1"},
+ {id:"de",name:"Data engineering concepts",week:"Week 2"},
+ {id:"s3",name:"Amazon S3",week:"Week 2"},
+ {id:"glue",name:"Glue & Athena",week:"Week 3"},
+ {id:"stream",name:"Streaming & ingestion",week:"Week 4"},
+ {id:"proc",name:"Processing & orchestration",week:"Week 5"},
+ {id:"rs",name:"Amazon Redshift",week:"Week 6"},
+ {id:"stores",name:"Other stores, Iceberg, GenAI",week:"Week 7"},
+ {id:"sec",name:"Security & governance",week:"Week 8"},
+ {id:"exam",name:"Exam practice",week:"Weeks 9–10"}
+];
+const PAGES=[];
+const add=(mod,id,title,body,quiz=[],opts={})=>PAGES.push({mod,id,title,body,quiz,ready:true,...opts});
+const soon=(mod,id,title,summary)=>PAGES.push({mod,id,title,summary,ready:false});
+
+/* ===================== START HERE ===================== */
+add("start","home","Welcome to your DEA-C01 study hub",`
+<p class="lead">Everything for the AWS Certified Data Engineer – Associate exam, taught from zero, one small page at a time.</p>
+<h2>How to read this site</h2>
+<ul>
+<li>Words with a <button type="button" class="gl" data-k="__demo">dotted underline</button> are abbreviations or key terms. <b>Tap them</b> to see the full form and a plain-English meaning.</li>
+<li>Every term is also listed on the <a href="#glossary">Glossary</a> page, which you can search.</li>
+<li>Blue <b>In simple words</b> boxes explain each idea with an everyday example before the technical detail.</li>
+<li>Each lesson ends with a quiz. Read every explanation, even when you get the answer right.</li>
+<li>Press <b>Mark this page as done</b> at the bottom of a lesson. Your progress is saved in this browser.</li>
+</ul>
+<h2>The exam in one table</h2>
+${table(["Item","Detail"],[
+ ["Exam name","AWS Certified Data Engineer – Associate"],
+ ["Exam code","DEA-C01 (exam guide version 1.1, the current version)"],
+ ["Questions","65 in total. 50 count towards your score; 15 are unscored trial questions, and you can't tell which ones they are"],
+ ["Question types","Multiple choice (pick 1 correct answer out of 4) and multiple response (pick 2 or more correct answers out of 5 or more)"],
+ ["Time","130 minutes, about 2 minutes per question"],
+ ["Pass mark","720 on a scale of 100 to 1,000. There's no separate pass mark per topic area"],
+ ["Wrong answers","No negative marking, so always answer every question"],
+ ["Cost","150 US dollars plus tax"],["Certificate valid for","3 years"]])}
+<h2>The four topic areas (domains)</h2>
+<p>AWS splits the exam into four <b>domains</b>. The weight tells you how much of the exam each one is.</p>
+${table(["Domain","Share of exam","About how many scored questions"],[
+ ["1. Data ingestion and transformation — getting data in and reshaping it","34%","17"],
+ ["2. Data store management — choosing and designing where data is stored","26%","13"],
+ ["3. Data operations and support — running, monitoring and fixing pipelines","22%","11"],
+ ["4. Data security and governance — protecting data and controlling access","18%","9"]])}
+${key("<p>The exam rarely asks <i>what a service does</i>. It describes a situation and asks <i>which service or setting you would choose</i>, usually with a condition like “cheapest”, “least effort to run”, “fastest” or “most secure”. Each lesson ends with the rules you need to make those choices.</p>")}
+<h2>How to study each page</h2>
+<ol><li><b>Learn:</b> read the page slowly and tap any dotted word you don't know.</li><li><b>Do:</b> try the Hands-on box in your AWS account.</li><li><b>Explain:</b> write 3–5 lines in your own words, as if teaching a friend.</li><li><b>Test:</b> answer the quiz and read every explanation.</li><li><b>Revise:</b> re-read your notes after 1 day and after 1 week.</li></ol>
+<h2>Modules</h2>
+<div class="cards" id="modCards"></div>
+`);
+
+add("start","glossary","Glossary: every abbreviation explained",`
+<p>Every short form and key term used on this site, with its full form and a plain-English meaning. Type in the box to filter.</p>
+<input class="search" id="glSearch" type="search" placeholder="Type a term, e.g. NACL" aria-label="Filter glossary" style="margin:8px 0;width:100%">
+<div class="gloss" id="glList"></div>
+`,[],{noDone:true});
+
+/* ===================== WEEK 1: CLOUD ===================== */
+add("cloud","cloud-basics","What cloud computing is",`
+${learn(["What a server and a data centre are","What “the cloud” means and why companies use it","The three ways of using the cloud: IaaS, PaaS and serverless","Words the exam uses: availability, durability, scalability"])}
+<h2>First, what is a server?</h2>
+<p>A <b>server</b> is a computer that runs all day and night and “serves” other computers. When you open a website, a server sends you the page. When a company stores sales data, it sits on a server's disks.</p>
+<p>A <b>data centre</b> is a large building full of thousands of servers, with power backup, cooling and security guards.</p>
+<h2>The old way vs the cloud way</h2>
+<p><b>Old way:</b> a company buys its own servers, waits weeks for delivery, installs them in its own room, pays for electricity and staff, and replaces them every few years. If it buys too few, things slow down. If it buys too many, money is wasted on idle machines.</p>
+<p><b>Cloud way:</b> the company rents servers, storage and ready-made services from a provider like <b>AWS</b> over the internet. It can get them in minutes, pays only for what it uses, and stops paying when it stops using them.</p>
+${simple("<p>It's like the difference between <b>buying a car</b> and <b>booking a cab</b>. With your own car you pay the full price upfront, plus insurance and servicing, even on days you don't drive. With a cab you pay only for the trips you take, and someone else maintains the car.</p>")}
+<h2>Why companies use the cloud</h2>
+<ul>
+<li><b>No big upfront cost:</b> pay monthly for what you use.</li>
+<li><b>Elasticity:</b> use 100 servers for a big job tonight and zero tomorrow.</li>
+<li><b>Speed:</b> create a database in minutes instead of weeks.</li>
+<li><b>Global reach:</b> run your system in many countries without building anything there.</li>
+<li><b>Managed services:</b> AWS can do the boring work (installing updates, taking backups, replacing broken disks) for you.</li>
+</ul>
+<h2>Three ways of using the cloud</h2>
+<p>The difference is <b>how much of the work you do</b> and how much AWS does.</p>
+${simple("<p>Think of a place to live in Hyderabad:</p><ul><li><b>IaaS</b> is renting an <b>empty flat</b>. You bring the furniture, fix the taps and pay the bills.</li><li><b>Managed / PaaS</b> is a <b>furnished flat with a maintenance team</b>. You just live there and keep your things in order.</li><li><b>Serverless</b> is a <b>hotel room</b>. You just use it and pay per night; everything else is handled.</li></ul>")}
+${table(["Model","Full form","You look after","AWS looks after","Example"],[
+ ["IaaS","Infrastructure as a Service","The operating system, software, updates and your data","The physical machines, network and building","EC2 (Elastic Compute Cloud) — virtual servers"],
+ ["Managed / PaaS","Platform as a Service","Your data, settings and who can access them","Servers, operating system, updates, backups","RDS (Relational Database Service), EMR (Elastic MapReduce)"],
+ ["Serverless","—","Only your code, SQL query or configuration","Everything else, including adding more capacity when needed","Lambda, Athena, Glue"]])}
+<p>There's also <b>SaaS</b> (Software as a Service): finished software you just log in to, like Gmail or Salesforce. You don't build anything with it, but data pipelines often <i>pull data from</i> SaaS apps.</p>
+<h3>What “serverless” really means</h3>
+<p>Servers still exist, but you never see or manage them. You don't choose how many, you don't install anything on them, and they grow or shrink automatically. You pay only when your code or query actually runs, so a serverless service that nobody uses costs little or nothing.</p>
+${tip("<p>When a question says <b>“least operational overhead”</b> (the least work to keep it running) or <b>“no infrastructure to manage”</b>, the answer is almost always the serverless or fully managed option. For example: Glue rather than running your own Spark servers, Athena rather than your own query servers.</p>")}
+<h2>Five words the exam uses a lot</h2>
+${table(["Word","Meaning","Everyday example"],[
+ ["High availability","The system keeps working even if one part fails, perhaps with a short blip","A hospital with a backup generator that starts within seconds of a power cut"],
+ ["Fault tolerance","No interruption at all when a part fails","An aeroplane with two engines; it keeps flying if one stops"],
+ ["Durability","Data you saved is not lost","S3 is designed so that, on average, you'd lose one file in 10,000 every 10 million years"],
+ ["Scalability","Handling more load by adding resources. <b>Vertical</b> = make one machine bigger. <b>Horizontal</b> = add more machines","Vertical: swap a small bus for a bigger bus. Horizontal: run more buses on the route"],
+ ["Elasticity","Scaling up <i>and back down</i> automatically as load changes","Extra cash counters open at a supermarket on weekends and close on weekdays"]])}
+`,[
+ {q:"A team wants to run SQL on files stored in S3 without setting up or managing any servers. Which type of service fits best?",o:["IaaS","Serverless","Running servers in their own office","A dedicated physical server"],a:[1],e:"A serverless service such as Athena runs the query for you. There are no servers to set up, and you pay per query."},
+ {q:"Which statement about Amazon EC2 is correct?",o:["AWS installs operating system updates for you","It is IaaS: you manage the operating system and software on the virtual server","It is a serverless query service","It charges per TB of data scanned"],a:[1],e:"EC2 (Elastic Compute Cloud) gives you virtual servers. AWS looks after the hardware; you look after everything from the operating system up."},
+ {q:"“Adding more machines to handle more load” is called:",o:["Vertical scaling","Horizontal scaling","Durability","Fault tolerance"],a:[1],e:"Horizontal scaling (also called scaling out) adds more machines. Vertical scaling makes one machine bigger."},
+ {q:"A service keeps running with no interruption at all when a disk fails. This is:",o:["Fault tolerance","Elasticity","Durability","Vertical scaling"],a:[0],e:"Fault tolerance means no interruption at all. High availability allows a short blip; durability is about not losing saved data."}
+]);
+
+add("cloud","global-infra","Regions, Availability Zones and edge locations",`
+${learn(["What an AWS Region is and how to choose one","What an Availability Zone (AZ) is and why “Multi-AZ” matters","Which AWS services are global and which belong to a Region","Why this matters for keeping data inside a country"])}
+<p>AWS has data centres all over the world. They are organised in three levels: <b>Regions</b>, <b>Availability Zones</b> and <b>edge locations</b>.</p>
+${simple("<p>Think of AWS as a hospital chain.</p><ul><li>A <b>Region</b> is a <b>city</b> where the chain operates, like Hyderabad or Mumbai.</li><li>An <b>Availability Zone</b> is one of several <b>separate hospital buildings</b> in different parts of that city. Each has its own power backup and water supply, so if one building has a problem, the others keep working.</li><li>An <b>edge location</b> is a small <b>clinic</b> close to where people live, for quick visits.</li></ul>")}
+<h2>Region</h2>
+<p>A <b>Region</b> is a separate geographic area. Each one has a code: for example <code>ap-south-1</code> is Mumbai and <code>ap-south-2</code> is Hyderabad. Regions are independent of each other.</p>
+<p>Most AWS services are <b>regional</b>. When you create a bucket, a Glue job or a Redshift data warehouse, you create it in one Region and it lives there.</p>
+<p>How to choose a Region, in order of importance:</p>
+<ol>
+<li><b>Law and compliance:</b> some laws say data must stay inside the country. This is called <b>data sovereignty</b>.</li>
+<li><b>Latency</b> (delay): a Region close to your users or data sources is faster.</li>
+<li><b>Available services:</b> new services and features don't reach every Region on day one.</li>
+<li><b>Price:</b> the same service can cost a bit more or less in different Regions.</li>
+</ol>
+<h2>Availability Zone (AZ)</h2>
+<p>Every Region has at least three <b>Availability Zones</b>. An AZ is one or more data centres with their own power, cooling and network, located kilometres apart from the other AZs but connected to them by very fast private cables.</p>
+<p>If you run copies of something in two or more AZs, it keeps working if one AZ has a fire, flood or power failure. This is called <b>Multi-AZ</b>. For example, RDS (Relational Database Service) can keep a standby copy of your database in a second AZ and switch to it automatically.</p>
+<h2>Edge locations</h2>
+<p>Hundreds of small sites in many cities. Services such as CloudFront (which delivers website content), Route 53 (which runs DNS, the internet's phone book) and S3 Transfer Acceleration use them to get data to and from users faster.</p>
+<h2>Which services belong where</h2>
+${table(["Level","Examples","What it means for you"],[
+ ["Global (one for the whole account)","IAM, Route 53, CloudFront, AWS Organizations","You don't pick a Region; the same users and roles work everywhere"],
+ ["Regional","S3 buckets, Glue, Athena, Lambda, Kinesis, DynamoDB, Redshift Serverless","You pick a Region; the resource and its data stay there"],
+ ["Inside one AZ","EC2 servers, subnets (network slices), EBS disks, the nodes of a provisioned Redshift cluster","For high availability you place copies in several AZs"]])}
+${key("<p>Data stays in the Region where you store it. AWS never moves it to another Region by itself. It only leaves if <i>you</i> set that up, for example with S3 Cross-Region Replication (CRR). This is the basis of every data sovereignty question.</p>")}
+${trap("<p>An S3 bucket <i>name</i> must be unique across the whole world, but the bucket itself and its data live in one Region. IAM is global, so you never choose a Region for IAM users or roles.</p>")}
+`,[
+ {q:"A company must keep all customer data inside India. What is the most important step?",o:["Use edge locations in India","Create resources only in Indian Regions and don't copy data to other Regions","Turn on Multi-AZ","Use IAM, because it is global"],a:[1],e:"Data stays in the Region you choose unless you copy it elsewhere. Multi-AZ improves availability within the same Region; it doesn't decide the country."},
+ {q:"What protects an application if one data centre building loses power?",o:["Running it across multiple Availability Zones","Using a bigger server","Using edge locations","Using IAM roles"],a:[0],e:"Each AZ has separate power and network, so copies in two or more AZs survive the loss of one."},
+ {q:"Which of these is a global service?",o:["Amazon S3 buckets","AWS Glue","AWS IAM","Amazon Athena"],a:[2],e:"IAM (Identity and Access Management) is global. Buckets, Glue jobs and Athena workgroups are created inside one Region."}
+]);
+
+add("cloud","shared-responsibility","The shared responsibility model",`
+${learn(["What AWS protects and what you must protect","How this changes between EC2, RDS and serverless services"])}
+<p>Security in AWS is a shared job. AWS protects the cloud itself; you protect what you put into it and how you configure it.</p>
+${simple("<p>It's like renting a flat in a gated community. The <b>builder and society</b> look after the building structure, the lifts, the compound wall and the main gate guard. <b>You</b> decide who gets a copy of your flat key, whether you lock your door, and what you keep inside. If you leave your door open and something is stolen, that's on you, not the builder.</p>")}
+${table(["AWS is responsible for (security <b>of</b> the cloud)","You are responsible for (security <b>in</b> the cloud)"],[
+ ["The data centre buildings, guards and cameras","Your data and who can see it"],
+ ["The servers, disks and network cables","IAM users, roles and their permissions"],
+ ["The software that runs the virtual machines","Turning on encryption and managing keys"],
+ ["Patching the engine of managed services (for example the RDS database software)","Network rules: security groups, NACLs (network firewalls) and private endpoints"],
+ ["",'On EC2 only: updating the operating system and the software you install']])}
+<p>How much is “yours” depends on the service model from the first lesson:</p>
+<ul>
+<li><b>EC2</b> (IaaS): you update the operating system and everything above it.</li>
+<li><b>RDS</b> (managed): AWS updates the database software; you manage users, network access and encryption settings.</li>
+<li><b>Glue, Athena, Lambda</b> (serverless): AWS runs everything underneath; you are responsible for permissions, encryption settings and the data itself.</li>
+</ul>
+${tip("<p>If a question asks what <i>the customer</i> must do, the answer is about data, access, encryption or network configuration. It's never about physical hardware or the data centre.</p>")}
+`,[
+ {q:"When using Amazon Athena, which task is the customer's responsibility?",o:["Updating the query engine servers","Physical security of the data centre","Controlling who can query which tables","Replacing failed disks"],a:[2],e:"Athena is serverless, so AWS runs the engine. You decide who can access which data and whether results are encrypted."},
+ {q:"Who installs operating system updates on an EC2 server?",o:["AWS","The customer","Both equally","Nobody; they install themselves"],a:[1],e:"EC2 is IaaS. You own everything from the operating system upward, including updates."}
+]);
+
+add("cloud","pricing","How AWS pricing works",`
+${learn(["The four ways to pay for compute: On-Demand, Savings Plans, Reserved and Spot","How each data service is charged","Which data transfers are free and which cost money"])}
+<p>Many exam questions ask for the “most cost-effective” answer, so you need to know how things are charged.</p>
+<h2>Paying for servers (compute)</h2>
+${table(["Option","How it works","Best for"],[
+ ["On-Demand","Pay per second or hour, no commitment, stop any time","Short, unpredictable or brand-new workloads"],
+ ["Savings Plans / Reserved Instances","Promise to use a certain amount for 1 or 3 years in exchange for a big discount (up to about 70%)","Systems that run all the time at a steady level"],
+ ["Spot Instances","Use AWS's spare capacity at up to about 90% off. AWS can take the server back with a 2-minute warning","Work that can be interrupted and restarted, such as batch processing"]])}
+${simple("<p><b>On-Demand</b> is buying a train ticket at the counter on the day. <b>Reserved / Savings Plans</b> is a yearly season pass: cheaper per trip, but you pay whether you travel or not. <b>Spot</b> is a very cheap waiting-list seat: great price, but you can be asked to get off if a full-fare passenger needs the seat.</p>")}
+<h2>How data services charge</h2>
+${table(["Charged by","Services","What lowers the bill"],[
+ ["Amount of data scanned","Athena, Redshift Spectrum","Read less data: compress files, use columnar formats like Parquet, split data into partitions"],
+ ["Running time × capacity","Glue (DPU-hours: one DPU = 4 vCPUs and 16 GB memory), EMR (server-hours), Redshift (node-hours, or RPU-hours for Serverless), Lambda (number of requests + memory × seconds)","Finish faster, use the right size, turn things off when idle"],
+ ["Amount stored per month","S3 (price depends on storage class), Redshift managed storage","Move old data to cheaper storage classes"],
+ ["Amount of streaming capacity or data","Kinesis (shard-hours or GB on-demand), Firehose (GB received)","Right-size capacity"]])}
+<h2>Moving data (data transfer)</h2>
+<p><b>Ingress</b> means data coming <i>into</i> AWS. <b>Egress</b> means data going <i>out</i>.</p>
+<ul>
+<li>Into AWS from the internet: <b>free</b>.</li>
+<li>Out of AWS to the internet: <b>charged</b> per GB.</li>
+<li>Between two Regions, and between two Availability Zones: <b>charged</b>.</li>
+<li>Inside one AZ using private addresses, and to S3 or DynamoDB in the same Region: generally <b>free</b>.</li>
+</ul>
+${tip("<p>“Most cost-effective” answers usually involve one of: Spot for interruptible work, Glue Flex (cheaper Glue for jobs that aren't urgent), columnar formats plus partitions to scan less data, cheaper S3 storage classes with automatic lifecycle rules, or serverless options for workloads that sit idle a lot.</p>")}
+${lab("<p>Create an <b>AWS Budget</b> of 10 US dollars with an email alert at 80%. Do this before any other lab so you're never surprised by a bill.</p>")}
+`,[
+ {q:"An EMR batch job can handle interruptions and must be as cheap as possible. Which option suits its extra worker servers?",o:["On-Demand","Spot Instances","Dedicated Hosts","3-year Reserved Instances"],a:[1],e:"Spot is the biggest discount and is fine for work that can be restarted if AWS takes a server back."},
+ {q:"How does Amazon Athena mainly charge?",o:["Per hour the service is switched on","Per TB of data scanned by queries","Per number of tables","Per user"],a:[1],e:"Athena charges by data scanned, so compressing data, using Parquet and partitioning cut the cost directly."},
+ {q:"Which data transfer is normally free?",o:["From the internet into AWS","From AWS out to the internet","Between two Regions","Between two Availability Zones"],a:[0],e:"Data coming in (ingress) is free. Data going out to the internet, or between Regions or AZs, costs money."}
+]);
+
+add("cloud","access-aws","Working with AWS: Console, CLI, SDK and ARNs",`
+${learn(["What an API is","Four ways to control AWS","How to read an ARN, the address of an AWS resource"])}
+<h2>Everything is an API call</h2>
+<p>An <b>API</b> (Application Programming Interface) is a fixed set of requests one program can send to another. AWS exposes every action as an API, for example <code>CreateBucket</code> or <code>StartJobRun</code>. Whether you click a button or run a script, the same API call happens underneath, and AWS can log it (in CloudTrail, covered in Week 8).</p>
+${simple("<p>An API is like a restaurant menu. You can only order what's on the menu, and you order by its exact name. The kitchen does the work and brings back the result.</p>")}
+<h2>Four ways to control AWS</h2>
+${table(["Tool","What it is","Typical use for a data engineer"],[
+ ["Management Console","The website where you click through screens","Exploring, building a first version, watching jobs run"],
+ ["CLI (Command Line Interface)","Typing commands in a terminal, e.g. <code>aws s3 ls</code>","Quick checks, uploads, simple scripts"],
+ ["SDK (Software Development Kit)","A code library for calling AWS. <b>boto3</b> is the one for Python","Lambda functions, Glue Python code, automation"],
+ ["Infrastructure as Code (IaC)","Files that describe your resources: CloudFormation, CDK (Cloud Development Kit), SAM (Serverless Application Model)","Creating the same setup in development, test and production"]])}
+<h2>ARN: the full address of a resource</h2>
+<p>Every AWS resource has an <b>ARN</b> (Amazon Resource Name). It is used in permission policies to say exactly which resource a rule is about.</p>
+<pre><code>arn : aws : service : region      : account-id   : resource
+arn : aws : glue    : ap-south-1  : 123456789012 : table/sales_db/orders</code></pre>
+${table(["Part","Meaning","Example"],[
+ ["arn","Always the same start","arn"],["partition","Normally aws","aws"],["service","Which AWS service","s3, glue, iam, kinesis"],
+ ["region","Region code (left empty for global services and S3)","ap-south-1"],["account-id","The 12-digit AWS account number (left empty for S3)","123456789012"],
+ ["resource","The specific thing","role/GlueJobRole, table/sales_db/orders"]])}
+<pre><code>arn:aws:s3:::sales-data-lake              the bucket itself
+arn:aws:s3:::sales-data-lake/raw/*        all files (objects) under raw/
+arn:aws:iam::123456789012:role/GlueJobRole   an IAM role (global, so no Region)</code></pre>
+${trap("<p>S3 ARNs have <b>no Region and no account number</b>. The <b>bucket</b> and the <b>files inside it</b> are two different resources: listing the bucket (<code>s3:ListBucket</code>) needs the bucket ARN <code>arn:aws:s3:::name</code>, while reading a file (<code>s3:GetObject</code>) needs <code>arn:aws:s3:::name/*</code>. Forgetting one of the two is a classic cause of “Access Denied”.</p>")}
+${lab("<p>Install the AWS CLI, run <code>aws configure</code>, then run <code>aws sts get-caller-identity</code>. It shows which user or role you are using, with its ARN.</p>")}
+`,[
+ {q:"A policy allows s3:ListBucket on arn:aws:s3:::logs/* but listing the bucket fails. Why?",o:["ListBucket acts on the bucket, so it needs arn:aws:s3:::logs","S3 is a global service","The CLI is not installed","ListBucket needs a Region in the ARN"],a:[0],e:"Listing is an action on the bucket itself, so the resource must be the bucket ARN. Actions on files use bucket/*."},
+ {q:"Which Python library is the AWS SDK?",o:["pandas","boto3","pyspark","requests"],a:[1],e:"boto3 is the AWS SDK (Software Development Kit) for Python. Lambda functions and Glue scripts use it a lot."}
+]);
+
+/* ===================== WEEK 1: NETWORKING ===================== */
+add("net","net-basics","Networking basics: IP addresses, ports and protocols",`
+${learn(["What an IP address is, and private vs public addresses","How to read CIDR ranges like 10.0.0.0/16","What a port is and which ports you'll see","Inbound vs outbound traffic, and requests vs replies","What a firewall does"])}
+<p>You need these ideas before VPCs, security groups and NACLs will make sense. Nothing here is AWS-specific.</p>
+<h2>IP address: the address of a computer</h2>
+<p>Every device on a network has an <b>IP address</b> (Internet Protocol address), such as <code>10.0.1.25</code>. Data is sent to an IP address the way a letter is sent to a postal address.</p>
+<p>The common format (IPv4) is four numbers from 0 to 255 separated by dots.</p>
+<ul>
+<li>A <b>public IP address</b> can be reached from anywhere on the internet.</li>
+<li>A <b>private IP address</b> works only inside a private network. Ranges starting with <code>10.</code>, <code>172.16.</code>–<code>172.31.</code> and <code>192.168.</code> are private.</li>
+</ul>
+${simple("<p>A private IP is like an <b>intercom extension number</b> inside an apartment complex: flat 302 can call extension 405, but nobody outside can dial that extension directly. A public IP is like a <b>mobile number</b>: anyone in the world can call it.</p>")}
+<h2>CIDR: writing a range of addresses</h2>
+<p><b>CIDR</b> (Classless Inter-Domain Routing) is a short way to write a block of IP addresses, like <code>10.0.0.0/16</code>. The number after the slash says how many of the leading bits are fixed. You don't need the binary maths for the exam, just this rule:</p>
+${key("<p><b>Smaller number after the slash = bigger range.</b> Each step down doubles the size.</p>")}
+${table(["CIDR","Number of addresses","Typical use"],[
+ ["/16","65,536","A whole VPC"],["/20","4,096","A large subnet"],["/24","256","A normal subnet"],["/28","16","The smallest subnet AWS allows"],["/32","1","Exactly one IP address, e.g. your office's IP in a firewall rule"],["0.0.0.0/0","All addresses","“Anywhere”, which in practice means the whole internet"]])}
+<p>In AWS, 5 addresses in every subnet are reserved, so a /24 subnet gives you 251 usable addresses.</p>
+<h2>Port: which program on that computer</h2>
+<p>One server can run several programs at once: a database, a web server, a login service. A <b>port</b> is a number (0 to 65535) that tells the computer <i>which program</i> the incoming data is for.</p>
+${simple("<p>If the IP address is the <b>building address</b>, the port is the <b>flat number</b>. A courier needs both to deliver to the right person.</p>")}
+${table(["Port","Used by"],[
+ ["22","SSH (Secure Shell): logging in to a Linux server"],["80","HTTP: normal web traffic"],["443","HTTPS: encrypted web traffic and almost all AWS API calls"],
+ ["3306","MySQL database"],["5432","PostgreSQL database"],["1433","Microsoft SQL Server"],["1521","Oracle database"],["5439","Amazon Redshift"],["9092 / 9094 / 9098","Apache Kafka (Amazon MSK)"],
+ ["1024–65535","<b>Ephemeral ports</b>: temporary ports a computer picks to receive the reply to a request it sent"]])}
+<h2>Protocol: the rules of the conversation</h2>
+<ul>
+<li><b>TCP</b> (Transmission Control Protocol): a reliable connection; data arrives complete and in order. Databases, HTTPS and SSH use it.</li>
+<li><b>UDP</b> (User Datagram Protocol): faster but with no delivery check. Used by DNS lookups and video calls.</li>
+<li><b>HTTPS</b>: web traffic encrypted with <b>TLS</b> (Transport Layer Security) so nobody in between can read it.</li>
+<li><b>DNS</b> (Domain Name System): turns names like <code>s3.amazonaws.com</code> into IP addresses.</li>
+</ul>
+<h2>Inbound, outbound, requests and replies</h2>
+<p><b>Inbound</b> (also called <b>ingress</b>) is traffic coming <i>into</i> a resource. <b>Outbound</b> (also called <b>egress</b>) is traffic going <i>out</i> of it.</p>
+<p>Every conversation has two halves:</p>
+<ol>
+<li>A <b>request</b> goes out. Example: a Glue job at <code>10.0.2.15</code> connects to a PostgreSQL database at <code>10.0.3.20</code> on port <code>5432</code>. For the database, this is <i>inbound</i>.</li>
+<li>A <b>reply</b> comes back. The database sends the rows back to <code>10.0.2.15</code> on an ephemeral port the Glue job chose, say <code>49152</code>. For the database, this reply is <i>outbound</i>.</li>
+</ol>
+<p>Keep this two-way picture in mind. It is exactly what “stateful” and “stateless” are about in the firewall lesson.</p>
+<h2>Firewall: the security guard of a network</h2>
+<p>A <b>firewall</b> checks every piece of traffic against a list of rules (which address it's from, which address and port it's going to, which protocol) and either lets it through or blocks it. In AWS the two firewalls are <b>security groups</b> and <b>NACLs</b> (Network Access Control Lists), covered in two lessons' time.</p>
+`,[
+ {q:"Which CIDR range contains the most IP addresses?",o:["10.0.0.0/24","10.0.0.0/16","10.0.0.0/28","10.0.0.5/32"],a:[1],e:"A smaller number after the slash means a bigger range. /16 is 65,536 addresses; /24 is 256; /28 is 16; /32 is one address."},
+ {q:"An application needs to reach a PostgreSQL database. Which port must be open on the database side?",o:["22","443","5432","5439"],a:[2],e:"PostgreSQL listens on 5432. 5439 is Redshift, 443 is HTTPS, 22 is SSH."},
+ {q:"In a firewall rule, what does 0.0.0.0/0 mean?",o:["No addresses","Only private addresses","Any IP address","Only AWS addresses"],a:[2],e:"0.0.0.0/0 matches every IP address. As a source in an inbound rule, it means anyone on the internet."},
+ {q:"A database sends query results back to the application that asked for them. From the database's point of view, this reply is:",o:["Inbound traffic","Outbound traffic","Not traffic","DNS traffic"],a:[1],e:"The request came in (inbound). The reply leaves the database, so it is outbound from the database's point of view."}
+]);
+
+add("net","vpc-basics","VPC, subnets, gateways and routing",`
+${learn(["What a VPC (Virtual Private Cloud) is","Public vs private subnets","What Internet Gateways and NAT Gateways do","How a VPC connects to your office network","Why data engineers care about all this"])}
+<p>A <b>VPC</b> (Virtual Private Cloud) is your own private, isolated network inside one AWS Region. Nothing can get in or out unless you allow it.</p>
+${simple("<p>Picture a <b>gated community</b>.</p><ul><li>The <b>VPC</b> is the whole community, with its compound wall.</li><li><b>Subnets</b> are the separate blocks or towers inside it.</li><li>The <b>route table</b> is the signboard at each block telling you which road leads where.</li><li>The <b>Internet Gateway</b> is the main gate to the public road.</li><li>A <b>NAT Gateway</b> is like the <b>delivery desk</b> at the gate: residents can send things out and receive replies, but strangers can't walk in.</li></ul>")}
+<h2>The building blocks</h2>
+${table(["Part","What it does"],[
+ ["CIDR block","The VPC's range of private IP addresses, e.g. <code>10.0.0.0/16</code> (65,536 addresses)"],
+ ["Subnet","A smaller slice of that range, e.g. <code>10.0.1.0/24</code>. Each subnet lives in exactly <b>one</b> Availability Zone"],
+ ["Route table","Rules for where traffic leaving a subnet should go. Each subnet uses one route table"],
+ ["Internet Gateway (IGW)","Connects the VPC to the public internet, in both directions"],
+ ["NAT Gateway","NAT = Network Address Translation. Lets resources in a <b>private</b> subnet start connections <i>out</i> to the internet and get replies, but nobody on the internet can start a connection <i>in</i>. It sits in a public subnet"],
+ ["ENI (Elastic Network Interface)","A virtual network card with a private IP. Every server, Glue worker or Lambda placed in the VPC gets one"]])}
+<h2>Public subnet vs private subnet</h2>
+<p>The only difference is the <b>route table</b>:</p>
+<ul>
+<li><b>Public subnet:</b> its route table sends internet traffic (<code>0.0.0.0/0</code>) to the <b>Internet Gateway</b>. Things here can have public IPs and be reached from the internet if firewalls allow.</li>
+<li><b>Private subnet:</b> no route to the Internet Gateway. Things here can't be reached from the internet at all. If they need to go <i>out</i> (for example to download a library), their route table sends <code>0.0.0.0/0</code> to a <b>NAT Gateway</b>.</li>
+</ul>
+<pre><code>Region ap-south-1
+└─ VPC 10.0.0.0/16  ── Internet Gateway ── internet
+   ├─ AZ a
+   │   ├─ Public subnet  10.0.1.0/24   (NAT Gateway lives here)
+   │   └─ Private subnet 10.0.2.0/24   (databases, Glue connections, EMR)
+   └─ AZ b
+       ├─ Public subnet  10.0.3.0/24
+       └─ Private subnet 10.0.4.0/24   (standby database copy)</code></pre>
+${key("<p>Databases, EMR clusters, Redshift and Glue connections normally live in <b>private subnets</b>. Only things that must face the internet go in public subnets.</p>")}
+<h2>Connecting the VPC to other networks</h2>
+${table(["Option","What it is","Choose it when"],[
+ ["VPC peering","A private link between two VPCs","Two VPCs need to talk privately"],
+ ["Transit Gateway","A central hub that connects many VPCs and office networks","You have lots of VPCs and want one hub"],
+ ["Site-to-Site VPN","VPN = Virtual Private Network: an encrypted tunnel over the normal internet between your office and the VPC","Quick, cheap private connection; speed can vary"],
+ ["Direct Connect","A dedicated private cable from your data centre to AWS","Large, steady data transfers that need reliable speed"]])}
+<h2>Why data engineers care</h2>
+<ul>
+<li>A Glue job reading a database in a private subnet needs a <b>Glue connection</b> placed in that VPC, with the right subnet and firewall rules.</li>
+<li>Something in a private subnet that must call the internet needs a <b>NAT Gateway</b>.</li>
+<li>Something in a private subnet that must reach S3 privately and cheaply needs a <b>VPC endpoint</b> (covered two lessons from now).</li>
+<li>Copying large amounts of data from an office data centre every day often points to <b>Direct Connect</b>.</li>
+</ul>
+`,[
+ {q:"An RDS database must not be reachable from the internet. Where should it go?",o:["A public subnet","A private subnet","An edge location","Inside the NAT Gateway"],a:[1],e:"A private subnet has no route to the Internet Gateway, so nothing on the internet can reach the database."},
+ {q:"A Lambda function in a private subnet must call a public third-party API. What does it need?",o:["A route from its subnet to a NAT Gateway in a public subnet","A gateway endpoint for S3","VPC peering","Nothing; private subnets reach the internet automatically"],a:[0],e:"A NAT Gateway lets private resources start outbound connections to the internet and receive replies."},
+ {q:"How many Availability Zones does one subnet span?",o:["Exactly one","Two","All AZs in the Region","None; subnets are global"],a:[0],e:"A subnet always sits in a single AZ. For high availability, create subnets in several AZs."},
+ {q:"What makes a subnet “public”?",o:["Its name","Its route table sends 0.0.0.0/0 to an Internet Gateway","It has a NAT Gateway in it","It uses a /16 range"],a:[1],e:"A subnet is public only because its route table points internet traffic at the Internet Gateway."}
+]);
+
+add("net","firewalls","Security groups, NACLs, stateful and stateless",`
+${learn(["What “stateful” and “stateless” mean, with an example","Security groups: the firewall on each resource","NACLs (Network Access Control Lists): the firewall on each subnet","How the two work together","Why Glue needs a “self-referencing” rule"])}
+<p>AWS gives you two firewalls inside a VPC. To understand the difference, first learn two words: <b>stateful</b> and <b>stateless</b>.</p>
+<h2>Stateful vs stateless</h2>
+<p>Remember from the networking lesson: every conversation has a <b>request</b> going one way and a <b>reply</b> coming back the other way.</p>
+${simple("<p>Imagine two kinds of security guard at a gate.</p><p><b>The stateful guard keeps a register.</b> When resident Ravi goes out to fetch something, the guard writes it down. When Ravi comes back, the guard checks the register, sees he went out, and lets him back in. He doesn't need a separate rule for people coming back.</p><p><b>The stateless guard has no register and no memory.</b> He checks everyone against his rule list every single time, in each direction. If the list says “people may go out” but doesn't say “people may come back in”, Ravi gets stuck outside, even though he just left.</p>")}
+<p>In network terms:</p>
+<ul>
+<li>A <b>stateful</b> firewall remembers each connection it allowed. If the request was allowed, the reply is <b>automatically allowed</b> back, whatever the rules say.</li>
+<li>A <b>stateless</b> firewall remembers nothing. The reply is checked as completely new traffic, so you need a rule allowing the reply as well. Replies come back on <b>ephemeral ports</b> (1024–65535), so a stateless firewall usually needs a rule allowing that range.</li>
+</ul>
+${key("<p><b>Security groups are stateful. NACLs are stateless.</b> This one fact answers many exam questions.</p>")}
+<h2>Security group: a guard at each door</h2>
+<p>A <b>security group</b> is a virtual firewall attached to one resource, more exactly to its network card (ENI). Servers, databases, Redshift clusters, Lambda functions in a VPC and Glue connections all have one or more security groups.</p>
+<ul>
+<li>It has <b>allow rules only</b>. Anything not allowed is blocked. You can't write a “deny” rule.</li>
+<li>It has separate <b>inbound</b> rules and <b>outbound</b> rules.</li>
+<li>It is <b>stateful</b>: replies to allowed traffic are let through automatically.</li>
+<li>A new security group <b>blocks all inbound</b> traffic and <b>allows all outbound</b> traffic until you change it.</li>
+<li>All rules are checked together; the order doesn't matter.</li>
+</ul>
+<p>Each rule names a protocol, a port and a <b>source</b> (for inbound) or <b>destination</b> (for outbound). The source can be an IP range or <b>another security group</b>.</p>
+<p>Example: inbound rules on a PostgreSQL database's security group.</p>
+${table(["Type","Protocol","Port","Source","Meaning"],[
+ ["PostgreSQL","TCP","5432","sg-glue (the Glue connection's security group)","Anything wearing the Glue security group may connect"],
+ ["PostgreSQL","TCP","5432","203.0.113.10/32","One office computer may connect"]])}
+${simple("<p>Using another security group as the source is like a rule at the door that says “let in <b>anyone wearing a blue company badge</b>”, instead of listing every person's name. If new Glue workers start up with that badge, they get in automatically.</p>")}
+<h2>NACL: a guard at the gate of each block</h2>
+<p>A <b>NACL</b> (Network Access Control List) is a firewall for a whole <b>subnet</b>. Every resource in that subnet is behind it.</p>
+<ul>
+<li>It has <b>allow and deny</b> rules, so you can block a specific IP address.</li>
+<li>Rules are <b>numbered</b> (for example 100, 110, 120) and checked from the lowest number up. The <b>first rule that matches wins</b> and the rest are ignored.</li>
+<li>It is <b>stateless</b>: you need inbound rules for requests coming in <i>and</i> outbound rules for replies going back (usually ports 1024–65535), and the same in the other direction.</li>
+<li>The <b>default NACL</b> that comes with every VPC allows all traffic. A <b>new custom NACL denies everything</b> until you add rules.</li>
+</ul>
+<h2>Side by side</h2>
+${table(["","Security group","NACL (Network Access Control List)"],[
+ ["Protects","One resource (its network card)","A whole subnet"],
+ ["Rule types","Allow only","Allow and deny"],
+ ["Remembers connections?","Yes: <b>stateful</b>. Replies are allowed automatically","No: <b>stateless</b>. Replies need their own rule"],
+ ["Rule order","All rules checked together","Numbered; lowest number first; first match wins"],
+ ["Source can be another security group?","Yes","No, only IP ranges"],
+ ["Default behaviour","New group: no inbound allowed, all outbound allowed","Default NACL: everything allowed. New custom NACL: everything denied"]])}
+<h2>How they work together</h2>
+<p>Traffic coming into a database in a private subnet passes <b>two guards</b>: first the subnet's NACL (the block gate), then the database's security group (the flat door). <b>Both must allow it.</b> Most teams leave NACLs open and do almost all filtering with security groups. NACLs are used for broad blocks, such as denying a known bad IP range.</p>
+<h2>The Glue “self-referencing” rule</h2>
+<p>When a Glue job connects to a database inside a VPC, Glue starts several workers. Each gets its own network card in your subnet, and they all use the security group you chose for the Glue connection. The workers need to talk <b>to each other</b> as well as to the database.</p>
+<p>So that security group needs an inbound rule whose source is <b>the same security group</b>: “allow all TCP traffic from members of this group”. This is called a <b>self-referencing rule</b>. Without it the job fails with a network or timeout error.</p>
+${tip("<p>“Block traffic from one specific IP address” → <b>NACL deny rule</b> (security groups can't deny).<br>“The request is allowed in but the reply never gets back” → a <b>NACL</b> is missing the outbound rule for ephemeral ports 1024–65535.<br>“Glue can't connect to a database in a VPC” → check the <b>self-referencing rule</b>, the subnet, and the route to S3.</p>")}
+`,[
+ {q:"What does “stateful” mean for a security group?",o:["It saves your data","It remembers allowed connections and lets their replies back automatically","It checks rules in number order","It can deny specific IPs"],a:[1],e:"A stateful firewall remembers the connection, so the reply to an allowed request is allowed without any extra rule."},
+ {q:"A Glue job using a JDBC connection to an RDS database fails with a network timeout. The security group only allows the database port from the Glue subnet's IP range. What is missing?",o:["A NAT Gateway","An inbound rule allowing all TCP from the same security group (self-referencing)","An Internet Gateway","A Direct Connect link"],a:[1],e:"Glue workers must talk to each other, so their security group needs a rule allowing all TCP traffic from itself."},
+ {q:"You must block traffic from one malicious IP address to a whole subnet. What do you use?",o:["A security group deny rule","A NACL deny rule","An IAM policy","A route table"],a:[1],e:"Only NACLs support deny rules. Security groups can only allow."},
+ {q:"A custom NACL allows inbound port 443 from anywhere but has no outbound rules. Users' HTTPS requests reach the server but never get a response. Why?",o:["NACLs are stateless, so the replies on ports 1024–65535 need an outbound allow rule","Security groups block all replies","Port 443 is wrong for HTTPS","The subnet is private"],a:[0],e:"NACLs don't remember connections. The reply going back out must be allowed separately, usually on ephemeral ports 1024–65535."},
+ {q:"Which statements about security groups are true? (Choose TWO)",o:["They are stateful","They support deny rules","They can use another security group as the source","They apply to an entire subnet","Rules are checked in number order"],a:[0,2],e:"Security groups are stateful and can reference other security groups. Deny rules, subnet scope and numbered rules describe NACLs."}
+]);
+
+add("net","vpc-endpoints","VPC endpoints: reaching AWS services privately",`
+${learn(["Why private resources need a special path to S3 and other services","Gateway endpoints vs interface endpoints (PrivateLink)","How to lock a bucket to your endpoint"])}
+<h2>The problem</h2>
+<p>AWS services like S3, Kinesis and Secrets Manager are reached through public addresses on the AWS network. A Glue job or EMR cluster in a <b>private subnet</b> has no internet route, so by default it can't reach them. One fix is a NAT Gateway, but that sends the traffic out the internet path, and NAT Gateways charge for every GB that passes through them.</p>
+<h2>The fix: a VPC endpoint</h2>
+<p>A <b>VPC endpoint</b> is a private door from your VPC straight to an AWS service. Traffic stays on the AWS network, never touches the internet, and no NAT or Internet Gateway is needed.</p>
+${simple("<p>Instead of leaving the gated community by the main gate and taking the public road to the bank, the bank has opened a <b>private branch counter inside your community</b>. Faster, safer, and you don't pay the road toll.</p>")}
+<h2>Two kinds</h2>
+${table(["","Gateway endpoint","Interface endpoint (powered by PrivateLink)"],[
+ ["Which services","<b>Only S3 and DynamoDB</b>","Most other services: Glue, Kinesis, Secrets Manager, STS, Athena, KMS, SQS, SNS and many more (S3 is also available this way)"],
+ ["How it works","Adds an entry to the subnet's route table pointing at the service","Creates a network card (ENI) with a private IP address in your subnet"],
+ ["Cost","<b>Free</b>","Charged per hour and per GB"],
+ ["Reachable from your office over VPN/Direct Connect?","No","Yes"]])}
+<h2>Controlling access through endpoints</h2>
+<ul>
+<li>An <b>endpoint policy</b> limits what can be done through the endpoint, e.g. only certain buckets.</li>
+<li>A <b>bucket policy</b> can say “deny any request that didn't come through endpoint vpce-123”, using the condition key <code>aws:SourceVpce</code>. Then the bucket can only be used from inside your VPC.</li>
+</ul>
+${tip("<p>“Access S3 (or DynamoDB) from a private subnet <b>without going over the internet</b> at the <b>lowest cost</b>” → <b>gateway endpoint</b>.<br>“Private access to Kinesis, Secrets Manager or Glue APIs” → <b>interface endpoint</b>.</p>")}
+`,[
+ {q:"What is the cheapest way for an EMR cluster in a private subnet to read S3 without going over the internet?",o:["NAT Gateway","Interface endpoint for S3","Gateway endpoint for S3","VPN"],a:[2],e:"S3 gateway endpoints are free and keep traffic private. NAT Gateways charge per GB."},
+ {q:"A Lambda function in a private subnet must read a secret from Secrets Manager without internet access. What do you add?",o:["A gateway endpoint for Secrets Manager","An interface endpoint for Secrets Manager","An Internet Gateway","A NACL deny rule"],a:[1],e:"Gateway endpoints exist only for S3 and DynamoDB. Other services use interface endpoints (PrivateLink)."},
+ {q:"How can you make sure a bucket is only used from your VPC?",o:["Turn on versioning","Bucket policy that denies requests not coming from your endpoint (aws:SourceVpce)","Use a bigger subnet","Make the bucket public"],a:[1],e:"The aws:SourceVpce condition lets a bucket policy reject requests that didn't come through your VPC endpoint."}
+]);
+
+/* ===================== WEEK 1: IAM ===================== */
+add("iam","iam-identities","IAM identities: root user, users, groups and roles",`
+${learn(["Authentication vs authorisation","The root user and why you protect it","IAM users, groups and roles, and when to use each","How AWS services get permissions through roles"])}
+<p><b>IAM</b> (Identity and Access Management) controls <b>who</b> can do <b>what</b> on <b>which</b> AWS resources. It is free, global, and appears in every exam domain.</p>
+<h2>Two questions IAM answers</h2>
+<ul>
+<li><b>Authentication:</b> <i>Who are you?</i> Proved with a password, an access key or a sign-in through your company.</li>
+<li><b>Authorisation:</b> <i>What are you allowed to do?</i> Decided by permission policies (next lesson).</li>
+</ul>
+${simple("<p>In an office building, swiping your <b>ID card</b> at the entrance proves who you are (authentication). Whether that card opens the <b>server room on the 5th floor</b> is a separate question (authorisation).</p>")}
+<p>The person or thing making a request is called the <b>principal</b>: a user, a role, an AWS service, or another AWS account.</p>
+<h2>The four kinds of identity</h2>
+${table(["Identity","What it is","How it signs in","Use it for"],[
+ ["Root user","The account owner, created with the account. Can do everything, and can't be restricted by IAM policies","Email address + password","Only a handful of account-level tasks. Turn on MFA and put it away"],
+ ["IAM user","One person or one application inside the account","A password for the console and/or <b>access keys</b> for the CLI and SDK. These never expire on their own","People, only when company single sign-on isn't available"],
+ ["IAM group","A collection of IAM users","Groups don't sign in","Giving the same permissions to a whole team at once"],
+ ["IAM role","A set of permissions that a trusted person, service or account can <b>temporarily take on</b> (“assume”)","<b>Temporary</b> credentials from STS that expire automatically","AWS services, access from other accounts, company single sign-on"]])}
+<p><b>Access keys</b> are a pair: an access key ID (like a username) and a secret access key (like a password). <b>MFA</b> (Multi-Factor Authentication) adds a second proof, such as a 6-digit code from an app on your phone.</p>
+<h2>Roles: the preferred way to give access</h2>
+<p>A role has no password and no permanent keys. When someone or something “assumes” the role, <b>STS</b> (Security Token Service) hands out credentials that expire after a while (from 15 minutes up to 12 hours).</p>
+${simple("<p>A role is like a <b>visitor badge</b> at the reception desk. The badge itself decides which floors open. Anyone on the approved list can collect it, wear it for a while, and hand it back. Nobody takes a permanent key home.</p>")}
+<p>Every AWS data service works through a role:</p>
+<ul>
+<li>A <b>Glue job</b> runs with a Glue service role that can read the source bucket and write the target bucket.</li>
+<li>A <b>Lambda function</b> has an execution role.</li>
+<li>A <b>Redshift</b> cluster uses a role to load files from S3 (<code>COPY</code>) and query S3 directly.</li>
+<li><b>Firehose, Step Functions, DMS (Database Migration Service) and EMR</b> each use their own roles.</li>
+</ul>
+${key("<p>Never put access keys inside code or a Glue script. Give the service a <b>role</b>. For employees, use <b>IAM Identity Center</b> (AWS's SSO, single sign-on): people log in with their company account and receive temporary role credentials, so no IAM users are needed.</p>")}
+${trap("<p>Groups can't contain other groups, and a group can't be named as the principal in a policy. Nobody can “sign in as a group”.</p>")}
+${lab("<p>Turn on MFA for your root user. Create an IAM Identity Center user (or an admin IAM user) for daily work, sign in with it, and stop using root.</p>")}
+`,[
+ {q:"A Glue job needs to read files from S3. What is the recommended way to give it access?",o:["Put an IAM user's access keys in the script","Attach an IAM role with S3 permissions to the job","Use the root user's keys","Make the bucket public"],a:[1],e:"Services should always use roles. The role gives temporary credentials and nothing secret is stored in code."},
+ {q:"Which identity receives temporary credentials from AWS STS?",o:["IAM group","IAM role","Root user","Every IAM user"],a:[1],e:"Assuming a role returns temporary credentials from STS (Security Token Service)."},
+ {q:"What should you do with the root user?",o:["Use it for daily admin work","Share it with the team","Turn on MFA and use it only for the few tasks that require it","Delete it"],a:[2],e:"The root user can do everything. Protect it with MFA and use other identities for daily work."},
+ {q:"“Proving who you are” is called:",o:["Authorisation","Authentication","Encryption","Replication"],a:[1],e:"Authentication proves identity. Authorisation decides what that identity may do."}
+]);
+
+add("iam","iam-policies","IAM policies: how permissions are written",`
+${learn(["What a policy is and how to read one line by line","The six types of policy and where each is attached","Useful condition keys"])}
+<p>A <b>policy</b> is a document that lists what is allowed or denied. It's written in <b>JSON</b> (JavaScript Object Notation), a text format of names and values inside curly braces. Exam questions often show a policy and ask what it allows, so practise reading them.</p>
+<h2>A policy, line by line</h2>
+<pre><code>{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ReadRawZone",
+      "Effect": "Allow",
+      "Action": ["s3:GetObject"],
+      "Resource": "arn:aws:s3:::sales-data-lake/raw/*"
+    },
+    {
+      "Sid": "ListRawFolderOnly",
+      "Effect": "Allow",
+      "Action": "s3:ListBucket",
+      "Resource": "arn:aws:s3:::sales-data-lake",
+      "Condition": {"StringLike": {"s3:prefix": ["raw/*"]}}
+    }
+  ]
+}</code></pre>
+<p>In plain English: “You may read any file under <code>raw/</code> in the sales-data-lake bucket, and you may list the bucket, but only the contents of the <code>raw/</code> folder.”</p>
+${table(["Part","Meaning"],[
+ ["Version","Always <code>2012-10-17</code>, the current policy language version. It isn't a date you change"],
+ ["Statement","A list of rules. A policy can have many"],
+ ["Sid","An optional name for the rule, for your own reference"],
+ ["Effect","<code>Allow</code> or <code>Deny</code>"],
+ ["Action","Which API operations, written <code>service:Action</code>, e.g. <code>s3:GetObject</code>, <code>glue:StartJobRun</code>. A <code>*</code> means “anything”, so <code>s3:Get*</code> means every S3 action starting with Get"],
+ ["Resource","Which resources, as ARNs"],
+ ["Condition","Optional extra checks, e.g. only from a certain IP, only over HTTPS, only for resources with a certain tag"],
+ ["Principal","<b>Who</b> the rule is for. Appears <b>only</b> in policies attached to resources (see below)"]])}
+<h2>The six types of policy</h2>
+${table(["Type","Attached to","What it does"],[
+ ["Identity-based policy","A user, group or role","Says what <i>that identity</i> may do. Can be <b>AWS managed</b> (ready-made by AWS), <b>customer managed</b> (written by you, reusable) or <b>inline</b> (embedded in one identity only)"],
+ ["Resource-based policy","A resource: S3 bucket policy, KMS key policy, SQS queue policy, Lambda function policy, Glue Data Catalog policy","Says <i>who</i> may use this resource. Has a <code>Principal</code>, so it can let <b>other AWS accounts</b> in"],
+ ["Trust policy","A role","A special resource-based policy listing who is allowed to assume the role"],
+ ["Permissions boundary","A user or role","Sets the <b>maximum</b> that identity can ever do. It gives nothing by itself"],
+ ["SCP (Service Control Policy)","An AWS account or an OU (Organizational Unit, a folder of accounts) in AWS Organizations","Sets the maximum for <b>everyone</b> in those accounts, even admins. Gives nothing by itself"],
+ ["Session policy","One assumed-role session","Narrows a single session further"]])}
+${simple("<p>A <b>permissions boundary</b> or an <b>SCP</b> is like the <b>credit limit on a card</b>. The limit doesn't put money in your account; it only caps what you can spend. You still need an actual Allow (the money) from an identity or resource policy.</p>")}
+<h2>Useful condition keys</h2>
+${table(["Condition key","Use it to"],[
+ ["<code>aws:SourceIp</code>","Allow only from certain IP addresses, e.g. the office"],
+ ["<code>aws:SourceVpce</code>","Allow only through a certain VPC endpoint"],
+ ["<code>aws:SecureTransport</code>","Allow only encrypted (HTTPS) requests"],
+ ["<code>aws:PrincipalTag/…</code> and <code>aws:ResourceTag/…</code>","Compare tags on the person and the resource (used for ABAC, two lessons from now)"],
+ ["<code>aws:RequestedRegion</code>","Allow actions only in certain Regions"],
+ ["<code>s3:x-amz-server-side-encryption</code>","Require uploads to be encrypted"],
+ ["<code>aws:MultiFactorAuthPresent</code>","Require MFA for sensitive actions"]])}
+`,[
+ {q:"Which policy element appears only in resource-based policies?",o:["Effect","Action","Principal","Resource"],a:[2],e:"Resource-based policies name a Principal (who gets access). Identity-based policies don't need one, because the identity they're attached to is the principal."},
+ {q:"A permissions boundary on a role allows only S3 actions. The role's own policy allows S3 and Glue actions. What can the role do?",o:["S3 and Glue","Only S3","Only Glue","Nothing"],a:[1],e:"The role can only do what both allow: the overlap of the boundary and its policy, which is S3."},
+ {q:"How do you make a bucket reject any request that doesn't use HTTPS?",o:["A bucket policy that denies requests where aws:SecureTransport is false","Turn on versioning","Use an S3 gateway endpoint","Use an IAM group"],a:[0],e:"A Deny with the condition aws:SecureTransport = false blocks unencrypted requests."},
+ {q:"What does the Action \"s3:Get*\" match?",o:["Only s3:GetObject","Every S3 action whose name starts with Get","All S3 actions","All actions in every service"],a:[1],e:"The * is a wildcard matching the rest of the name, so every S3 action beginning with Get."}
+]);
+
+add("iam","iam-evaluation","How AWS decides: allow or deny",`
+${learn(["The four rules AWS follows for every request","Implicit deny vs explicit deny","Why cross-account access needs permission on both sides"])}
+<p>When a request arrives, AWS gathers every policy that applies to it and follows four rules, in this order.</p>
+<ol>
+<li><b>Start with “no”.</b> Everything is denied by default. This is an <b>implicit deny</b>: nobody wrote “deny”, there's just no Allow.</li>
+<li><b>An explicit Deny always wins.</b> If any applicable policy says <code>"Effect": "Deny"</code> for this request, it's refused. No Allow anywhere can override it.</li>
+<li><b>The limits must permit it.</b> SCPs, permissions boundaries and session policies must all allow the action. They only limit; they never grant.</li>
+<li><b>Something must say Allow.</b> An identity-based or resource-based policy must allow the action. If nothing does, the implicit deny from step 1 stands.</li>
+</ol>
+${simple("<p>Think of entry to a members' club.</p><ul><li>By default, nobody gets in.</li><li>If your name is on the <b>banned list</b> (explicit deny), you're turned away, even holding an invitation.</li><li>The club's <b>house rules</b> (SCP / boundary) must not forbid it, e.g. “no entry after midnight”.</li><li>You still need an <b>invitation</b> (an Allow) to get in.</li></ul>")}
+${table(["Situation","Result"],[
+ ["No policy mentions the action","Denied (implicit deny)"],
+ ["The role's policy allows it and nothing denies it","Allowed"],
+ ["The role's policy allows it, but the bucket policy explicitly denies it","Denied (explicit deny wins)"],
+ ["The role's policy allows it, but the account's SCP doesn't allow that action","Denied"],
+ ["Same account: only the bucket policy allows the role (the role's own policy says nothing)","Allowed: within one account, an Allow on either side is enough"],
+ ["Different accounts: account A's bucket policy allows account B, but B's role has no S3 permission in its own policy","Denied: across accounts, <b>both</b> sides must allow"]])}
+${key("<p><b>Same account:</b> an Allow in the identity policy <i>or</i> in the resource policy is enough.<br><b>Different accounts:</b> the resource's policy must let the other account in <i>and</i> the caller's own identity policy must allow the action.</p>")}
+${trap("<p><b>KMS</b> (Key Management Service) encryption keys are stricter. The <b>key policy</b> must allow the account or principal before any IAM policy can grant use of the key, even inside the same account. You'll study this in Week 8.</p>")}
+${lab("<p>Create a role whose policy allows <code>s3:*</code> on a test bucket. Add a second statement that denies <code>s3:DeleteObject</code>. In the <b>IAM Policy Simulator</b>, test GetObject (allowed) and DeleteObject (denied).</p>")}
+`,[
+ {q:"A role's policy allows s3:* on a bucket. The bucket policy has an explicit Deny for s3:DeleteObject for that role. What happens when the role deletes a file?",o:["Allowed, because the role's policy wins","Denied, because an explicit Deny always wins","Allowed only with MFA","It depends on the Region"],a:[1],e:"An explicit Deny in any policy that applies overrides every Allow."},
+ {q:"Account A's bucket policy allows account B to read objects. A role in account B has no S3 permissions in its own policy. Can it read the objects?",o:["Yes","No: across accounts, both the bucket policy and B's own IAM policy must allow it","Only through the console","Only if the bucket is public"],a:[1],e:"For cross-account access, the resource policy and the caller's identity policy must both allow the action."},
+ {q:"No policy mentions glue:DeleteTable for a user. What happens when they try it?",o:["Allowed by default","Denied by implicit deny","Denied by explicit deny","Allowed if they are in a group"],a:[1],e:"Everything is denied unless something allows it. With no policy mentioning the action, it's an implicit deny."}
+]);
+
+add("iam","iam-cross-account","Assuming roles, other accounts and PassRole",`
+${learn(["Why companies use many AWS accounts","How assuming a role works, step by step","Two ways to share across accounts","What iam:PassRole is and why it exists"])}
+<h2>Why more than one account?</h2>
+<p>An <b>AWS account</b> is a separate container with its own resources, users and bill. Companies usually have many: one each for development, testing and production, a central data lake account, a security logging account, and so on. So “let account B use data in account A” is a very common need.</p>
+<h2>How assuming a role works</h2>
+<ol>
+<li>The role has a <b>trust policy</b>: the list of who may assume it (an AWS service, a user, or a whole other account).</li>
+<li>The caller asks STS to assume the role (<code>sts:AssumeRole</code>). AWS services like Glue do this automatically in the background.</li>
+<li>STS checks the trust policy and returns <b>temporary credentials</b>.</li>
+<li>The caller uses those credentials and can do whatever the role's <b>permissions policy</b> allows, until they expire.</li>
+</ol>
+<pre><code>Trust policy on GlueJobRole: “the Glue service may assume me”
+{
+  "Version": "2012-10-17",
+  "Statement": [{
+    "Effect": "Allow",
+    "Principal": {"Service": "glue.amazonaws.com"},
+    "Action": "sts:AssumeRole"
+  }]
+}</code></pre>
+${key("<p>Every role has <b>two</b> policies: the <b>trust policy</b> (who can assume it) and the <b>permissions policy</b> (what it can do once assumed). If a service can't use a role, check the trust policy's <code>Principal</code> first.</p>")}
+<h2>Two ways to share across accounts</h2>
+${table(["Method","How it works","Good for"],[
+ ["A role in the account that owns the data","Account A creates a role that trusts account B. People in B assume it and act inside A","Broad access to many resources in A, managed in one place"],
+ ["A resource-based policy","The bucket, key or queue policy in A names account B directly. B's people keep using their own identity","Sharing one specific resource"]])}
+<p>For data-lake tables there's a third option, <b>Lake Formation</b> sharing through RAM (Resource Access Manager), covered in Week 8.</p>
+<h2>iam:PassRole</h2>
+<p>When you create a Glue job, Lambda function or Step Functions workflow, you choose a role for it to run as. To do that, you need the permission <code>iam:PassRole</code> on that role.</p>
+${simple("<p>Without this rule, a junior employee who can create Glue jobs could attach the company's most powerful admin role to their job and then do anything through it. PassRole is like saying: <b>you can only hand out keys you've been allowed to hand out.</b></p>")}
+${tip("<p>Error “User is not authorized to perform: <code>iam:PassRole</code>” while creating a Glue job or Lambda function → give that user <code>iam:PassRole</code> on that <b>specific role's ARN</b>, not on <code>*</code>.</p>")}
+`,[
+ {q:"A developer gets AccessDenied for iam:PassRole when creating a Lambda function with an execution role. What is the least-privilege fix?",o:["Give the developer AdministratorAccess","Allow iam:PassRole on that execution role's ARN only","Remove the execution role","Use the root user"],a:[1],e:"PassRole limited to that one role ARN is the smallest permission that fixes the problem."},
+ {q:"Which policy on a role decides who can assume it?",o:["Permissions policy","Trust policy","SCP","Session policy"],a:[1],e:"The trust policy names the principals allowed to call sts:AssumeRole on the role."},
+ {q:"Analysts in account B need read access to many buckets and Glue tables in account A. Which approach is simplest to manage?",o:["Copy the data to account B every night","A role in account A that trusts account B, with the needed read permissions","An IAM user in account A for every analyst","Make the buckets public"],a:[1],e:"One cross-account role gives a single place to manage access to many resources, using temporary credentials."}
+]);
+
+add("iam","iam-least-privilege","Least privilege, RBAC and ABAC",`
+${learn(["What least privilege means in practice","RBAC vs ABAC, and when ABAC is the better answer","IAM Access Analyzer"])}
+<h2>Least privilege</h2>
+<p>Give only the permissions needed, on only the resources needed, for only as long as needed. In practice:</p>
+<ul>
+<li>Name exact actions instead of <code>s3:*</code> or <code>*</code>.</li>
+<li>Name exact ARNs and folders (prefixes) instead of <code>"Resource": "*"</code>.</li>
+<li>Add conditions: a specific VPC endpoint, IP address, tag or encryption requirement.</li>
+<li>Use roles with temporary credentials, and delete unused users and access keys.</li>
+<li>Use <b>IAM Access Analyzer</b>: it flags resources shared with outside accounts, and can generate a tight policy from what a role actually did (from CloudTrail logs).</li>
+</ul>
+${simple("<p>A hotel gives a guest a key card that opens <b>their own room and the gym</b>, and only during their stay. It doesn't hand out the master key in case they might need it one day.</p>")}
+<h2>RBAC vs ABAC</h2>
+<p>A <b>tag</b> is a label you attach to a resource or identity as a key and a value, for example <code>project = sales</code> or <code>env = prod</code>.</p>
+${table(["","RBAC (Role-Based Access Control)","ABAC (Attribute-Based Access Control)"],[
+ ["Idea","Permissions belong to a job role, e.g. <i>DataAnalyst</i>","Permissions depend on <b>tags</b> on the person and on the resource"],
+ ["Example","The Analyst role may read the curated bucket","Allow access when the resource's tag <code>project</code> equals the person's tag <code>project</code>"],
+ ["When a new project starts","Write or change policies","Just tag the new people and resources; no policy change"],
+ ["Exam signal","A few stable teams","“Many teams or projects, minimise policy changes, scale”"]])}
+<pre><code>ABAC: allow access only to resources tagged with your own project
+"Condition": {
+  "StringEquals": {"aws:ResourceTag/project": "\${aws:PrincipalTag/project}"}
+}</code></pre>
+${tip("<p>For data-lake tables, the same tag idea is used by <b>Lake Formation LF-Tags</b> (Week 8). When a question says “grant access to thousands of tables based on how sensitive they are”, think tags.</p>")}
+${trap("<p>In questions about least privilege, answers offering <code>AdministratorAccess</code>, <code>s3:*</code> on <code>*</code>, sharing access keys, or making a bucket public are almost always wrong.</p>")}
+`,[
+ {q:"A company has 200 project teams and wants to avoid writing a new policy for each one. What should it use?",o:["One IAM user per team","Attribute-based access control (ABAC) with tags","Inline policies on every user","The root user"],a:[1],e:"ABAC lets one policy compare tags on people and resources, so new projects need only tags."},
+ {q:"Which policy follows least privilege for a job that only reads files under s3://lake/curated/?",o:["s3:* on *","s3:GetObject on arn:aws:s3:::lake/curated/*","s3:GetObject on *","AdministratorAccess"],a:[1],e:"The exact action on the exact folder is least privilege."},
+ {q:"Which tool can generate a least-privilege policy from a role's actual activity?",o:["Amazon Macie","IAM Access Analyzer","AWS Config","Amazon Inspector"],a:[1],e:"IAM Access Analyzer can build a policy from CloudTrail activity and also flags resources shared outside the account."}
+]);
+
+add("iam","week1-review","Week 1 review quiz",`
+<p>Mixed questions on cloud basics, networking and IAM, written in the exam's style. Aim for at least 8 out of 10 before moving to Week 2. If you score lower, re-read the lessons behind the questions you missed. Tap any dotted word if a term is unclear.</p>
+`,[
+ {q:"A data team runs a nightly EMR job in a private subnet that reads from S3. The NAT Gateway bill is high. What reduces cost most?",o:["Move EMR to a public subnet","Add an S3 gateway endpoint","Use bigger servers","Turn on Multi-AZ"],a:[1],e:"S3 traffic through a NAT Gateway is charged per GB. A gateway endpoint is free and keeps traffic private."},
+ {q:"A Lambda function must read a secret stored in Secrets Manager in a different AWS account. What is required? (Choose TWO)",o:["A resource policy on the secret allowing the Lambda's role","A policy on the Lambda's role allowing secretsmanager:GetSecretValue","Making the secret public","The root user's keys","A NAT Gateway"],a:[0,1],e:"Across accounts, both the resource's policy and the caller's own policy must allow it. (If a customer-managed KMS key encrypts the secret, the key policy must allow it too.)"},
+ {q:"Under the shared responsibility model, what does AWS secure when you use Glue?",o:["The Glue job's IAM role","The servers that run Glue jobs","Encryption settings for job output","The S3 bucket policy"],a:[1],e:"AWS secures the infrastructure running Glue. Roles, encryption settings and bucket policies are yours."},
+ {q:"A role's policy allows s3:GetObject on all resources. An SCP on the account denies all S3 actions. Result?",o:["Allowed","Denied","Allowed only for the root user","Allowed in one Region"],a:[1],e:"An SCP (Service Control Policy) caps what anyone in the account can do. Its deny overrides the role's Allow."},
+ {q:"Which statement about NACLs is correct?",o:["They are stateful","They protect individual servers","Rules are checked in number order and can deny traffic","They can use security groups as the source"],a:[2],e:"NACLs (Network Access Control Lists) are stateless, protect whole subnets, use numbered rules and support deny."},
+ {q:"What is the best way to let a Redshift cluster load files from S3 with COPY?",o:["Put an IAM user's keys in the COPY command","Attach an IAM role to the cluster and name it in COPY","Make the bucket public","Use the root user"],a:[1],e:"COPY uses an IAM role associated with the cluster. Avoid putting keys in commands."},
+ {q:"A company must make sure no resources are ever created outside ap-south-1, in any of its accounts. What enforces this?",o:["An IAM group","An SCP denying actions where aws:RequestedRegion is not ap-south-1","A NACL","A security group"],a:[1],e:"SCPs apply to every user and role in the accounts they're attached to, including admins."},
+ {q:"Where should a production RDS database used by Glue ETL be placed?",o:["A public subnet with a public IP","A private subnet, with a security group allowing the Glue connection","An edge location","Any subnet; security groups don't matter"],a:[1],e:"Databases go in private subnets, and security groups decide exactly who can connect."},
+ {q:"Database queries arrive at a server, but replies never get back to the clients. The security group is correct. What is the most likely cause?",o:["The subnet's custom NACL has no outbound rule for ephemeral ports 1024–65535","The security group is stateless","The IAM role is missing","The bucket policy denies access"],a:[0],e:"NACLs are stateless, so replies need their own outbound rule. Security groups are stateful and would allow replies automatically."},
+ {q:"Creating a Glue job fails with “not authorized to perform iam:PassRole”. What is missing?",o:["glue:CreateJob","iam:PassRole on the job's role, for the user","A NAT Gateway","An S3 endpoint"],a:[1],e:"Attaching a role to a service needs iam:PassRole on that role."}
+]);
+
+/* ===================== WEEK 2: DATA ENGINEERING CONCEPTS ===================== */
+add("de","de-systems","Databases, warehouses, data lakes and lakehouses",`
+${learn(["What a data engineer actually builds","OLTP vs OLAP: the two kinds of database work","Row storage vs columnar storage, and why analytics prefers columns","Structured, semi-structured and unstructured data","Database vs data warehouse vs data lake vs lakehouse","The raw, cleaned and curated zones of a data lake"])}
+<h2>What data engineering is</h2>
+<p>Data is created in many places: apps, websites, machines, partner files, SaaS tools. A <b>data engineer</b> builds the <b>pipelines</b> that collect that data, clean and reshape it, store it in the right place, and keep it flowing reliably so analysts, dashboards and AI models can use it.</p>
+${simple("<p>Think of a city's <b>water supply</b>. Lakes and rivers are the <b>sources</b>. Pipes and the treatment plant are the <b>pipelines</b> that move and clean the water. Overhead tanks in each building are the <b>analytics stores</b>. Taps are the <b>dashboards and reports</b> people actually use. The data engineer designs and runs everything between the river and the tap.</p>")}
+<h2>Two kinds of database work: OLTP and OLAP</h2>
+${table(["","OLTP (Online Transaction Processing)","OLAP (Online Analytical Processing)"],[
+ ["Purpose","Run the business: record each order, payment, login","Understand the business: trends, totals, comparisons"],
+ ["Typical query","“Get order 10045” or “insert this new order”","“Total sales per city per month for 3 years”"],
+ ["Rows touched per query","A few","Millions or billions"],
+ ["Number of queries","Thousands per second, each tiny","Fewer, each big"],
+ ["Who uses it","The application","Analysts, BI dashboards, data scientists"],
+ ["Storage layout","Row-based","Columnar"],
+ ["AWS examples","RDS, Aurora, DynamoDB","Redshift, Athena on S3"]])}
+${key("<p>Don't run heavy analytics directly on the app's OLTP database. Big reports slow it down for customers. Copy the data into an analytics store (a warehouse or lake) and query it there. Many exam questions describe exactly this problem.</p>")}
+<h2>Row storage vs columnar storage</h2>
+<p>Take this small table:</p>
+${table(["order_id","customer","city","amount"],[["1","Ravi","Hyderabad","500"],["2","Anita","Pune","1200"],["3","Kiran","Hyderabad","300"]])}
+<p>A <b>row-based</b> store writes whole rows together on disk:</p>
+<pre><code>1,Ravi,Hyderabad,500 | 2,Anita,Pune,1200 | 3,Kiran,Hyderabad,300</code></pre>
+<p>A <b>columnar</b> store writes each column together:</p>
+<pre><code>order_id: 1,2,3 | customer: Ravi,Anita,Kiran | city: Hyderabad,Pune,Hyderabad | amount: 500,1200,300</code></pre>
+<p>Now run <code>SELECT SUM(amount) FROM orders</code>. The row store must read every row, including names and cities it doesn't need. The columnar store reads only the <code>amount</code> column. With 50 columns and a billion rows, that's the difference between reading everything and reading 2% of it.</p>
+<p>Columnar data also <b>compresses much better</b>, because values in one column look alike (lots of “Hyderabad”s next to each other).</p>
+${simple("<p>A row store is like a <b>register book</b> where each line has one student's name, roll number, marks and address. To add up everyone's marks you must turn every page. A columnar store is like keeping a <b>separate notebook for each column</b>. To add up marks you open only the marks notebook.</p>")}
+<p>Row storage is better for OLTP, where you usually want one whole record. Columnar storage is better for OLAP, where you want a few columns across many records.</p>
+<h2>Three shapes of data</h2>
+${table(["Type","What it looks like","Examples"],[
+ ["Structured","Fixed rows and columns with types","Database tables, CSV exports"],
+ ["Semi-structured","Has labels and structure, but fields can vary and nest","JSON, XML, application logs, clickstream events"],
+ ["Unstructured","No table structure","Images, PDFs, audio, video, free text"]])}
+<h2>Where data is stored for analytics</h2>
+${table(["Store","What it holds","Structure","Strengths","AWS example"],[
+ ["Operational database","Current app data","Fixed schema, row-based","Fast small reads and writes","RDS, Aurora, DynamoDB"],
+ ["Data warehouse","Cleaned, structured data for reporting","<b>Schema-on-write</b>: tables defined first; data must fit","Fast complex SQL, joins, consistent BI performance","Amazon Redshift"],
+ ["Data lake","Raw data of any type and format","<b>Schema-on-read</b>: store first, define structure when querying","Cheap, unlimited, any format, many tools can read it","Amazon S3 + Glue Data Catalog + Athena"],
+ ["Lakehouse","Lake data with warehouse features","Open table format adds transactions, updates, deletes","Lake prices with database-like reliability","S3 + Apache Iceberg (or S3 Tables)"]])}
+${simple("<p><b>Schema-on-write</b> is a library that catalogues every book and puts it on the correct shelf before anyone can borrow it. Finding a book is quick, but adding books takes effort. <b>Schema-on-read</b> is a big storeroom where boxes go in as they arrive; you sort through a box only when you need something from it. Storing is easy, and you decide how to read it later.</p>")}
+<p>Most companies use <b>both</b>: an S3 data lake for everything, and Redshift for the curated data that powers dashboards.</p>
+<h2>Zones in a data lake</h2>
+<p>A data lake is usually split into layers, often as separate S3 prefixes or buckets. Names vary; the “medallion” names bronze, silver and gold are common.</p>
+${table(["Zone","Also called","What it holds","Example path"],[
+ ["Raw","Bronze, landing","An exact copy of the source data, as received. Never changed","<code>s3://lake/raw/orders/2026/10/29/orders.json</code>"],
+ ["Cleaned","Silver, processed","Fixed data types, duplicates removed, bad rows filtered, converted to Parquet","<code>s3://lake/clean/orders/order_date=2026-10-29/</code>"],
+ ["Curated","Gold, analytics","Business-ready tables: joined, aggregated, named for users","<code>s3://lake/curated/daily_sales_by_city/</code>"]])}
+${key("<p>Keep the raw zone untouched. If you find a bug in your cleaning logic months later, you can rebuild the cleaned and curated zones from raw data.</p>")}
+${tip("<p>“Store any data format cheaply and decide how to analyse it later” → <b>S3 data lake</b>.<br>“Complex joins and fast, consistent dashboard queries on structured data” → <b>Redshift</b>.<br>“Update or delete individual rows in the data lake” → a <b>lakehouse</b> table format like <b>Iceberg</b> (Week 7).</p>")}
+`,[
+ {q:"An e-commerce app's database slows down every evening when analysts run large monthly reports on it. What is the best long-term fix?",o:["Give analysts more powerful laptops","Copy the data into an analytics store such as Redshift or an S3 data lake and run reports there","Run the reports twice","Convert the app database to CSV"],a:[1],e:"OLTP databases serve the app. Heavy OLAP reporting belongs in a separate analytics store."},
+ {q:"Why is columnar storage faster for “total sales by month”?",o:["It stores data in more files","It reads only the columns the query needs and compresses them well","It keeps every row in memory","It sorts data by customer name"],a:[1],e:"The query needs only a couple of columns. A columnar store reads just those, and compressed columns are smaller to read."},
+ {q:"Which describes schema-on-read?",o:["Data must match a table definition before it is stored","Data is stored as-is and structure is applied when queried","Data can't have a schema","Only JSON data can be stored"],a:[1],e:"Data lakes store raw files and apply a schema (for example through the Glue Data Catalog) at query time."},
+ {q:"Which zone of a data lake should keep an unchanged copy of source data?",o:["Raw (bronze)","Cleaned (silver)","Curated (gold)","None; raw data should be deleted after cleaning"],a:[0],e:"The raw zone keeps the original data so you can reprocess it whenever logic changes."},
+ {q:"Application logs in JSON, where fields vary from event to event, are an example of:",o:["Structured data","Semi-structured data","Unstructured data","OLTP data"],a:[1],e:"JSON has labels and structure, but fields can vary and nest: semi-structured."}
+]);
+
+add("de","de-movement","ETL, ELT, batch, streaming and CDC",`
+${learn(["ETL vs ELT","Batch, micro-batch and streaming; real-time vs near-real-time","Full loads vs incremental loads, and how to find “new” data","CDC (Change Data Capture)","Idempotency, upserts, replay and backfill","Orchestration and DAGs"])}
+<h2>ETL vs ELT</h2>
+<p>Every pipeline does three things: <b>Extract</b> (read from the source), <b>Transform</b> (clean, convert, join, aggregate) and <b>Load</b> (write to the target). The difference is the order.</p>
+${table(["","ETL (Extract, Transform, Load)","ELT (Extract, Load, Transform)"],[
+ ["Order","Transform in a separate engine, then load the finished data","Load raw data into the warehouse first, then transform it there with SQL"],
+ ["Where the work happens","Glue, EMR or Lambda","Inside Redshift (or Athena on the lake)"],
+ ["Good when","Data needs heavy cleaning or reshaping first; target should only get clean data","The warehouse is powerful and analysts are comfortable in SQL"],
+ ["AWS example","Glue job reads raw JSON from S3, cleans it, writes Parquet","<code>COPY</code> raw data into Redshift staging tables, then SQL builds final tables"]])}
+${simple("<p><b>ETL</b> is washing and chopping vegetables before putting them in the fridge. <b>ELT</b> is putting the shopping straight into the fridge and washing and chopping only when you cook.</p>")}
+<h2>Batch vs streaming</h2>
+${table(["","Batch","Micro-batch","Streaming"],[
+ ["How it works","Collect data, then process a big chunk on a schedule","Process small chunks every few seconds or minutes","Process each event continuously as it arrives"],
+ ["Delay (latency)","Minutes to hours","Seconds to minutes","Milliseconds to seconds"],
+ ["Example","Nightly load of yesterday's orders","Glue streaming job processing every 100 seconds","Fraud check on each card payment"],
+ ["AWS services","Glue, EMR, Redshift COPY, Step Functions","Glue streaming, Spark Structured Streaming on EMR","Kinesis Data Streams, MSK, Managed Service for Apache Flink, Lambda"]])}
+<p>Exam wording matters:</p>
+<ul>
+<li><b>Real-time</b> usually means milliseconds up to about a second. Think Kinesis Data Streams or MSK with a consumer.</li>
+<li><b>Near-real-time</b> means within seconds to a few minutes. Think Amazon Data Firehose, which collects (buffers) data briefly before delivering it.</li>
+</ul>
+<h2>Full load vs incremental load</h2>
+<ul>
+<li><b>Full load:</b> copy the entire table every time. Simple, but slow and expensive for big tables.</li>
+<li><b>Incremental load:</b> copy only what is new or changed since the last run. Faster and cheaper, but you need a way to find the new data.</li>
+</ul>
+<p>Three common ways to find new data:</p>
+${table(["Method","How","Weakness"],[
+ ["Timestamp or ID column (a “watermark”)","Remember the last run's highest <code>updated_at</code> value; next time read rows where <code>updated_at</code> is greater","Misses rows deleted at the source; needs a reliable timestamp column"],
+ ["New files","Process only files that arrived since last time. Glue <b>job bookmarks</b> do this automatically (Week 3)","Only works for file sources"],
+ ["CDC (Change Data Capture)","Read the database's own change log","Needs CDC enabled on the source"]])}
+<h2>CDC: Change Data Capture</h2>
+<p>Every database keeps a <b>transaction log</b>: a running diary of every insert, update and delete. <b>Log-based CDC</b> reads that diary and sends each change downstream. It captures deletes too, and puts almost no load on the database.</p>
+${table(["Operation","order_id","status","changed_at"],[
+ ["I (insert)","101","PLACED","10:00:01"],["U (update)","101","SHIPPED","14:22:40"],["I (insert)","102","PLACED","14:25:03"],["D (delete)","99","—","15:01:10"]])}
+<p>The target applies these changes in order, so it stays in sync with the source. On AWS, <b>DMS</b> (Database Migration Service) does log-based CDC from databases such as MySQL, PostgreSQL, Oracle and SQL Server into S3, Redshift, Kinesis and others (Week 4).</p>
+${simple("<p>A full load is photocopying the entire attendance register every day. CDC is reading only today's new entries in the register's daily diary: “Ravi joined, Anita's surname changed, Kiran left”.</p>")}
+<h2>Four ideas that keep pipelines correct</h2>
+${table(["Term","Meaning","How to achieve it"],[
+ ["Idempotent","Running the same job twice gives the same result as running it once. No duplicates","Overwrite a whole partition instead of appending; use MERGE on a key; remove duplicates by unique key"],
+ ["Upsert","Update the row if it exists, insert it if it doesn't","SQL <code>MERGE</code>; Iceberg tables; DynamoDB <code>PutItem</code>"],
+ ["Replay","Re-read data that was already processed","Keep it somewhere re-readable: Kinesis Data Streams retains data for 24 hours up to 365 days; the S3 raw zone keeps it forever"],
+ ["Backfill","Re-run the pipeline for past dates","Pipelines that take a date as input and are idempotent"]])}
+${simple("<p><b>Idempotent</b> is like a lift button: pressing it five times still calls the lift once. A pipeline that appends rows each time it runs is like a shop counter that rings up the same bill again on every retry.</p>")}
+<p>Also know <b>fan-in</b> (many sources feeding one target, such as many app servers sending logs to one stream) and <b>fan-out</b> (one source feeding many consumers, such as one stream read by three different applications).</p>
+<h2>Orchestration</h2>
+<p>A real pipeline has several steps that must run in the right order, retry when something fails, and alert someone if it still fails. Managing this is called <b>orchestration</b>.</p>
+<p>The steps and their order form a <b>DAG</b> (Directed Acyclic Graph): tasks connected by one-way arrows, with no loops.</p>
+<pre><code>new file lands → crawl it → clean it (Glue) → check quality → load Redshift → notify team
+                                                  └── fails → alert on SNS</code></pre>
+<p>Pipelines start in two ways: <b>on a schedule</b> (“every day at 2 AM”) or <b>on an event</b> (“when a file arrives in S3”). AWS orchestration tools: <b>Step Functions</b>, <b>MWAA</b> (Managed Workflows for Apache Airflow), <b>Glue Workflows</b>, and <b>EventBridge</b> for schedules and events (Week 5).</p>
+${tip("<p>“Only process new data since the last run” → <b>incremental</b> (Glue job bookmarks for files, CDC for databases).<br>“Keep the warehouse in sync with ongoing database changes” → <b>DMS with CDC</b>.<br>“Retries must not create duplicates” → make the step <b>idempotent</b> (overwrite partition or MERGE).</p>")}
+`,[
+ {q:"A team loads raw data into Redshift first and then uses SQL inside Redshift to build reporting tables. This is:",o:["ETL","ELT","CDC","Streaming"],a:[1],e:"Load first, transform inside the warehouse afterwards: Extract, Load, Transform."},
+ {q:"A pipeline must capture inserts, updates AND deletes from an Oracle database and keep S3 in sync, with minimal load on the database. What approach fits?",o:["Nightly full export","Query rows by updated_at timestamp","Log-based CDC, for example with AWS DMS","Copy the database files manually"],a:[2],e:"Log-based CDC reads the transaction log, captures deletes too, and adds very little load. DMS supports it."},
+ {q:"A job failed halfway and was re-run. Now some rows appear twice in the target. Which property was missing?",o:["Durability","Idempotency","Elasticity","Partitioning"],a:[1],e:"An idempotent job gives the same result however many times it runs, for example by overwriting the partition or merging on a key."},
+ {q:"Data must be available for dashboards within about a minute of arriving, with as little code as possible. Which word describes this requirement?",o:["Real-time","Near-real-time","Batch","Backfill"],a:[1],e:"Seconds to a few minutes is near-real-time. Firehose is the classic low-code answer."},
+ {q:"Which method of finding new rows will MISS rows that were deleted in the source?",o:["Log-based CDC","Reading rows with updated_at greater than the last run","Neither","Both"],a:[1],e:"A deleted row no longer exists, so a timestamp query never sees it. Log-based CDC records the delete."}
+]);
+
+add("de","de-formats","File formats, compression and partitioning",`
+${learn(["CSV, JSON, Avro, Parquet and ORC: what each is good for","How Parquet lets engines skip data","Compression, and what “splittable” means","Partitioning: how to choose partition columns","The small files problem and data skew","Why these choices change cost so much"])}
+<p>How you store files in S3 decides how fast and how cheap every query on them will be. This lesson is behind a large number of exam questions.</p>
+<h2>The five formats</h2>
+${table(["Format","Row or column","Has a schema?","Human-readable?","Best for"],[
+ ["CSV","Row","No (just text; no data types)","Yes","Simple exchange of flat data. Weak for analytics"],
+ ["JSON (JSON Lines: one object per line)","Row","No fixed schema; fields can vary and nest","Yes","Events, logs, API data. Verbose and slow to scan"],
+ ["Avro","Row","Yes, stored inside the file","No (binary)","Streaming and Kafka, writing whole records, schemas that change over time"],
+ ["Parquet","Columnar","Yes, with data types","No (binary)","Analytics with Athena, Redshift Spectrum, Glue, EMR. The usual default"],
+ ["ORC (Optimized Row Columnar)","Columnar","Yes","No (binary)","Analytics, especially with Hive. Very similar to Parquet"]])}
+${key("<p>For analytics, the answer is almost always <b>Parquet</b> (or ORC): columnar, compressed and typed. Converting CSV or JSON to Parquet is one of the most common “make it faster and cheaper” answers.</p>")}
+<h2>How Parquet lets engines skip data</h2>
+<p>A Parquet file is divided into <b>row groups</b> (blocks of, say, a million rows). Inside each row group, every column is stored separately. The file's <b>footer</b> records the schema and, for each column in each row group, the <b>minimum and maximum value</b>.</p>
+<pre><code>orders.parquet
+├─ row group 1: order_date min 2026-10-01, max 2026-10-10 | amount ... | city ...
+├─ row group 2: order_date min 2026-10-11, max 2026-10-20 | ...
+└─ footer: schema + min/max of every column in every row group</code></pre>
+<p>For <code>SELECT SUM(amount) WHERE order_date = '2026-10-15'</code>, the engine:</p>
+<ol>
+<li>reads the footer first;</li>
+<li>skips row group 1, because its dates stop at the 10th. This is <b>predicate pushdown</b>;</li>
+<li>in row group 2, reads only the <code>order_date</code> and <code>amount</code> columns. This is <b>column projection</b>.</li>
+</ol>
+${simple("<p>It's like a filing cabinet where every drawer has a label saying “Invoices 1–10 Oct”. Looking for 15 October, you skip the first drawer without opening it, and in the right drawer you pull out only the one sheet type you need.</p>")}
+<h2>Compression</h2>
+<p>Compression makes files smaller, so less is stored and less is read. One idea matters most: <b>splittable</b>.</p>
+<p>A file is <b>splittable</b> if several workers can each read a different piece of it at the same time. If it isn't, one worker must read the whole file alone, however many workers you have.</p>
+${table(["Codec","Size reduction","Speed","Splittable as a plain text file?","Notes"],[
+ ["GZIP","High","Slower","<b>No</b>","Common for CSV and JSON, but one big .gz file is read by one worker"],
+ ["BZIP2","High","Slow","Yes","Rarely chosen today"],
+ ["Snappy","Moderate","Very fast","No as raw text","Default inside Parquet"],
+ ["ZSTD","High","Fast","No as raw text","Good balance inside Parquet and ORC"],
+ ["LZ4","Moderate","Very fast","No as raw text","Speed-focused"]])}
+${key("<p>Inside <b>Parquet and ORC</b>, compression is applied to each block separately, so these files stay splittable <i>whatever</i> codec you use. The splittable question matters mainly for big CSV or JSON files: avoid single huge GZIP files, or split them into many smaller files.</p>")}
+<h2>Partitioning</h2>
+<p><b>Partitioning</b> means storing data in separate folders by the value of one or more columns. Hive-style folder names use <code>column=value</code>:</p>
+<pre><code>s3://lake/clean/orders/year=2026/month=10/day=28/part-0001.parquet
+s3://lake/clean/orders/year=2026/month=10/day=29/part-0001.parquet</code></pre>
+<p>A query with <code>WHERE year = 2026 AND month = 10 AND day = 29</code> opens only one folder and ignores all others. This is <b>partition pruning</b>. Athena, Redshift Spectrum, Glue and EMR all do it.</p>
+<p>How to choose partition columns:</p>
+<ul>
+<li>Pick columns people <b>filter on most often</b>, usually a date, sometimes a region or source system.</li>
+<li>Pick columns with <b>low to medium cardinality</b>. Cardinality is how many different values a column has. Date (365 a year) or country (a few hundred) is fine.</li>
+<li><b>Don't</b> partition by high-cardinality columns such as <code>order_id</code> or <code>customer_id</code>. You'd get millions of folders with one tiny file each, which is slower, not faster.</li>
+<li>Aim for each partition to hold a decent amount of data (ideally hundreds of MB or more).</li>
+</ul>
+<p><b>Bucketing</b> is a related idea: rows are spread over a fixed number of files by hashing a column (often a join key like <code>customer_id</code>), which can speed up joins. It's tested far less than partitioning.</p>
+<h2>The small files problem</h2>
+<p>Every file has overhead: it must be listed, opened and its footer read, and every S3 request costs time and money. 100,000 files of 10 KB each are <b>far slower</b> to query than 10 files of 100 MB, even though the total data is the same.</p>
+<p>Small files often come from streaming jobs that write every few seconds, or from over-partitioning.</p>
+<p>Fixes: aim for files of roughly <b>128 MB to 1 GB</b>; <b>compact</b> small files into bigger ones on a schedule; reduce the number of output files in Spark before writing; increase Firehose buffer size; use Glue's file grouping when reading (Week 3); use Iceberg's compaction (Week 7).</p>
+<h2>Data skew</h2>
+<p><b>Data skew</b> means one partition or key holds much more data than the rest. For example, 70% of orders are from one big customer. Work is split by key, so one worker gets 70% of the job and everyone waits for it. Spark fixes are covered in the Spark lesson.</p>
+<h2>Why it matters: an example</h2>
+<p>Athena charges about 5 US dollars per TB scanned. Imagine one year of orders, 20 columns, and a query for one day using 2 columns. Numbers below are illustrative; real savings vary with the data.</p>
+${table(["How the data is stored","Data scanned","Approximate cost per query"],[
+ ["1 TB of CSV, one folder","All 1 TB","5 USD"],
+ ["Same data as Parquet (often about 4× smaller), one folder","About 25 GB (only 2 of 20 columns of 250 GB)","0.12 USD"],
+ ["Parquet, partitioned by day","About 70 MB (one day, 2 columns)","Under 0.01 USD"]])}
+${tip("<p>“Athena queries are slow and expensive” → convert to <b>Parquet/ORC</b>, <b>compress</b>, <b>partition</b> by the columns used in filters, and fix <b>small files</b>.<br>“Schema changes often, streaming, write-heavy” → <b>Avro</b>.<br>“One large GZIP CSV takes forever to process” → it's <b>not splittable</b>; split it or convert it to Parquet.</p>")}
+${trap("<p>Partitioning by a high-cardinality column (like user ID) is a wrong answer. It creates millions of tiny files and makes queries slower.</p>")}
+`,[
+ {q:"Analysts query a large CSV dataset in Athena. Queries are slow and costly. Which TWO changes help most? (Choose TWO)",o:["Convert the data to Parquet","Partition by the date column used in most filters","Store it as one single GZIP file","Partition by order_id","Add more columns"],a:[0,1],e:"Parquet reads only needed columns and compresses well; date partitions let Athena skip folders. One big GZIP file isn't splittable, and order_id partitions create millions of tiny files."},
+ {q:"Which file format stores its schema inside the file and is popular for streaming data whose fields change over time?",o:["CSV","Avro","Parquet","Plain text"],a:[1],e:"Avro is row-based, binary, carries its schema, and handles schema evolution well."},
+ {q:"A Spark job processes one 50 GB .csv.gz file and only one worker is busy. Why?",o:["GZIP text files aren't splittable, so one worker must read the whole file","Spark can't read CSV","The bucket is in the wrong Region","Parquet is required for Spark"],a:[0],e:"A GZIP-compressed text file can't be split, so it can't be shared across workers. Split it or convert it to Parquet."},
+ {q:"How does Parquet let an engine skip row groups that can't match a filter?",o:["It stores data row by row","Its footer stores min and max values for each column in each row group","It encrypts the data","It sorts files by name"],a:[1],e:"The min/max statistics let the engine skip row groups (predicate pushdown)."},
+ {q:"A streaming job writes thousands of 5 KB files per hour to S3, and queries are slowing down. What is the main fix?",o:["Use more partitions","Compact the small files into larger ones (about 128 MB to 1 GB)","Switch to CSV","Delete the bucket"],a:[1],e:"Too many small files add overhead to every query. Compacting them into fewer, larger files fixes it."}
+]);
+
+add("de","de-modelling","Data modelling: star schemas, keys and SCDs",`
+${learn(["Normalised vs denormalised tables","Star schema: fact tables and dimension tables","Grain: what one row means","Primary, foreign, natural and surrogate keys","Slowly Changing Dimensions (SCD) types 1 and 2","Schema evolution, metadata and lineage"])}
+<p><b>Data modelling</b> means deciding which tables to create, what columns each has, and how they connect. Good models make queries simple and fast.</p>
+<h2>Normalised vs denormalised</h2>
+<p>Look at this orders table:</p>
+${table(["order_id","customer_name","customer_city","product","amount"],[["1","Ravi","Hyderabad","Phone","15000"],["2","Ravi","Hyderabad","Cover","500"],["3","Anita","Pune","Phone","15000"]])}
+<p>Ravi's name and city are repeated on every order. If he moves, you must update many rows. <b>Normalisation</b> splits the data so each fact is stored once:</p>
+<pre><code>customers(customer_id, name, city)
+orders(order_id, customer_id, product_id, amount)
+products(product_id, product_name, category)</code></pre>
+${table(["","Normalised (many small linked tables)","Denormalised (fewer, wider tables)"],[
+ ["Duplication","None or very little","Some values repeated"],
+ ["Writes and updates","Easy: change one place","Harder: change many rows"],
+ ["Analytical queries","Need many joins, so slower","Fewer joins, so faster"],
+ ["Used in","OLTP app databases","Data warehouses and lakes"]])}
+<h2>Star schema</h2>
+<p>The standard design for analytics is the <b>star schema</b>: one central <b>fact table</b> surrounded by <b>dimension tables</b>.</p>
+<pre><code>                 dim_date
+                    │
+ dim_customer ── fact_sales ── dim_product
+                    │
+                 dim_store
+
+fact_sales(date_key, customer_key, product_key, store_key, quantity, amount)</code></pre>
+<ul>
+<li><b>Fact table:</b> one row per business event, holding the numbers you add up (quantity, amount) plus keys pointing to dimensions. Usually very long: millions or billions of rows.</li>
+<li><b>Dimension tables:</b> the descriptive context: <i>who</i> (customer), <i>what</i> (product), <i>where</i> (store), <i>when</i> (date). Usually much smaller and wide (many descriptive columns).</li>
+</ul>
+${simple("<p>A shop's bill book is the <b>fact table</b>: each line says what was sold, how many and for how much. The customer list, product catalogue and store list are the <b>dimension tables</b> that explain who, what and where.</p>")}
+<p>A <b>snowflake schema</b> normalises the dimensions further (for example product → category → department as separate tables). It saves a little space but needs more joins, so star schemas are preferred for fast BI.</p>
+<h3>Grain</h3>
+<p>The <b>grain</b> is what exactly one fact row represents, for example “one product line on one order”. Decide it first. Mixing grains (some rows per order, some per line) causes double counting.</p>
+<h2>Keys</h2>
+${table(["Key","Meaning","Example"],[
+ ["Primary key","Uniquely identifies each row in a table","<code>customer_id</code> in customers"],
+ ["Foreign key","A column that points to another table's primary key","<code>customer_id</code> inside orders"],
+ ["Natural (business) key","An identifier that exists in the real world or source system","Email address, PAN-style ID, product SKU code"],
+ ["Surrogate key","A meaningless number the warehouse generates","<code>customer_key</code> = 1, 2, 3…"]])}
+<p>Warehouses use <b>surrogate keys</b> in dimensions because one real customer can have several rows over time (see SCD Type 2 next), and natural keys can change.</p>
+<h2>Slowly Changing Dimensions (SCD)</h2>
+<p>Dimension values change slowly over time: a customer moves city, a product changes category. An <b>SCD</b> type is the rule for handling that change.</p>
+${table(["Type","What happens","History kept?","Use when"],[
+ ["Type 0","The value never changes once loaded","Original only","Fixed facts like date of birth"],
+ ["Type 1","Overwrite the old value","No","Corrections, or when history doesn't matter"],
+ ["Type 2","Add a new row with start and end dates and a “current” flag","Full history","Reports must show what was true at the time"],
+ ["Type 3","Add a column for the previous value","Only one previous value","Rare"]])}
+<p>Type 2 example: Ravi moves from Hyderabad to Bengaluru on 1 October 2026.</p>
+${table(["customer_key","customer_id","city","valid_from","valid_to","is_current"],[
+ ["1","C100","Hyderabad","2023-01-01","2026-09-30","false"],
+ ["57","C100","Bengaluru","2026-10-01","9999-12-31","true"]])}
+<p>Sales from 2025 still point to key 1 (Hyderabad), so last year's report by city stays correct.</p>
+<h2>Schema evolution, metadata and lineage</h2>
+<ul>
+<li><b>Schema evolution:</b> the structure of data changes over time: a new column appears, a type widens. Avro, Parquet and especially Iceberg handle this well; Glue crawlers can detect changes (Week 3). <b>Schema drift</b> means unexpected changes from a source.</li>
+<li><b>Metadata:</b> data about data. <i>Technical</i> metadata is column names, types and file locations (stored in the Glue Data Catalog). <i>Business</i> metadata is descriptions, owners and definitions (stored in a business catalog such as SageMaker Catalog, Week 8).</li>
+<li><b>Data lineage:</b> a record of where data came from and every step that changed it, so you can trace a wrong number back to its source.</li>
+</ul>
+${tip("<p>“Reports must show the customer's address at the time of each sale” → <b>SCD Type 2</b>.<br>“Fewer joins and faster BI queries” → <b>denormalised star schema</b>.<br>“Small, rarely changing dimension joined to a huge fact table” → in Redshift this becomes the <b>ALL</b> distribution style (Week 6).</p>")}
+`,[
+ {q:"A table holding one row per sale with quantity and amount, plus keys to customer, product and date, is a:",o:["Dimension table","Fact table","Lookup file","Staging bucket"],a:[1],e:"Fact tables hold measurable events and keys to dimensions."},
+ {q:"Business users need sales reports that show each customer's city at the time of the sale, even if the customer has since moved. Which approach fits?",o:["SCD Type 1","SCD Type 2","Delete old customers","Store the city only in the fact table header"],a:[1],e:"Type 2 keeps a new row per change with valid dates, so old sales still link to the old city."},
+ {q:"Why do warehouses usually prefer surrogate keys in dimension tables?",o:["They are easier for humans to read","One real customer can have several rows over time, and source keys can change","They are required by S3","They are encrypted"],a:[1],e:"Surrogate keys give each version of a dimension row its own key and protect against changes in source identifiers."},
+ {q:"Which design generally gives the fastest analytical queries?",o:["Highly normalised OLTP schema","Denormalised star schema","One table per column","Storing everything as text"],a:[1],e:"Star schemas need few joins, which suits analytics."}
+]);
+
+add("de","de-sql","SQL for data engineers",`
+${learn(["The order SQL actually runs in","Joins, GROUP BY and HAVING","CTEs (Common Table Expressions)","Window functions: ROW_NUMBER, RANK, LAG and running totals","MERGE (upsert), CTAS, views and materialized views","Simple rules for faster queries"])}
+<p>The exam won't ask you to write long SQL, but it shows queries and asks what they do, and it expects you to know which SQL feature solves a problem. Examples use these two tables:</p>
+<pre><code>customers(customer_id, name, city)
+orders(order_id, customer_id, order_date, amount, status, updated_at)</code></pre>
+<h2>The order SQL runs in</h2>
+<p>You write <code>SELECT</code> first, but the database runs the parts in this order:</p>
+<ol><li><code>FROM</code> and <code>JOIN</code>: which tables</li><li><code>WHERE</code>: filter rows</li><li><code>GROUP BY</code>: form groups</li><li><code>HAVING</code>: filter groups</li><li><code>SELECT</code>: choose columns, compute values</li><li><code>ORDER BY</code>: sort</li><li><code>LIMIT</code>: keep the first N</li></ol>
+<p>That's why a column alias made in <code>SELECT</code> can't be used in <code>WHERE</code>: <code>WHERE</code> runs first.</p>
+<h2>Joins</h2>
+${table(["Join","Returns"],[
+ ["INNER JOIN","Only rows that match in both tables"],
+ ["LEFT JOIN","Every row from the left table, plus matches from the right (NULL where no match)"],
+ ["RIGHT JOIN","Every row from the right table, plus matches from the left"],
+ ["FULL OUTER JOIN","Every row from both, matched where possible"],
+ ["CROSS JOIN","Every combination of rows (rarely wanted; can explode in size)"]])}
+<pre><code>-- Customers who have never ordered
+SELECT c.customer_id, c.name
+FROM customers c
+LEFT JOIN orders o ON o.customer_id = c.customer_id
+WHERE o.order_id IS NULL;</code></pre>
+<h2>GROUP BY, WHERE and HAVING</h2>
+<pre><code>SELECT city, SUM(amount) AS total_sales
+FROM orders o JOIN customers c ON c.customer_id = o.customer_id
+WHERE order_date >= DATE '2026-01-01'      -- filters rows before grouping
+GROUP BY city
+HAVING SUM(amount) > 100000;               -- filters groups after grouping</code></pre>
+<h2>CTEs: naming steps</h2>
+<p>A <b>CTE</b> (Common Table Expression) names a sub-result with <code>WITH</code> so long queries read top to bottom:</p>
+<pre><code>WITH daily AS (
+  SELECT order_date, SUM(amount) AS sales
+  FROM orders
+  GROUP BY order_date
+)
+SELECT AVG(sales) AS avg_daily_sales FROM daily;</code></pre>
+<h2>Window functions</h2>
+<p>A <b>window function</b> calculates across a group of related rows <i>without</i> collapsing them into one row the way <code>GROUP BY</code> does. The pattern is <code>function() OVER (PARTITION BY … ORDER BY …)</code>: <code>PARTITION BY</code> says which rows belong together; <code>ORDER BY</code> sets their order inside each group.</p>
+<h3>Keep only the latest record per key (the most common data engineering use)</h3>
+<pre><code>WITH ranked AS (
+  SELECT *,
+         ROW_NUMBER() OVER (PARTITION BY order_id ORDER BY updated_at DESC) AS rn
+  FROM orders_raw
+)
+SELECT * FROM ranked WHERE rn = 1;   -- one row per order: the newest version</code></pre>
+<p>This removes duplicates that arrive when a source sends the same order several times.</p>
+<h3>ROW_NUMBER vs RANK vs DENSE_RANK</h3>
+<p>For amounts ordered from highest to lowest: 900, 800, 800, 700</p>
+${table(["amount","ROW_NUMBER","RANK","DENSE_RANK"],[["900","1","1","1"],["800","2","2","2"],["800","3","2","2"],["700","4","4","3"]])}
+<h3>Previous value and running total</h3>
+<pre><code>SELECT order_date, sales,
+       LAG(sales) OVER (ORDER BY order_date)                 AS previous_day_sales,
+       SUM(sales) OVER (ORDER BY order_date)                 AS running_total
+FROM daily_sales;</code></pre>
+<h2>Changing data: MERGE, CTAS, INSERT … SELECT</h2>
+<p><b>MERGE</b> performs an <b>upsert</b>: update matching rows, insert new ones (and optionally delete). It's how you apply a batch of changes without creating duplicates.</p>
+<pre><code>MERGE INTO orders t
+USING orders_staging s
+  ON t.order_id = s.order_id
+WHEN MATCHED THEN UPDATE SET status = s.status, amount = s.amount, updated_at = s.updated_at
+WHEN NOT MATCHED THEN INSERT (order_id, customer_id, order_date, amount, status, updated_at)
+  VALUES (s.order_id, s.customer_id, s.order_date, s.amount, s.status, s.updated_at);</code></pre>
+<p>Redshift and Athena (on Iceberg tables) support MERGE.</p>
+<ul>
+<li><b>CTAS</b> (<code>CREATE TABLE … AS SELECT</code>) makes a new table from a query. In Athena it's a quick way to convert CSV into partitioned Parquet (Week 3).</li>
+<li><b>INSERT INTO … SELECT</b> adds query results to an existing table.</li>
+</ul>
+<h2>Views vs materialized views</h2>
+${table(["","View","Materialized view"],[
+ ["What it stores","Only the query text","The query's <b>results</b>"],
+ ["Speed when read","Runs the full query every time","Fast: reads stored results"],
+ ["Freshness","Always current","Needs refreshing (Redshift can refresh automatically)"],
+ ["Use for","Simplifying access, hiding columns","Speeding up heavy dashboard queries"]])}
+<h2>Rules for faster, cheaper queries</h2>
+<ul>
+<li>Select only the columns you need; avoid <code>SELECT *</code>, especially on columnar data.</li>
+<li>Filter on partition columns so whole folders are skipped.</li>
+<li>Filter early and join on keys.</li>
+<li>Pre-aggregate with materialized views or curated tables for repeated heavy queries.</li>
+<li>Use <code>LIMIT</code> while exploring.</li>
+</ul>
+${tip("<p>“Remove duplicate records and keep the latest version of each” → <b>ROW_NUMBER() OVER (PARTITION BY key ORDER BY timestamp DESC)</b> and keep row 1.<br>“Apply inserts and updates from a staging table” → <b>MERGE</b>.<br>“Dashboard query is slow and runs often” → <b>materialized view</b>.</p>")}
+`,[
+ {q:"Which clause filters groups AFTER aggregation?",o:["WHERE","HAVING","ORDER BY","FROM"],a:[1],e:"WHERE filters rows before grouping; HAVING filters groups after GROUP BY."},
+ {q:"A table has duplicate versions of each order. You must keep only the most recently updated version of each order. What do you use?",o:["GROUP BY order_id with SUM","ROW_NUMBER() OVER (PARTITION BY order_id ORDER BY updated_at DESC) and keep row 1","CROSS JOIN","A view with SELECT *"],a:[1],e:"ROW_NUMBER numbers each order's versions from newest; keeping rn = 1 leaves exactly one row per order."},
+ {q:"Which query returns customers who have never placed an order?",o:["INNER JOIN orders and keep all rows","LEFT JOIN orders and keep rows where order_id IS NULL","CROSS JOIN orders","RIGHT JOIN customers"],a:[1],e:"A LEFT JOIN keeps every customer; those with no matching order have NULL order columns."},
+ {q:"Values 500, 400, 400, 300 are ranked from highest. What does DENSE_RANK give the value 300?",o:["4","3","2","1"],a:[1],e:"DENSE_RANK doesn't leave gaps: 500 → 1, 400 → 2, 400 → 2, 300 → 3. RANK would give 4."},
+ {q:"A heavy dashboard query runs every few minutes and is slow. What helps most?",o:["A normal view","A materialized view that stores the results","SELECT *","Removing the WHERE clause"],a:[1],e:"A materialized view stores the results so reads are fast; a normal view re-runs the whole query each time."}
+]);
+
+add("de","de-spark","Apache Spark basics",`
+${learn(["Why big data needs many machines","Driver, executors, partitions and tasks","Lazy transformations and actions","Narrow vs wide transformations, and why shuffles are slow","Broadcast joins, data skew, repartition and coalesce","Common memory errors, and how Glue and EMR use Spark"])}
+<h2>Why Spark exists</h2>
+<p>A single machine can't comfortably process 2 TB of data: it doesn't fit in memory and would take hours. <b>Apache Spark</b> splits the data into many pieces and processes them <b>in parallel</b> on many machines, then combines the results. AWS Glue ETL jobs, Amazon EMR and Athena's Spark notebooks all run Spark.</p>
+${simple("<p>Think of a university correcting 10,000 exam papers. The <b>chief examiner</b> (the driver) splits the papers into bundles (partitions) and hands them to many <b>evaluators</b> (executors), who mark them in parallel. The chief examiner then collects the totals. If evaluators must swap papers to regroup them by subject, that swapping (the <b>shuffle</b>) is the slowest part of the day.</p>")}
+<h2>The parts of a Spark application</h2>
+${table(["Part","What it does"],[
+ ["Driver","The coordinator. Runs your program, builds the plan, splits it into tasks and tracks progress. One per application"],
+ ["Executors","Worker processes on the cluster machines. They run tasks and hold data in memory"],
+ ["Partition","One chunk of the data. Each partition is processed by one task. More partitions = more parallel work"],
+ ["Task","One unit of work on one partition"],
+ ["Stage","A group of tasks that can run without moving data between machines. Stages are separated by shuffles"],
+ ["Cluster manager","Gives the application machines. YARN on EMR; Glue handles this for you"]])}
+<h2>A small PySpark job</h2>
+<pre><code>df = spark.read.parquet("s3://lake/clean/orders/")              # nothing runs yet
+
+hyd = (df.filter(df.city == "Hyderabad")                        # transformation
+         .groupBy("order_date")                                 # transformation
+         .sum("amount"))                                        # transformation
+
+hyd.write.mode("overwrite").parquet("s3://lake/curated/hyd_daily_sales/")   # action: runs now</code></pre>
+<h2>Lazy transformations and actions</h2>
+<ul>
+<li><b>Transformations</b> (<code>filter</code>, <code>select</code>, <code>join</code>, <code>groupBy</code>, <code>withColumn</code>) only <i>describe</i> what to do. Spark records them in a plan but runs nothing. This is called <b>lazy evaluation</b>.</li>
+<li><b>Actions</b> (<code>write</code>, <code>count</code>, <code>show</code>, <code>collect</code>) make Spark actually run the plan.</li>
+</ul>
+<p>Being lazy lets Spark optimise the whole plan first, for example reading only the needed columns and pushing filters down into the Parquet reader.</p>
+<h2>Narrow vs wide transformations, and shuffles</h2>
+${table(["Kind","Examples","What happens"],[
+ ["Narrow","filter, select, withColumn, map","Each partition is processed on its own. Fast; no data moves between machines"],
+ ["Wide","groupBy, join, distinct, orderBy, repartition","Rows with the same key must be brought together, so data moves across the network. This is a <b>shuffle</b>"]])}
+<p>Shuffles cost network traffic, disk writes and memory. Making jobs faster is mostly about shuffling less data.</p>
+<h2>Joins: shuffle vs broadcast</h2>
+<ul>
+<li>A <b>shuffle join</b> moves both tables across the network so matching keys meet. Fine for two big tables, but expensive.</li>
+<li>A <b>broadcast join</b> sends a full copy of a <b>small</b> table to every executor, so the big table never moves. Much faster when one side is small (by default Spark broadcasts tables under about 10 MB automatically; you can also hint it).</li>
+</ul>
+<h2>Data skew</h2>
+<p>If one key has far more rows than others (say one customer has 60% of all orders), the partition for that key is huge. One task runs for an hour while the rest finish in a minute. Signs: in the Spark UI, most tasks are quick and one or two are very slow.</p>
+<p>Fixes: <b>AQE</b> (Adaptive Query Execution, on by default in Spark 3) can split skewed partitions automatically; <b>salting</b> adds a random number to the hot key to spread it out; filter out junk keys such as NULLs before joining.</p>
+<h2>repartition vs coalesce</h2>
+${table(["","repartition(n)","coalesce(n)"],[
+ ["Can increase partitions?","Yes","No, only reduce"],
+ ["Shuffle?","Full shuffle","Avoids a full shuffle"],
+ ["Partition sizes","Even","Can be uneven"],
+ ["Typical use","Spread data evenly before heavy work","Reduce the number of output files before writing, to avoid small files"]])}
+<p><code>cache()</code> keeps a result in memory when it's used several times in the same job.</p>
+<h2>Memory errors</h2>
+${table(["Error","Common cause","Fix"],[
+ ["Driver out of memory (OOM)","<code>collect()</code> pulling a big result to the driver; listing millions of small files","Don't collect big data; write it out instead. Compact small files. Bigger driver"],
+ ["Executor out of memory","Skewed or very large partitions, huge shuffles","More or larger workers, more partitions, fix skew, broadcast the small side"]])}
+<h2>Spark on AWS</h2>
+${table(["Service","How you use Spark"],[
+ ["AWS Glue ETL","Serverless Spark. You choose a worker type and number of workers: G.1X = 1 DPU = 4 vCPUs and 16 GB memory; G.2X = 2 DPUs. Adds DynamicFrames and job bookmarks (Week 3)"],
+ ["Amazon EMR","Spark on a cluster you configure, or EMR Serverless. Full control of versions and settings (Week 5)"],
+ ["Athena for Apache Spark","Run PySpark in notebooks without managing anything"]])}
+${tip("<p>“Join a large table with a small lookup table faster” → <b>broadcast join</b>.<br>“A few tasks take much longer than the rest” → <b>data skew</b> (AQE, salting).<br>“Job writes thousands of tiny output files” → <b>coalesce</b> (or repartition) to fewer partitions before writing.<br>“Driver runs out of memory” → stop calling <b>collect()</b> on large data.</p>")}
+`,[
+ {q:"In Spark, which process coordinates the job and splits it into tasks?",o:["Executor","Driver","Partition","Shuffle"],a:[1],e:"The driver builds the plan and schedules tasks; executors run them."},
+ {q:"A Spark job joins a 2 TB fact table with a 5 MB lookup table and spends most of its time shuffling. What helps most?",o:["Broadcast the lookup table","Increase the lookup table's size","Use collect() on the fact table","Convert both to CSV"],a:[0],e:"Broadcasting the small table to every executor avoids shuffling the 2 TB table."},
+ {q:"Most tasks finish in a minute, but two run for 40 minutes. What is the likely cause?",o:["Lazy evaluation","Data skew","Too few columns","Snappy compression"],a:[1],e:"A few very slow tasks usually mean skewed keys put far more data into some partitions."},
+ {q:"Which operation triggers Spark to actually execute the plan?",o:["filter","select","write","groupBy"],a:[2],e:"Transformations are lazy; actions such as write, count and collect run the plan."},
+ {q:"A Glue Spark job writes 4,000 tiny Parquet files. What should you add before the write?",o:["coalesce to a smaller number of partitions","collect()","More transformations","A larger driver only"],a:[0],e:"coalesce reduces the number of partitions without a full shuffle, so fewer, larger files are written."}
+]);
+
+/* ===================== WEEK 2: AMAZON S3 ===================== */
+add("s3","s3-basics","S3 basics: buckets, objects and keys",`
+${learn(["What object storage is and how it differs from a disk or file share","Buckets, objects, keys and prefixes","Durability, availability and consistency","Size limits and how files are uploaded","Why S3 is the base of every AWS data lake"])}
+<p><b>Amazon S3</b> (Simple Storage Service) stores files of any type and size, as many as you like, and you pay per GB stored per month. Almost every AWS data pipeline reads from or writes to S3.</p>
+<h2>Objects, buckets and keys</h2>
+${table(["Part","Meaning","Example"],[
+ ["Bucket","A container for objects. Created in one Region. Its name must be unique across all AWS accounts worldwide: 3–63 characters, lowercase letters, numbers, dots and hyphens","<code>acme-sales-lake-prod</code>"],
+ ["Object","One stored file: the data itself plus metadata (content type, custom labels). Up to <b>5 TB</b>","<code>orders_001.parquet</code>"],
+ ["Key","The object's full name inside the bucket, including any “folders”","<code>raw/orders/2026/10/29/orders_001.parquet</code>"],
+ ["Prefix","The beginning part of a key, used like a folder path","<code>raw/orders/2026/10/</code>"]])}
+${key("<p>S3 has <b>no real folders</b>. A key is just one long name that happens to contain slashes. The console shows prefixes as folders for convenience. Prefixes still matter a lot, for partitioning, for permissions and for performance.</p>")}
+${simple("<p>S3 is like a <b>cloakroom</b>. You hand over a bag and get a token with a unique number (the key). To get the bag back, you show the token. You can't go in and rearrange things inside a bag; you swap the whole bag. The cloakroom (bucket) is in one city (Region).</p>")}
+<h2>Object storage vs file storage vs block storage</h2>
+${table(["Type","AWS service","How you use it","Can you change part of a file in place?"],[
+ ["Object storage","S3","Read and write whole objects over HTTPS (API calls)","<b>No</b>. To change one row, you rewrite the whole object"],
+ ["File storage","EFS (Elastic File System)","A shared network drive that many servers mount","Yes"],
+ ["Block storage","EBS (Elastic Block Store)","A virtual hard disk attached to one EC2 server","Yes"]])}
+<p>Because objects can't be edited in place, updating or deleting single rows in a data lake is hard. That's the problem table formats like Apache Iceberg solve (Week 7).</p>
+<h2>Durability, availability and consistency</h2>
+<ul>
+<li><b>Durability</b> (not losing data): S3 is designed for <b>99.999999999%</b> (“eleven nines”). Most storage classes keep copies across at least <b>three Availability Zones</b>.</li>
+<li><b>Availability</b> (being reachable): S3 Standard is designed for 99.99% availability. Cheaper classes are a little lower.</li>
+<li><b>Consistency:</b> S3 has <b>strong read-after-write consistency</b>. As soon as a write or delete succeeds, every following read and list sees the change. No waiting.</li>
+</ul>
+<h2>Uploading</h2>
+<ul>
+<li>A single upload request (PUT) can be up to <b>5 GB</b>.</li>
+<li>Larger objects <b>must</b> use <b>multipart upload</b>, which splits a file into parts uploaded in parallel. AWS recommends it for anything over about 100 MB (details in the S3 performance lesson).</li>
+<li>You can attach up to 10 <b>tags</b> (key-value labels) to an object, for example <code>classification=pii</code>. Tags can drive lifecycle rules and permissions.</li>
+</ul>
+<h2>Addressing objects</h2>
+<pre><code>s3://acme-sales-lake-prod/raw/orders/2026/10/29/orders_001.parquet          (used by tools and Spark)
+https://acme-sales-lake-prod.s3.ap-south-1.amazonaws.com/raw/orders/...    (HTTPS URL)</code></pre>
+<h2>Security at a glance</h2>
+<p>Buckets and objects are <b>private by default</b>. <b>Block Public Access</b> is on by default for new buckets, and every new object is <b>encrypted by default</b> with SSE-S3 (Server-Side Encryption with S3-managed keys). Access is granted with IAM policies and bucket policies. All of this is covered in depth in Week 8.</p>
+<h2>Why data lakes are built on S3</h2>
+<ul>
+<li>Practically unlimited space, very high durability, low cost.</li>
+<li>Any format: CSV, JSON, Parquet, images, logs.</li>
+<li>Every AWS analytics service reads it directly: Glue, Athena, EMR, Redshift Spectrum, SageMaker, Bedrock.</li>
+<li><b>Storage is separate from compute</b>: you keep data in one place and run whichever engine fits each job, paying for compute only while it runs.</li>
+</ul>
+`,[
+ {q:"What is the maximum size of a single S3 object?",o:["5 GB","5 TB","50 TB","Unlimited"],a:[1],e:"An object can be up to 5 TB. A single PUT is limited to 5 GB, so larger objects need multipart upload."},
+ {q:"A job writes an object and immediately lists the bucket. Will the new object appear?",o:["Only after a few minutes","Yes, S3 has strong read-after-write consistency","Only in a different Region","Only if versioning is on"],a:[1],e:"S3 is strongly consistent: successful writes are visible to all following reads and lists."},
+ {q:"You need to change one row in a 2 GB CSV object in S3. What happens?",o:["S3 edits that row in place","You must write a new version of the whole object","S3 refuses any change","Only Glacier allows edits"],a:[1],e:"S3 is object storage; objects are replaced whole. Table formats like Iceberg manage row-level changes on top of this."},
+ {q:"Which statement about S3 prefixes is true?",o:["They are real directories on disk","They are just the leading part of the object key, shown as folders in the console","They must be created before uploading","Each prefix is a separate bucket"],a:[1],e:"S3 has no real folders. Prefixes are part of the key name."}
+]);
+
+add("s3","s3-classes","S3 storage classes",`
+${learn(["Each S3 storage class and when to use it","Retrieval times and retrieval fees","Minimum storage duration and minimum billable object size","How to choose a class in exam questions"])}
+<p>Every object has a <b>storage class</b>. Cheaper classes cost less per GB per month, but charge to read data back, may be slower to retrieve, and charge a minimum number of days even if you delete early.</p>
+${simple("<p>Think about where you keep things at home. Daily-use items sit on the <b>kitchen shelf</b> (Standard). Seasonal items go up in the <b>loft</b> (Infrequent Access): cheaper space, a ladder to fetch. Old documents go to a <b>rented storage unit across town</b> (Glacier Flexible): cheap, but a trip to get them. Things you must keep for years but almost never need go to a <b>relative's farmhouse in another state</b> (Deep Archive): cheapest, but it takes a day or two to get anything back.</p>")}
+<h2>The classes</h2>
+${table(["Class","Use when","How fast you get data back","Minimum storage charge","Retrieval fee"],[
+ ["S3 Standard","Data used often (hot data, active pipelines)","Milliseconds","None","No"],
+ ["S3 Intelligent-Tiering","Access pattern is <b>unknown or changes</b>","Milliseconds (optional archive tiers: minutes to hours)","None (small monthly monitoring fee per object)","No"],
+ ["S3 Standard-IA","Used rarely, but must be available instantly (e.g. monthly reports, backups)","Milliseconds","30 days; objects billed as at least 128 KB","Yes, per GB"],
+ ["S3 One Zone-IA","Rarely used data you can <b>re-create</b> if lost; stored in <b>one AZ</b> only","Milliseconds","30 days; at least 128 KB","Yes, per GB"],
+ ["S3 Glacier Instant Retrieval","Archive read about once a quarter, but needed instantly","Milliseconds","90 days; at least 128 KB","Yes, higher"],
+ ["S3 Glacier Flexible Retrieval","Archive read once or twice a year","Expedited 1–5 minutes; Standard 3–5 hours; Bulk 5–12 hours","90 days","Depends on speed"],
+ ["S3 Glacier Deep Archive","Kept for years for compliance, almost never read. Cheapest","Standard within 12 hours; Bulk within 48 hours","180 days","Yes"]])}
+<p>There is also <b>S3 Express One Zone</b>: a high-performance class in a single AZ with single-digit-millisecond access, stored in special “directory buckets”. It's for very hot data used by analytics and ML jobs in the same AZ.</p>
+<h2>Two rules that catch people out</h2>
+<ul>
+<li><b>Minimum storage duration:</b> if you delete or move an object from Standard-IA after 10 days, you are still charged for 30 days. For Glacier Flexible it's 90 days, for Deep Archive 180 days.</li>
+<li><b>Minimum billable size:</b> IA classes and Glacier Instant Retrieval charge small objects as if they were 128 KB. Millions of tiny files in IA can cost <i>more</i> than in Standard.</li>
+</ul>
+<h2>Reading archived data</h2>
+<p>Objects in <b>Glacier Flexible Retrieval</b> and <b>Glacier Deep Archive</b> can't be read directly. You must first <b>restore</b> them, which creates a temporary readable copy for the number of days you choose. Athena and Glue can't query them until they're restored. <b>Glacier Instant Retrieval</b> objects can be read directly, like Standard.</p>
+<h2>How to choose</h2>
+<ol>
+<li>Is the data used often? → <b>Standard</b>.</li>
+<li>Don't know, or it changes? → <b>Intelligent-Tiering</b>. It moves objects to cheaper tiers automatically after 30 and 90 days without access, and back when they're used, with no retrieval fees.</li>
+<li>Rarely used but needed instantly? → <b>Standard-IA</b> (or <b>One Zone-IA</b> if it can be re-created).</li>
+<li>Archive needed instantly a few times a year? → <b>Glacier Instant Retrieval</b>.</li>
+<li>Archive where minutes or hours are fine? → <b>Glacier Flexible Retrieval</b>.</li>
+<li>Must be kept for years, hours to days is fine, cheapest possible? → <b>Glacier Deep Archive</b>.</li>
+</ol>
+${tip("<p>“Unpredictable access, minimise cost, no operational effort” → <b>Intelligent-Tiering</b>.<br>“Keep for 7 years for audit, rarely or never accessed, retrieval within 48 hours is fine” → <b>Glacier Deep Archive</b>.<br>“Infrequent access but data must be available within milliseconds” → <b>Standard-IA</b> or <b>Glacier Instant Retrieval</b>.</p>")}
+${trap("<p><b>One Zone-IA</b> keeps data in one AZ. It's wrong for the only copy of important data. Use it only for copies or data you can regenerate (like processed outputs or thumbnails).</p>")}
+`,[
+ {q:"A company stores data with unpredictable access patterns and wants lower cost with no effort to manage tiers. Which class fits?",o:["S3 Standard","S3 Intelligent-Tiering","S3 One Zone-IA","S3 Glacier Deep Archive"],a:[1],e:"Intelligent-Tiering moves objects between tiers automatically based on use, without retrieval fees."},
+ {q:"Audit logs must be kept for 10 years, are almost never read, and a 48-hour retrieval time is acceptable. Cheapest option?",o:["S3 Standard-IA","S3 Glacier Instant Retrieval","S3 Glacier Deep Archive","S3 Intelligent-Tiering"],a:[2],e:"Deep Archive is the cheapest class, built for long retention with retrieval within 12–48 hours."},
+ {q:"Objects are moved to Standard-IA and deleted after 12 days. How many days of storage are charged?",o:["12","30","90","0"],a:[1],e:"Standard-IA has a 30-day minimum storage charge."},
+ {q:"Athena can't read some objects in a bucket. Their storage class is Glacier Flexible Retrieval. What must happen first?",o:["Enable versioning","Restore the objects","Change the bucket Region","Nothing; Athena reads Glacier directly"],a:[1],e:"Glacier Flexible Retrieval and Deep Archive objects must be restored before they can be read."},
+ {q:"Which class stores data in a single Availability Zone?",o:["S3 Standard","S3 Standard-IA","S3 One Zone-IA","S3 Glacier Deep Archive"],a:[2],e:"One Zone-IA (and Express One Zone) keep data in one AZ, so they suit re-creatable data only."}
+]);
+
+add("s3","s3-lifecycle","Lifecycle rules, versioning, replication and Object Lock",`
+${learn(["Lifecycle rules: moving and deleting objects automatically","Versioning and delete markers","Replication to another bucket: CRR and SRR","Object Lock for data that must not be changed (WORM)"])}
+<h2>Lifecycle rules</h2>
+<p>A <b>lifecycle rule</b> tells S3 to act on objects automatically as they age. Two kinds of action:</p>
+<ul><li><b>Transition:</b> move objects to a cheaper storage class after N days.</li><li><b>Expiration:</b> delete objects after N days.</li></ul>
+<p>Rules can apply to the whole bucket or only to objects with a certain <b>prefix</b>, <b>tag</b> or <b>size</b>.</p>
+<pre><code>Rule "raw-zone-ageing"   applies to prefix raw/
+  after 30 days   → move to S3 Standard-IA
+  after 90 days   → move to S3 Glacier Flexible Retrieval
+  after 365 days  → delete</code></pre>
+<p>Useful clean-up rules for every data lake bucket:</p>
+<ul>
+<li><b>Abort incomplete multipart uploads</b> after, say, 7 days. Half-finished uploads are invisible but still charged.</li>
+<li><b>Delete old (noncurrent) versions</b> after N days in versioned buckets.</li>
+<li><b>Remove expired delete markers</b> left after all versions are gone.</li>
+</ul>
+${key("<p>Objects must stay at least <b>30 days</b> in Standard before a lifecycle rule can move them to Standard-IA or One Zone-IA. Use <b>lifecycle rules</b> when you know the access pattern (e.g. data is rarely used after 30 days). Use <b>Intelligent-Tiering</b> when you don't.</p>")}
+<h2>Versioning</h2>
+<p>With <b>versioning</b> on, S3 keeps every version of an object instead of overwriting it. Each version gets a version ID.</p>
+${simple("<p>Like <b>version history</b> in a Google Doc: every save is kept, and you can go back to any earlier one.</p>")}
+<ul>
+<li>A bucket starts <b>unversioned</b>. You can <b>enable</b> versioning, and later <b>suspend</b> it, but you can never return to unversioned.</li>
+<li><b>Overwrite</b> an object → the old version is kept as a “noncurrent” version.</li>
+<li><b>Delete</b> an object normally → S3 adds a <b>delete marker</b>. The object looks gone, but older versions remain. Remove the delete marker to bring the object back.</li>
+<li><b>Delete a specific version ID</b> → that version is permanently removed.</li>
+<li>Every version is billed, so pair versioning with a lifecycle rule for noncurrent versions.</li>
+<li><b>MFA Delete</b> can require an MFA code to permanently delete versions or change versioning settings.</li>
+</ul>
+<h2>Replication</h2>
+<p><b>Replication</b> copies new objects automatically from one bucket to another.</p>
+${table(["Type","Full form","Use it for"],[
+ ["CRR","Cross-Region Replication","Disaster recovery in another Region, lower latency for users elsewhere, compliance needing a copy far away"],
+ ["SRR","Same-Region Replication","Combining logs from many buckets, copying production data to a test account, keeping a copy in another account while staying in the same Region (useful for data sovereignty)"]])}
+<p>Rules to know:</p>
+<ul>
+<li><b>Versioning must be enabled</b> on both the source and destination buckets.</li>
+<li>S3 needs an <b>IAM role</b> allowed to read the source and write the destination.</li>
+<li>Only objects created <b>after</b> the rule is turned on are copied. To copy existing objects, use <b>S3 Batch Replication</b>.</li>
+<li>Replication isn't chained: objects replicated from bucket A to B are not passed on again from B to C.</li>
+<li>Delete markers can optionally be replicated; deletes of specific versions never are (to protect against malicious deletes).</li>
+<li>You can change the storage class or owner of the copies.</li>
+<li><b>RTC</b> (Replication Time Control) guarantees 99.99% of objects are copied within 15 minutes, for strict requirements.</li>
+</ul>
+<h2>Object Lock (WORM)</h2>
+<p><b>Object Lock</b> stops objects from being deleted or overwritten for a set time. This is called <b>WORM</b>: Write Once, Read Many. It needs versioning and is used for financial, medical and legal records that regulations say must not be changed.</p>
+${table(["Setting","What it does"],[
+ ["Retention period","The object version can't be deleted or changed until this date"],
+ ["Governance mode","Most users can't delete or change it, but users with a special permission can override the lock"],
+ ["Compliance mode","<b>Nobody</b>, not even the root user, can delete it or shorten the retention until it ends"],
+ ["Legal hold","Locks the object with no end date until someone with permission removes the hold (for example during a lawsuit)"]])}
+${tip("<p>“Move logs to cheaper storage after 30 days and delete after 1 year” → <b>lifecycle rule</b>.<br>“Protect against accidental deletes or overwrites” → <b>versioning</b> (plus MFA Delete).<br>“Copy data to another Region for disaster recovery” → <b>CRR</b>.<br>“Records must not be deleted by anyone, including administrators, for 7 years” → <b>Object Lock in Compliance mode</b>.</p>")}
+`,[
+ {q:"Logs are queried often for 30 days, rarely after that, and must be deleted after 1 year. What is the simplest solution?",o:["A Lambda function that moves files nightly","An S3 lifecycle rule: transition to Standard-IA after 30 days, expire after 365 days","Manual deletion every year","Intelligent-Tiering with no expiration"],a:[1],e:"Lifecycle rules handle known age-based patterns with no code."},
+ {q:"A user deleted an important file from a versioned bucket. How can it be recovered?",o:["It can't be recovered","Delete the delete marker to restore the latest version","Restore from Glacier","Enable versioning now"],a:[1],e:"A normal delete in a versioned bucket only adds a delete marker; removing it brings the object back."},
+ {q:"S3 Cross-Region Replication was configured, but files uploaded last month were not copied. Why?",o:["CRR copies only objects created after the rule is enabled; use S3 Batch Replication for existing ones","CRR only works within one Region","Versioning must be off","The files are too small"],a:[0],e:"Replication applies to new objects. Existing objects need S3 Batch Replication."},
+ {q:"Regulations require records that no one, including the root user, can delete for 7 years. Which setting fits?",o:["Versioning","Object Lock in Governance mode","Object Lock in Compliance mode","A lifecycle rule"],a:[2],e:"Compliance mode can't be overridden by anyone until the retention period ends."},
+ {q:"What must be enabled on both buckets before configuring replication?",o:["Object Lock","Versioning","Transfer Acceleration","Requester Pays"],a:[1],e:"S3 replication requires versioning on the source and destination buckets."}
+]);
+
+add("s3","s3-performance","S3 performance and useful features",`
+${learn(["How many requests per second S3 handles, and why prefixes matter","Multipart upload and byte-range fetches","Transfer Acceleration","Event notifications to start pipelines","Batch Operations, Inventory and Storage Lens","Requester Pays and presigned URLs"])}
+<h2>Request rates and prefixes</h2>
+<p>S3 handles at least <b>3,500 write requests</b> (PUT, COPY, POST, DELETE) and <b>5,500 read requests</b> (GET, HEAD) <b>per second, per prefix</b>. There's no limit on the number of prefixes, so spreading objects across prefixes multiplies the limit: 10 prefixes can support 55,000 reads per second.</p>
+<p>When traffic jumps suddenly, S3 scales automatically, but you may briefly see <b>503 Slow Down</b> errors. Clients should <b>retry with exponential backoff</b> (wait a little longer before each retry).</p>
+<p>Partitioned data lakes spread data across many prefixes naturally, which helps.</p>
+<h2>Multipart upload</h2>
+<p>Large files are split into parts that upload <b>in parallel</b>. If one part fails, only that part is retried.</p>
+<ul>
+<li>Up to 10,000 parts; each part 5 MB to 5 GB (the last part can be smaller).</li>
+<li><b>Required</b> for objects over 5 GB; recommended over about 100 MB.</li>
+<li>Unfinished multipart uploads are still charged until removed, so add a lifecycle rule to abort them after a few days.</li>
+</ul>
+<p>The opposite direction is a <b>byte-range fetch</b>: download different byte ranges of one object in parallel, or read just the part you need (for example only a file's header or a Parquet footer).</p>
+<h2>Transfer Acceleration</h2>
+<p><b>S3 Transfer Acceleration</b> speeds up uploads from far away. Your data goes to the nearest AWS <b>edge location</b>, then travels over AWS's own fast network to the bucket's Region. Use it when users or offices upload large files over long distances. It costs extra per GB.</p>
+<h2>Event notifications: starting a pipeline when a file lands</h2>
+<p>S3 can send an event when something happens to an object: created, deleted, restored from Glacier, replicated, and so on. Filter by prefix and suffix, e.g. only <code>raw/orders/</code> and only <code>.csv</code>.</p>
+${table(["Destination","Use"],[
+ ["Lambda","Run a small piece of code for each new file"],
+ ["SQS (Simple Queue Service)","Queue the events so a consumer processes them at its own pace"],
+ ["SNS (Simple Notification Service)","Fan out one event to many subscribers"],
+ ["EventBridge","Send <b>all</b> S3 events to EventBridge for advanced filtering, many targets (Step Functions, Glue workflows…), archiving and replay"]])}
+${simple("<p>Event notifications are like a <b>doorbell</b>. Instead of checking the front door every five minutes to see if a parcel has arrived (polling), the bell rings when it does, and your pipeline starts.</p>")}
+<h2>Working with millions of objects</h2>
+${table(["Feature","What it does","Use when"],[
+ ["S3 Inventory","Produces a daily or weekly list of all objects and their properties (size, storage class, encryption, replication status) as CSV, ORC or Parquet","You need to audit or find objects in a huge bucket; query the list with Athena instead of listing the bucket"],
+ ["S3 Batch Operations","Performs one action on millions or billions of objects from a list: copy, replace tags, restore from Glacier, run a Lambda on each, set Object Lock, replicate existing objects","Bulk changes to existing objects"],
+ ["S3 Storage Lens","Dashboards of storage usage and activity across all buckets and accounts, with recommendations","Organisation-wide cost and usage visibility"],
+ ["Storage Class Analysis","Watches how often objects are read to suggest when to move them to Standard-IA","Deciding lifecycle transition days"]])}
+<h2>Sharing data</h2>
+<ul>
+<li><b>Requester Pays:</b> the person downloading pays for the requests and data transfer instead of the bucket owner. Good for sharing large datasets with other companies.</li>
+<li><b>Presigned URL:</b> a link that gives temporary access to one object (for example for 15 minutes), using the permissions of whoever created the link. Good for letting someone download or upload one file without giving them AWS access.</li>
+<li><b>Access Points:</b> named entry points to a bucket, each with its own policy, which simplifies access for many teams (Week 8).</li>
+</ul>
+${tip("<p>“Upload very large files faster and more reliably” → <b>multipart upload</b>.<br>“Uploads from distant offices are slow” → <b>Transfer Acceleration</b>.<br>“Start processing as soon as a file arrives” → <b>S3 event notification</b> (to Lambda, SQS or EventBridge).<br>“Change tags or restore millions of existing objects” → <b>S3 Batch Operations</b>.<br>“503 Slow Down errors” → retry with backoff and spread keys across more prefixes.</p>")}
+`,[
+ {q:"An application gets 503 Slow Down errors when reading many objects under one prefix. What helps? (Choose TWO)",o:["Spread objects across more prefixes","Retry with exponential backoff","Move objects to Glacier","Turn off versioning","Use a single larger object for everything"],a:[0,1],e:"Limits apply per prefix, so more prefixes raise total throughput; backoff retries handle temporary throttling while S3 scales."},
+ {q:"A 20 GB file must be uploaded to S3. What is required?",o:["A single PUT request","Multipart upload","Transfer Acceleration","Requester Pays"],a:[1],e:"A single PUT is limited to 5 GB, so larger objects must use multipart upload."},
+ {q:"A pipeline must start automatically whenever a new CSV file lands in raw/orders/. What is the simplest trigger?",o:["A person checking the bucket","S3 event notification filtered on prefix and suffix","S3 Inventory","S3 Storage Lens"],a:[1],e:"Event notifications fire on object creation and can filter by prefix and suffix."},
+ {q:"You must add a tag to 300 million existing objects. Which feature fits?",o:["Lifecycle rules","S3 Batch Operations","Transfer Acceleration","Presigned URLs"],a:[1],e:"Batch Operations runs one action across a list of existing objects at massive scale."},
+ {q:"An external partner needs to download one report for the next hour without an AWS account. What do you give them?",o:["Your access keys","A presigned URL","A public bucket","An IAM user"],a:[1],e:"A presigned URL grants temporary access to a single object."}
+]);
+
+add("s3","week2-review","Week 2 review quiz",`
+<p>Mixed questions on data engineering concepts and Amazon S3, written in the exam's style. Aim for at least 9 out of 12 before moving to Week 3. Re-read the lessons behind any questions you miss, and tap dotted words if a term is unclear.</p>
+`,[
+ {q:"A data lake in S3 stores daily sales as uncompressed CSV in a single prefix. Athena queries usually filter by sale_date and use 3 of 40 columns. Which changes reduce cost the most? (Choose TWO)",o:["Convert to Parquet","Partition by sale_date","Partition by transaction_id","Move the data to Glacier Deep Archive","Add a view"],a:[0,1],e:"Parquet reads only the 3 needed columns; date partitions let Athena skip other days. Transaction ID partitions create millions of tiny folders; Glacier can't be queried directly."},
+ {q:"A nightly job appends yesterday's data. After a failed run is retried, totals are doubled. What is the best fix?",o:["Run the job less often","Make the job idempotent by overwriting the day's partition (or using MERGE on keys)","Turn on S3 versioning","Use CSV instead of Parquet"],a:[1],e:"Idempotent jobs produce the same result however often they run. Overwriting the partition or merging on a key prevents duplicates."},
+ {q:"Which pair correctly matches workload to storage?",o:["OLTP → Redshift; OLAP → RDS","OLTP → RDS; OLAP → Redshift","OLTP → Athena; OLAP → DynamoDB","Both → S3 Glacier"],a:[1],e:"RDS (and Aurora, DynamoDB) serve transactional apps; Redshift serves analytics."},
+ {q:"A company must keep raw data exactly as received so it can rebuild downstream tables if logic changes. Where does this data belong?",o:["The curated (gold) zone","The raw (bronze) zone","Only in Redshift","Nowhere; raw data should be deleted"],a:[1],e:"The raw zone keeps an unchanged copy for reprocessing."},
+ {q:"A dimension must keep the full history of a product's category changes for accurate past reports. Which approach?",o:["SCD Type 1","SCD Type 2","Delete and reload the table daily","Store category only in the fact table"],a:[1],e:"SCD Type 2 adds a new row per change with validity dates."},
+ {q:"A Spark job joining a huge orders table with a small country lookup table is slow because of shuffling. What should you do?",o:["Broadcast the small table","Collect the orders table to the driver","Partition the lookup table by country name","Convert to CSV"],a:[0],e:"Broadcasting the small table avoids moving the huge table across the network."},
+ {q:"Data in S3 is read heavily for a few weeks, then rarely, but nobody knows exactly when. The team wants lower cost without managing rules. Which storage class?",o:["S3 Standard","S3 Intelligent-Tiering","S3 One Zone-IA","S3 Glacier Flexible Retrieval"],a:[1],e:"Intelligent-Tiering moves objects automatically based on actual access, without retrieval fees."},
+ {q:"Which statement about S3 versioning is correct?",o:["Once enabled, it can be turned off and the bucket becomes unversioned","Deleting an object without a version ID adds a delete marker and keeps older versions","Versioning is free, regardless of how many versions exist","Versioning is required for lifecycle rules"],a:[1],e:"A normal delete adds a delete marker. Versioning can only be suspended, not removed, and every version is billed."},
+ {q:"Financial records must be stored so no one, including administrators, can delete them for 7 years. Which S3 feature fits?",o:["Versioning with MFA Delete","Object Lock in Compliance mode","Lifecycle expiration","Same-Region Replication"],a:[1],e:"Compliance mode can't be overridden by any user, including root, until retention ends."},
+ {q:"A source database must stay in sync with S3, including deleted rows, with minimal impact on the database. What approach?",o:["Hourly full export","Query by updated_at","Log-based CDC with AWS DMS","Manual CSV downloads"],a:[2],e:"Log-based CDC reads the transaction log, captures deletes, and adds little load."},
+ {q:"Objects moved to S3 Glacier Deep Archive must be queried by Athena next week. What must happen first?",o:["Nothing","Restore the objects (temporary copy) before querying","Enable Transfer Acceleration","Add a lifecycle rule"],a:[1],e:"Deep Archive and Glacier Flexible Retrieval objects must be restored before any service can read them."},
+ {q:"Which is the clearest sign of data skew in a Spark job?",o:["All tasks take equal time","Most tasks finish quickly but a few take much longer","The job reads Parquet","The driver is idle"],a:[1],e:"Skewed keys give a few partitions much more data, so their tasks run far longer."}
+]);
+
+/* ===================== COMING SOON ===================== */
+const S=(m,id,t,s)=>soon(m,id,t,s);
+S("glue","glue-catalog","Glue Data Catalog and crawlers","Tables, partitions, classifiers, partition indexes, Schema Registry.");
+S("glue","glue-etl","Glue ETL jobs","Workers, DynamicFrames, bookmarks, push-down predicates, Flex.");
+S("glue","glue-quality","DataBrew and Glue Data Quality","Recipes, profiling, DQDL rules.");
+S("glue","athena","Amazon Athena","Workgroups, partition projection, CTAS, federated queries, Iceberg.");
+S("stream","kinesis-streams","Kinesis Data Streams","Shards, partition keys, capacity modes, enhanced fan-out.");
+S("stream","firehose","Amazon Data Firehose","Buffering, transforms, Parquet conversion, dynamic partitioning.");
+S("stream","msk-flink","MSK and Managed Flink","Kafka on AWS and real-time aggregations.");
+S("stream","dms-transfer","DMS, DataSync, Transfer Family, AppFlow","Moving databases, files and SaaS data into AWS.");
+S("stream","events","S3 events and EventBridge","Event-driven pipelines and schedules.");
+S("proc","lambda","AWS Lambda","Limits, concurrency, event source mappings.");
+S("proc","emr","Amazon EMR","Nodes, Spot, EMR Serverless, Glue vs EMR.");
+S("proc","step-functions","Step Functions","Standard vs Express, Retry/Catch, .sync, Distributed Map.");
+S("proc","mwaa-sns-sqs","MWAA, Glue Workflows, SNS and SQS","Orchestration choices and messaging.");
+S("proc","iac","CloudFormation, CDK, SAM and CI/CD","Repeatable deployments.");
+S("rs","rs-arch","Redshift architecture","Leader and compute nodes, slices, RA3, Serverless.");
+S("rs","rs-design","Distribution and sort keys","AUTO, EVEN, KEY, ALL; compound vs interleaved.");
+S("rs","rs-load","COPY, UNLOAD, streaming and zero-ETL","Fast loading and upserts.");
+S("rs","rs-query","Spectrum, federated query and data sharing","Querying beyond the warehouse.");
+S("rs","rs-perf","Redshift performance and security","Materialized views, WLM, concurrency scaling, row-level security, masking.");
+S("stores","dynamodb","Amazon DynamoDB","Keys, GSI and LSI, Streams, TTL, DAX.");
+S("stores","relational","RDS, Aurora, MemoryDB, OpenSearch","Choosing the right store.");
+S("stores","iceberg","Apache Iceberg and S3 Tables","ACID, MERGE, time travel, compaction.");
+S("stores","genai","Bedrock, embeddings and vector indexes","RAG, Knowledge Bases, HNSW vs IVF.");
+S("stores","analytics","QuickSight, SageMaker Unified Studio, Q, Kendra","Analytics and the newer exam services.");
+S("sec","lake-formation","AWS Lake Formation","Grants, data filters, LF-Tags, cross-account sharing.");
+S("sec","kms","KMS and encryption","S3 encryption options, key policies, cross-account keys.");
+S("sec","secrets-macie","Secrets Manager, Parameter Store and Macie","Credentials and PII discovery.");
+S("sec","audit","CloudTrail, Config and CloudWatch","Auditing and monitoring pipelines.");
+S("sec","sagemaker-catalog","SageMaker Catalog and governance","Business catalog, projects, data mesh patterns.");
+S("exam","patterns","Exam decision patterns","“If the question says X, the answer is Y” drills.");
+S("exam","mock","Full mock exams","65 questions, timed.");
+
+/* ---------- state ---------- */
+const STORE="dea-hub-v1";
+let state={done:{},scores:{}};
+try{const s=JSON.parse(localStorage.getItem(STORE)||"null");if(s&&s.done)state=s;}catch(e){}
+const save=()=>{try{localStorage.setItem(STORE,JSON.stringify(state));}catch(e){}};
+const ready=PAGES.filter(p=>p.ready&&!p.noDone);
+const navable=PAGES.filter(p=>p.ready);
+
+/* ---------- sidebar ---------- */
+const tree=document.getElementById("tree");
+function renderTree(filter=""){
+  const f=filter.trim().toLowerCase();
+  tree.innerHTML=MODULES.map(m=>{
+    const items=PAGES.filter(p=>p.mod===m.id&&(!f||p.title.toLowerCase().includes(f)));
+    if(!items.length)return"";
+    return`<div class="mod"><h4>${m.name}<small>${m.week}</small></h4>${items.map(p=>
+      `<a href="#${p.id}" data-id="${p.id}" class="${p.ready?"":"soon"}"><span class="d">${state.done[p.id]?"✓":""}</span>${p.title}</a>`).join("")}</div>`;
+  }).join("")||`<p style="padding:0 16px;color:var(--muted)">No topics match.</p>`;
+  markActive();
+}
+function markActive(){const id=current();tree.querySelectorAll("a").forEach(a=>a.classList.toggle("on",a.dataset.id===id));}
+function updateProgress(){
+  const n=ready.filter(p=>state.done[p.id]).length;
+  document.getElementById("progTxt").textContent=`${n}/${ready.length}`;
+  document.getElementById("barFill").style.width=(n/ready.length*100)+"%";
+}
+
+/* ---------- page ---------- */
+const current=()=>{const h=location.hash.slice(1);return PAGES.some(p=>p.id===h)?h:"home";};
+const page=document.getElementById("page");
+function render(){
+  hidePop();
+  const id=current(), p=PAGES.find(x=>x.id===id), mod=MODULES.find(m=>m.id===p.mod);
+  const idx=navable.indexOf(p);
+  let html=`<div class="crumb">${mod.name}${mod.week?" · "+mod.week:""}</div><h1>${p.title}</h1>`;
+  if(!p.ready){
+    html+=`<p>This lesson is planned for <b>${mod.week}</b>. It will cover: ${p.summary}</p><p>It will be written in the same step-by-step style as Week 1, with every abbreviation explained.</p>`;
+  }else{
+    html+=p.body;
+    if(p.quiz.length) html+=quizHTML(p);
+    if(!p.noDone) html+=`<button class="done-btn ${state.done[id]?"is":""}" id="doneBtn">${state.done[id]?"✓ Marked as done":"Mark this page as done"}</button>`;
+    const prev=navable[idx-1], next=navable[idx+1];
+    html+=`<div class="foot">${prev?`<a class="nav" href="#${prev.id}"><small>Previous</small>${prev.title}</a>`:"<span></span>"}${next?`<a class="nav nx" href="#${next.id}"><small>Next</small>${next.title}</a>`:""}</div>`;
+  }
+  page.innerHTML=html;
+  if(id==="home") document.getElementById("modCards").innerHTML=MODULES.filter(m=>m.id!=="start").map(m=>{
+    const ps=PAGES.filter(x=>x.mod===m.id), r=ps.filter(x=>x.ready).length, first=ps[0];
+    return`<a class="card ${r?"":"soon"}" href="#${first.id}"><b>${m.name}</b><span>${m.week} · ${r?`${r} lessons ready`:`${ps.length} lessons coming`}</span></a>`;
+  }).join("");
+  if(id==="glossary") renderGlossary("");
+  const db=document.getElementById("doneBtn");
+  if(db) db.onclick=()=>{state.done[id]=!state.done[id];save();render();renderTree(document.getElementById("search").value);updateProgress();};
+  if(p.ready&&p.quiz.length) wireQuiz(p);
+  if(id!=="glossary") linkTerms(page);
+  markActive(); window.scrollTo(0,0); document.title="DEA-C01 Study Hub";
+}
+
+function renderGlossary(f){
+  const q=f.trim().toLowerCase();
+  const list=GLOSSARY.filter(([t,full,m])=>!q||t.toLowerCase().includes(q)||full.toLowerCase().includes(q)||m.toLowerCase().includes(q))
+    .sort((a,b)=>a[0].toLowerCase().localeCompare(b[0].toLowerCase()));
+  let html="",letter="";
+  list.forEach(([t,full,m])=>{const L=t[0].toUpperCase();if(L!==letter){letter=L;html+=`<h3>${L}</h3>`;}
+    html+=`<div class="g" id="g-${t.replace(/[^A-Za-z0-9]/g,"_")}"><b>${t}</b>${full!=="—"?`<span class="f">${full}</span>`:""}<p>${m}</p></div>`;});
+  document.getElementById("glList").innerHTML=html||`<div class="g"><p>No term matches “${f}”. Try a shorter word.</p></div>`;
+  const s=document.getElementById("glSearch");
+  if(s&&!s.dataset.w){s.dataset.w=1;s.addEventListener("input",e=>renderGlossary(e.target.value));}
+}
+
+function quizHTML(p){
+  const best=state.scores[p.id];
+  return`<section class="quiz"><h2>Check yourself</h2><p>${p.quiz.length} questions. ${best!=null?`<span class="score">Best score: ${best}/${p.quiz.length}</span>`:"Choose an answer, then press Check."}</p>`+
+  p.quiz.map((q,i)=>{const multi=q.a.length>1;return`<div class="q" data-i="${i}"><p class="stem"><span class="n">${i+1}.</span>${q.q}${multi?` <span class="pill">Choose ${q.a.length}</span>`:""}</p>`+
+    q.o.map((o,j)=>`<label class="opt"><input id="q-${p.id}-${i}-${j}" type="${multi?"checkbox":"radio"}" name="q-${p.id}-${i}" value="${j}"><span>${o}</span></label>`).join("")+
+    `<button class="qbtn" disabled>Check</button><div class="why" hidden></div></div>`;}).join("")+`<p class="score" id="tally" hidden></p></section>`;
+}
+function wireQuiz(p){
+  const res={};
+  page.querySelectorAll(".q").forEach(el=>{
+    const i=+el.dataset.i, q=p.quiz[i], btn=el.querySelector(".qbtn"), inputs=[...el.querySelectorAll("input")];
+    inputs.forEach(inp=>inp.onchange=()=>{btn.disabled=!inputs.some(x=>x.checked);});
+    btn.onclick=()=>{
+      const picked=inputs.filter(x=>x.checked).map(x=>+x.value).sort(), want=[...q.a].sort();
+      const ok=picked.length===want.length&&picked.every((v,k)=>v===want[k]);
+      inputs.forEach((x,j)=>{x.disabled=true;const lab=x.closest(".opt");
+        if(q.a.includes(j))lab.classList.add("right");else if(x.checked)lab.classList.add("wrong");});
+      const w=el.querySelector(".why");w.hidden=false;
+      w.innerHTML=`${ok?"<b>Correct.</b>":"<b class='x'>Not quite.</b>"} ${q.e}`;
+      btn.hidden=true;res[i]=ok;
+      if(Object.keys(res).length===p.quiz.length){
+        const sc=Object.values(res).filter(Boolean).length,t=document.getElementById("tally");
+        t.hidden=false;t.textContent=`You scored ${sc} out of ${p.quiz.length}.`;
+        if(state.scores[p.id]==null||sc>state.scores[p.id]){state.scores[p.id]=sc;save();}
+      }
+    };
+  });
+}
+
+/* ---------- term popover ---------- */
+const pop=document.getElementById("pop");
+function showPop(k,label){
+  const g=k==="__demo"?{t:"Like this",f:"Tap any dotted word",m:"You'll see its full form and a plain-English meaning here."}:GMAP[k];
+  if(!g)return;
+  document.getElementById("popT").textContent=k==="__demo"?g.t:label||g.t;
+  document.getElementById("popF").textContent=g.f==="—"?"Key term":g.f;
+  document.getElementById("popM").textContent=g.m;
+  pop.hidden=false;
+}
+function hidePop(){pop.hidden=true;}
+document.addEventListener("click",e=>{
+  const b=e.target.closest(".gl");
+  if(b){e.preventDefault();showPop(b.dataset.k,b.textContent);return;}
+  if(!e.target.closest(".pop"))hidePop();
+});
+document.getElementById("popX").onclick=hidePop;
+document.getElementById("popAll").onclick=()=>hidePop();
+document.addEventListener("keydown",e=>{if(e.key==="Escape")hidePop();});
+
+/* ---------- mobile drawer + search ---------- */
+const side=document.getElementById("side"),mb=document.getElementById("menuBtn");
+mb.onclick=()=>{const o=side.classList.toggle("open");mb.setAttribute("aria-expanded",o);};
+tree.addEventListener("click",e=>{if(e.target.closest("a")){side.classList.remove("open");mb.setAttribute("aria-expanded","false");}});
+document.getElementById("search").addEventListener("input",e=>renderTree(e.target.value));
+
+window.addEventListener("hashchange",render);
+renderTree();updateProgress();render();
+</script>
+
+<a href="../" aria-label="All courses" style="position:fixed;z-index:60;right:max(14px,env(safe-area-inset-right,0px));bottom:calc(14px + env(safe-area-inset-bottom,0px));background:#0a7560;color:#fff;font:700 13px system-ui,sans-serif;text-decoration:none;padding:9px 13px;border-radius:999px;box-shadow:0 2px 10px rgba(0,0,0,.25)">&#8962; All courses</a>
+</body></html>

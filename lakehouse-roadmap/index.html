@@ -1,0 +1,315 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style><title>Lakehouse Interview Roadmap</title>
+<meta name="description" content="Build-order roadmap for senior AWS data engineer interviews on a synthetic lakehouse.">
+<meta name="theme-color" content="#0a7560">
+<link rel="icon" href="../icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="../icon-180.png">
+<link rel="manifest" href="../manifest.webmanifest">
+</head><body>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@500;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a transit map. One vertical line = the build route in dependency order; each stop carries its interview-priority badge. */
+:root {
+  --bg: #f3f6f6;
+  --surface: #ffffff;
+  --ink: #12201f;
+  --muted: #5a6b69;
+  --rule: #d6dfde;
+  --line: #0e7c74;        /* AWS hands-on route */
+  --line-soft: #d4ece9;
+  --core: #4b4fb8;        /* fundamentals route */
+  --core-soft: #e3e4f7;
+  --p0: #b8322a; --p0-bg: #fbe7e4;
+  --p1: #a66300; --p1-bg: #fbefd9;
+  --p2: #4f6461; --p2-bg: #e7eceb;
+  --now: #0e7c74;
+  --f-display: "Familjen Grotesk", "Helvetica Neue", Arial, sans-serif;
+  --f-body: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0e1515; --surface: #162020; --ink: #e4eeec; --muted: #93a6a3; --rule: #2a3837;
+  --line: #3fbfb2; --line-soft: #173634; --core: #9a9df0; --core-soft: #24264a;
+  --p0: #f08a80; --p0-bg: #3a1c19; --p1: #f0b860; --p1-bg: #36280f; --p2: #a9bab7; --p2-bg: #24302f;
+  --now: #3fbfb2; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #0e1515; --surface: #162020; --ink: #e4eeec; --muted: #93a6a3; --rule: #2a3837;
+  --line: #3fbfb2; --line-soft: #173634; --core: #9a9df0; --core-soft: #24264a;
+  --p0: #f08a80; --p0-bg: #3a1c19; --p1: #f0b860; --p1-bg: #36280f; --p2: #a9bab7; --p2-bg: #24302f;
+  --now: #3fbfb2; color-scheme: dark }
+
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 15px; line-height: 1.55; }
+.wrap { max-width: 1040px; margin: 0 auto; padding-block: 40px 64px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+h1, h2, h3 { font-family: var(--f-display); text-wrap: balance; margin: 0; }
+h1 { font-size: clamp(30px, 5vw, 46px); line-height: 1.05; letter-spacing: -0.01em; }
+h2 { font-size: 22px; margin-bottom: 14px; }
+.eyebrow { font-family: var(--f-mono); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.lede { color: var(--muted); max-width: 64ch; margin: 10px 0 0; }
+.mono { font-family: var(--f-mono); }
+
+/* Fact strip */
+.facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 1px; background: var(--rule);
+  border: 1px solid var(--rule); border-radius: 10px; overflow: hidden; margin: 26px 0 40px; }
+.fact { background: var(--surface); padding: 14px 16px; }
+.fact b { display: block; font-family: var(--f-display); font-size: 24px; font-variant-numeric: tabular-nums; }
+.fact span { font-size: 13px; color: var(--muted); }
+
+/* Priority chips */
+.chip { display: inline-block; font-family: var(--f-mono); font-size: 11px; font-weight: 500; letter-spacing: .04em;
+  padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+.p0 { color: var(--p0); background: var(--p0-bg); }
+.p1 { color: var(--p1); background: var(--p1-bg); }
+.p2 { color: var(--p2); background: var(--p2-bg); }
+
+/* Priority board */
+.board { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-bottom: 48px; }
+.tier { background: var(--surface); border: 1px solid var(--rule); border-radius: 10px; padding: 16px; min-width: 0; }
+.tier h3 { font-size: 17px; display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.tier p { margin: 0 0 10px; font-size: 13px; color: var(--muted); }
+.tier ol { margin: 0; padding-left: 20px; display: grid; gap: 4px; }
+.tier li::marker { font-family: var(--f-mono); color: var(--muted); font-size: 12px; }
+.tag-core { font-family: var(--f-mono); font-size: 10.5px; color: var(--core); margin-left: 4px; }
+
+/* Route */
+.route { position: relative; display: grid; gap: 14px; padding-left: 44px; margin-bottom: 48px; }
+.route::before { content: ""; position: absolute; left: 15px; top: 10px; bottom: 10px; width: 6px; border-radius: 3px; background: var(--line); }
+.route.core::before { background: var(--core); }
+.stop { position: relative; background: var(--surface); border: 1px solid var(--rule); border-radius: 10px; padding: 14px 16px;
+  display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 4px 18px; }
+.stop::before { content: ""; position: absolute; left: -38px; top: 16px; width: 18px; height: 18px; border-radius: 50%;
+  background: var(--surface); border: 4px solid var(--line); }
+.route.core .stop::before { border-color: var(--core); }
+.stop.now { border-color: var(--now); box-shadow: 0 0 0 2px var(--line-soft); }
+.stop.now::before { background: var(--now); }
+.when { font-family: var(--f-mono); font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.when b { display: block; color: var(--ink); font-size: 13px; font-weight: 500; }
+.body { min-width: 0; }
+.head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.head h3 { font-size: 18px; }
+.nowtag { font-family: var(--f-mono); font-size: 11px; color: var(--bg); background: var(--now); padding: 2px 8px; border-radius: 4px; }
+.probe { margin: 6px 0 0; font-size: 14px; }
+.meta { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 8px; font-size: 12.5px; color: var(--muted); }
+.meta .mono { color: var(--ink); }
+
+/* Concept-only row */
+.concepts { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; margin-bottom: 48px; }
+.concept { border: 1px dashed var(--rule); border-radius: 10px; padding: 12px 14px; background: transparent; min-width: 0; }
+.concept h3 { font-size: 16px; margin-bottom: 4px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.concept p { margin: 0; font-size: 13px; color: var(--muted); }
+
+.legend { display: flex; flex-wrap: wrap; gap: 10px 20px; font-size: 13px; color: var(--muted); margin-bottom: 18px; }
+.legend i { display: inline-block; width: 22px; height: 6px; border-radius: 3px; vertical-align: middle; margin-right: 6px; }
+footer { font-size: 12.5px; color: var(--muted); border-top: 1px solid var(--rule); padding-top: 14px; }
+
+@media (max-width: 760px) {
+  .board { grid-template-columns: minmax(0, 1fr); }
+  .stop { grid-template-columns: minmax(0, 1fr); }
+}
+</style>
+
+<div class="wrap">
+  <div class="eyebrow">Senior AWS Data Engineer prep · us-east-1</div>
+  <h1>Lakehouse Interview Roadmap</h1>
+  <p class="lede">Every AWS topic is learned by building one piece of a synthetic healthcare-claims lakehouse. The route runs in build order, because each stop needs the one before it. The badge on each stop says how much it weighs in a senior interview.</p>
+
+  <div class="facts">
+    <div class="fact"><b>$157.77</b><span>Free-plan credits on Oct 22</span></div>
+    <div class="fact"><b>Nov 18</b><span>Credits expire, 17:54 UTC</span></div>
+    <div class="fact"><b>Nov 15</b><span>All hands-on finished, account torn down</span></div>
+    <div class="fact"><b>11 + 4</b><span>Hands-on stops, then concept-only services</span></div>
+  </div>
+
+  <h2>Priority at a glance</h2>
+  <div class="board">
+    <div class="tier">
+      <h3><span class="chip p0">P0</span> Decides the offer</h3>
+      <p>Asked in every senior loop. Weak answers here end the interview.</p>
+      <ol>
+        <li>SQL at hard level <span class="tag-core">core</span></li>
+        <li>Spark internals <span class="tag-core">core</span></li>
+        <li>Data system design <span class="tag-core">core</span></li>
+        <li>Data modeling, SCD2 <span class="tag-core">core</span></li>
+        <li>S3 lake layout and partitioning</li>
+        <li>Glue ETL with PySpark</li>
+        <li>Iceberg table format</li>
+        <li>Athena performance</li>
+      </ol>
+    </div>
+    <div class="tier">
+      <h3><span class="chip p1">P1</span> Expected depth</h3>
+      <p>You must explain trade-offs and design choices.</p>
+      <ol>
+        <li>Orchestration: Step Functions, Airflow</li>
+        <li>Redshift dist and sort keys</li>
+        <li>Streaming: Kinesis, Firehose, Kafka</li>
+        <li>Glue Data Catalog and crawlers</li>
+        <li>Data quality checks</li>
+        <li>Python and DSA, medium <span class="tag-core">core</span></li>
+        <li>IAM for data pipelines</li>
+      </ol>
+    </div>
+    <div class="tier">
+      <h3><span class="chip p2">P2</span> Know it well enough</h3>
+      <p>One or two questions; breadth matters more than depth.</p>
+      <ol>
+        <li>EMR Serverless vs Glue</li>
+        <li>Lambda and EventBridge triggers</li>
+        <li>CloudWatch monitoring</li>
+        <li>CloudFormation and IaC</li>
+        <li>Lake Formation, DMS CDC</li>
+        <li>MSK and MWAA</li>
+      </ol>
+    </div>
+  </div>
+
+  <h2>The AWS route, Oct 22 to Nov 15</h2>
+  <div class="legend">
+    <span><i style="background:var(--line)"></i>Hands-on in the lab account</span>
+    <span><i style="background:var(--core)"></i>Fundamentals, no AWS needed</span>
+  </div>
+  <div class="route">
+    <div class="stop now">
+      <div class="when"><b>Day 1</b>Oct 22</div>
+      <div class="body">
+        <div class="head"><h3>S3 data lake layout</h3><span class="chip p0">P0</span><span class="nowtag">Today</span></div>
+        <p class="probe">Bronze, silver and gold zones, Hive-style partitions, request-rate limits per prefix, storage classes and lifecycle, SSE-S3 vs SSE-KMS, bucket policies vs IAM, the IAM role Glue will assume.</p>
+        <div class="meta"><span>Builds <span class="mono">s3://…/bronze/claims/ingest_date=…/</span></span><span>Cost: cents</span></div>
+      </div>
+    </div>
+    <div class="stop">
+      <div class="when"><b>Day 2</b>Oct 23</div>
+      <div class="body">
+        <div class="head"><h3>Glue Data Catalog and Crawler</h3><span class="chip p1">P1</span></div>
+        <p class="probe">Hive metastore model, schema inference and its failure modes, partition registration, crawler vs explicit DDL.</p>
+        <div class="meta"><span>Builds the <span class="mono">claims_bronze</span> table</span><span>Cost: under $0.10</span></div>
+      </div>
+    </div>
+    <div class="stop">
+      <div class="when"><b>Day 3</b>Oct 24</div>
+      <div class="body">
+        <div class="head"><h3>Athena</h3><span class="chip p0">P0</span></div>
+        <p class="probe">Cost per TB scanned, Parquet and compression, partition pruning, CTAS, partition projection, workgroup limits.</p>
+        <div class="meta"><span>Builds Parquet copies via CTAS</span><span>Cost: $5 per TB scanned</span></div>
+      </div>
+    </div>
+    <div class="stop">
+      <div class="when"><b>Days 4-6</b>Oct 25-27</div>
+      <div class="body">
+        <div class="head"><h3>Glue ETL with PySpark</h3><span class="chip p0">P0</span></div>
+        <p class="probe">DynamicFrame vs DataFrame, job bookmarks, worker types and DPUs, shuffles, skew, small files, pushdown predicates.</p>
+        <div class="meta"><span>Builds bronze to silver job</span><span>Cost: about $0.44 per DPU-hour</span></div>
+      </div>
+    </div>
+    <div class="stop">
+      <div class="when"><b>Day 7</b>Oct 28</div>
+      <div class="body">
+        <div class="head"><h3>Revision and mock interview</h3><span class="chip p0">P0</span></div>
+        <p class="probe">Revision sheets for S3, Catalog, Athena and Glue. Timed interview questions, graded.</p>
+      </div>
+    </div>
+    <div class="stop">
+      <div class="when"><b>Days 8-9</b>Oct 29-30</div>
+      <div class="body">
+        <div class="head"><h3>Apache Iceberg</h3><span class="chip p0">P0</span></div>
+        <p class="probe">Metadata tree, MERGE INTO, SCD2, time travel, snapshot expiry, compaction, hidden partitioning, why not plain Hive tables.</p>
+        <div class="meta"><span>Builds silver and gold Iceberg tables</span></div>
+      </div>
+    </div>
+    <div class="stop">
+      <div class="when"><b>Days 10-11</b>Oct 31-Nov 1</div>
+      <div class="body">
+        <div class="head"><h3>Step Functions, Lambda, EventBridge</h3><span class="chip p1">P1</span></div>
+        <p class="probe">Event-driven ingestion, Standard vs Express, retries and catch, idempotency, backfills.</p>
+        <div class="meta"><span>Builds the end-to-end pipeline</span><span>Cost: free tier</span></div>
+      </div>
+    </div>
+    <div class="stop">
+      <div class="when"><b>Day 12</b>Nov 2-4</div>
+      <div class="body">
+        <div class="head"><h3>Revision</h3><span class="chip p0">P0</span></div>
+        <p class="probe">Iceberg and orchestration sheets, full pipeline walkthrough as a system-design answer.</p>
+      </div>
+    </div>
+    <div class="stop">
+      <div class="when"><b>Days 13-14</b>Nov 5-6</div>
+      <div class="body">
+        <div class="head"><h3>Redshift Serverless</h3><span class="chip p1">P1</span></div>
+        <p class="probe">COPY, distribution and sort keys, Spectrum, workload management, Redshift vs Athena.</p>
+        <div class="meta"><span>Deleted the same day</span><span>Cost: RPU-hours, watch closely</span></div>
+      </div>
+    </div>
+    <div class="stop">
+      <div class="when"><b>Day 15</b>Nov 7</div>
+      <div class="body">
+        <div class="head"><h3>Kinesis Data Streams and Firehose</h3><span class="chip p1">P1</span></div>
+        <p class="probe">Shards, partition keys, hot shards, ordering, exactly-once myths, Firehose buffering into S3.</p>
+        <div class="meta"><span>Builds streaming claims to bronze</span><span>Cost: on-demand, delete after</span></div>
+      </div>
+    </div>
+    <div class="stop">
+      <div class="when"><b>Day 16</b>Nov 8-11</div>
+      <div class="body">
+        <div class="head"><h3>EMR Serverless vs Glue</h3><span class="chip p2">P2</span></div>
+        <p class="probe">When each wins on cost, control and startup time. Spark tuning that carries across both.</p>
+      </div>
+    </div>
+    <div class="stop">
+      <div class="when"><b>Days 17-20</b>Nov 12-15</div>
+      <div class="body">
+        <div class="head"><h3>Data quality, CloudWatch, CloudFormation</h3><span class="chip p1">P1</span></div>
+        <p class="probe">Glue Data Quality rules, alarms, the whole lab as code on GitHub, then full teardown.</p>
+        <div class="meta"><span>Proof of work for the resume</span></div>
+      </div>
+    </div>
+  </div>
+
+  <h2>Concept only, never deployed</h2>
+  <p class="lede" style="margin:-6px 0 14px">These bill by the hour while idle, so we learn them on paper and in interview answers.</p>
+  <div class="concepts">
+    <div class="concept"><h3>Lake Formation <span class="chip p2">P2</span></h3><p>Fine-grained table, column and row permissions over the Catalog.</p></div>
+    <div class="concept"><h3>DMS CDC <span class="chip p2">P2</span></h3><p>Full load plus ongoing change capture from OLTP into S3.</p></div>
+    <div class="concept"><h3>MSK <span class="chip p2">P2</span></h3><p>Managed Kafka: partitions, consumer groups, Kafka vs Kinesis.</p></div>
+    <div class="concept"><h3>MWAA <span class="chip p2">P2</span></h3><p>Managed Airflow: DAGs, sensors, Airflow vs Step Functions.</p></div>
+  </div>
+
+  <h2>After the credits, Nov 18 onward</h2>
+  <div class="route core">
+    <div class="stop">
+      <div class="when"><b>Track 1</b>daily</div>
+      <div class="body"><div class="head"><h3>SQL at hard level</h3><span class="chip p0">P0</span></div>
+        <p class="probe">Window functions, gaps and islands, dedup, query plans. Lesson 1 is done; 5 homework questions are parked.</p></div>
+    </div>
+    <div class="stop">
+      <div class="when"><b>Track 2</b>weekly</div>
+      <div class="body"><div class="head"><h3>Spark internals</h3><span class="chip p0">P0</span></div>
+        <p class="probe">Stages and shuffles, joins, skew, AQE, memory, partition sizing.</p></div>
+    </div>
+    <div class="stop">
+      <div class="when"><b>Track 3</b>weekly</div>
+      <div class="body"><div class="head"><h3>Data modeling</h3><span class="chip p0">P0</span></div>
+        <p class="probe">Kimball star schemas, SCD types, data vault, lakehouse table design.</p></div>
+    </div>
+    <div class="stop">
+      <div class="when"><b>Track 4</b>weekly</div>
+      <div class="body"><div class="head"><h3>Data system design</h3><span class="chip p0">P0</span></div>
+        <p class="probe">About 15 classic designs: CDC pipeline, real-time analytics, 10 TB per day lakehouse, backfills.</p></div>
+    </div>
+    <div class="stop">
+      <div class="when"><b>Track 5</b>daily</div>
+      <div class="body"><div class="head"><h3>Python and DSA</h3><span class="chip p1">P1</span></div>
+        <p class="probe">Medium-level problems, about 150, focused on arrays, hashing, heaps and intervals.</p></div>
+    </div>
+    <div class="stop">
+      <div class="when"><b>Track 6</b>last 2 weeks</div>
+      <div class="body"><div class="head"><h3>Mock interviews and resume</h3><span class="chip p0">P0</span></div>
+        <p class="probe">STAR stories, impact-based resume, salary negotiation.</p></div>
+    </div>
+  </div>
+
+  <footer>Source of truth: <span class="mono">notes/PROGRESS.md</span>. Updated Oct 22, 2026.</footer>
+</div>
+
+<a href="../" aria-label="All courses" style="position:fixed;z-index:60;right:max(14px,env(safe-area-inset-right,0px));bottom:calc(14px + env(safe-area-inset-bottom,0px));background:#0a7560;color:#fff;font:700 13px system-ui,sans-serif;text-decoration:none;padding:9px 13px;border-radius:999px;box-shadow:0 2px 10px rgba(0,0,0,.25)">&#8962; All courses</a>
+</body></html>

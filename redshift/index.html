@@ -1,0 +1,1750 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style><title>Redshift Field Guide</title>
+<meta name="description" content="Amazon Redshift from architecture to tuning: distribution, sort keys, COPY, Spectrum, WLM.">
+<meta name="theme-color" content="#0a7560">
+<link rel="icon" href="../icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="../icon-180.png">
+<link rel="manifest" href="../manifest.webmanifest">
+</head><body>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: sticky level rail on the left, one reading column; every level opens with an infographic plate.
+   Motif: the visible spectrum. Levels move from blue (scratch) to red (expert), i.e. a "redshift". */
+:root{
+  --bg:#f5f6f8; --surface:#ffffff; --ink:#151a22; --muted:#596273; --line:#dce0e7; --code:#eef1f5;
+  --accent:#c4372c; --cool:#2457a8; --amber:#b8720c; --green:#2d7a4c;
+  --s1:#3b5bdb; --s2:#1c7ed6; --s3:#0c8599; --s4:#2b8a3e; --s5:#5c940d; --s6:#a67c00; --s7:#e8590c; --s8:#d9480f; --s9:#c92a2a; --s10:#a61e4d;
+  --tint-accent:rgba(196,55,44,.08); --tint-cool:rgba(36,87,168,.08); --tint-amber:rgba(184,114,12,.10); --tint-green:rgba(45,122,76,.09);
+  --f-display:"Archivo","Helvetica Neue",Arial,sans-serif;
+  --f-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0f1319; --surface:#171c24; --ink:#e5e8ed; --muted:#9aa3b2; --line:#2b323d; --code:#1d232d;
+  --accent:#ff6b5a; --cool:#7aa5f2; --amber:#e8a646; --green:#5fc68d;
+  --s1:#748ffc; --s2:#4dabf7; --s3:#3bc9db; --s4:#69db7c; --s5:#a9e34b; --s6:#ffd43b; --s7:#ffa94d; --s8:#ff8a5c; --s9:#ff6b6b; --s10:#f06595;
+  --tint-accent:rgba(255,107,90,.10); --tint-cool:rgba(122,165,242,.10); --tint-amber:rgba(232,166,70,.12); --tint-green:rgba(95,198,141,.10);
+  color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0f1319; --surface:#171c24; --ink:#e5e8ed; --muted:#9aa3b2; --line:#2b323d; --code:#1d232d;
+  --accent:#ff6b5a; --cool:#7aa5f2; --amber:#e8a646; --green:#5fc68d;
+  --s1:#748ffc; --s2:#4dabf7; --s3:#3bc9db; --s4:#69db7c; --s5:#a9e34b; --s6:#ffd43b; --s7:#ffa94d; --s8:#ff8a5c; --s9:#ff6b6b; --s10:#f06595;
+  --tint-accent:rgba(255,107,90,.10); --tint-cool:rgba(122,165,242,.10); --tint-amber:rgba(232,166,70,.12); --tint-green:rgba(95,198,141,.10);
+  color-scheme:dark}
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:16px;line-height:1.65;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.shell{max-width:1180px;margin:0 auto;display:grid;grid-template-columns:230px minmax(0,1fr);gap:48px;padding-block:32px 96px}
+@media (max-width:920px){.shell{grid-template-columns:minmax(0,1fr);gap:0}}
+
+/* rail */
+.rail{position:sticky;top:calc(env(safe-area-inset-top,0px) + 24px);align-self:start;max-height:calc(100vh - 48px);overflow:auto;font-size:14px}
+.rail h2{font:700 12px/1 var(--f-display);letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:0 0 12px}
+.rail ol{list-style:none;margin:0;padding:0;display:grid;gap:2px}
+.rail a{display:flex;gap:10px;align-items:baseline;padding:5px 8px;border-radius:6px;color:var(--ink);text-decoration:none}
+.rail a:hover,.rail a:focus-visible{background:var(--code);outline:none}
+.rail a.on{background:var(--code);font-weight:600}
+.rail .lv{font:600 11px/1 var(--f-mono);min-width:26px;color:var(--c,var(--muted))}
+.rail .done::after{content:"✓";margin-left:auto;color:var(--green);font-weight:600}
+.rail .spec{height:4px;border-radius:2px;margin:14px 8px 0;background:linear-gradient(90deg,var(--s1),var(--s2),var(--s3),var(--s4),var(--s5),var(--s6),var(--s7),var(--s8),var(--s9),var(--s10))}
+@media (max-width:920px){
+  .rail{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;max-height:none;background:var(--bg);margin:0 calc(-1*max(16px,env(safe-area-inset-left,0px)));padding:8px max(16px,env(safe-area-inset-left,0px));border-bottom:1px solid var(--line)}
+  .rail h2,.rail .spec{display:none}
+  .rail ol{display:flex;overflow-x:auto;gap:4px;scrollbar-width:none}
+  .rail a{white-space:nowrap;border:1px solid var(--line)}
+  body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
+}
+
+main{min-width:0}
+.hero{padding-block:8px 28px;border-bottom:1px solid var(--line);margin-bottom:8px}
+.eyebrow{font:600 12px/1.2 var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+h1{font:800 clamp(38px,6vw,64px)/1.02 var(--f-display);letter-spacing:-.02em;margin:10px 0 14px;text-wrap:balance}
+h1 em{font-style:normal;color:var(--accent)}
+.lede{font-size:19px;line-height:1.55;max-width:62ch;color:var(--ink);margin:0}
+.spectrum{display:grid;grid-template-columns:repeat(10,1fr);gap:3px;margin-top:22px;max-width:640px}
+.spectrum span{height:10px;border-radius:2px}
+.spectrum-l{display:flex;justify-content:space-between;max-width:640px;font:500 12px var(--f-mono);color:var(--muted);margin-top:6px}
+.meta-row{display:flex;flex-wrap:wrap;gap:8px 20px;margin-top:18px;font-size:14px;color:var(--muted)}
+.meta-row b{color:var(--ink);font-weight:600}
+
+section.ch{padding-block:56px 8px;border-bottom:1px solid var(--line);scroll-margin-top:72px}
+.ch-head{display:flex;gap:16px;align-items:flex-start;margin-bottom:18px}
+.ch-num{flex:none;width:52px;height:52px;border-radius:10px;display:grid;place-items:center;font:800 18px var(--f-display);color:var(--c,var(--muted));border:2px solid var(--c,var(--muted));background:var(--surface)}
+.ch-head .eyebrow{color:var(--c,var(--muted))}
+h2{font:800 clamp(28px,3.6vw,38px)/1.1 var(--f-display);letter-spacing:-.015em;margin:4px 0 0;text-wrap:balance}
+h3{font:700 21px/1.25 var(--f-display);margin:36px 0 10px;text-wrap:balance}
+h4{font:600 16px/1.3 var(--f-body);margin:22px 0 6px}
+p,li{max-width:70ch}
+p{margin:0 0 14px}
+ul,ol{padding-left:22px;margin:0 0 14px}
+li{margin-bottom:6px}
+a{color:var(--cool)}
+strong{font-weight:600}
+code{font-family:var(--f-mono);font-size:.88em;background:var(--code);padding:1px 5px;border-radius:4px}
+pre{font-family:var(--f-mono);font-size:13.5px;line-height:1.55;background:var(--code);border:1px solid var(--line);border-radius:8px;padding:14px 16px;overflow-x:auto;margin:0 0 16px;max-width:100%}
+pre code{background:none;padding:0;font-size:inherit}
+pre .c{color:var(--muted)}
+pre .k{color:var(--cool);font-weight:500}
+pre .h{color:var(--accent)}
+.done-row{display:flex;justify-content:flex-end;margin:28px 0 0}
+.done-row label{display:inline-flex;gap:8px;align-items:center;font-size:14px;color:var(--muted);cursor:pointer;padding:6px 10px;border:1px solid var(--line);border-radius:999px;background:var(--surface)}
+.done-row input{accent-color:var(--green);width:16px;height:16px}
+
+/* the story callout and notes */
+.story{border-left:3px solid var(--c,var(--accent));padding:4px 0 4px 18px;margin:0 0 20px;font-size:17.5px;line-height:1.6}
+.note{border-radius:8px;padding:14px 16px;margin:18px 0;font-size:15px;max-width:72ch}
+.note>b:first-child{display:block;font:700 12px/1.2 var(--f-mono);letter-spacing:.08em;text-transform:uppercase;margin-bottom:6px}
+.note p:last-child,.note ul:last-child{margin-bottom:0}
+.n-int{background:var(--tint-cool)} .n-int>b:first-child{color:var(--cool)}
+.n-warn{background:var(--tint-amber)} .n-warn>b:first-child{color:var(--amber)}
+.n-tip{background:var(--tint-green)} .n-tip>b:first-child{color:var(--green)}
+.n-lab{background:var(--tint-accent)} .n-lab>b:first-child{color:var(--accent)}
+
+/* infographic plates */
+figure.plate{margin:22px 0 26px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:18px 18px 12px}
+figure.plate figcaption{font-size:13.5px;color:var(--muted);margin-top:8px;max-width:none}
+figure.plate figcaption b{color:var(--ink);font-weight:600}
+.plate-title{font:700 12px/1.2 var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--c,var(--muted));margin-bottom:12px}
+.svgwrap{overflow-x:auto}
+.svgwrap svg{display:block;width:100%;min-width:620px;height:auto}
+svg text{font-family:var(--f-body);fill:var(--ink)}
+svg .t{font-size:13px} svg .ts{font-size:11.5px;fill:var(--muted)} svg .th{font:700 14px var(--f-display);fill:var(--ink)}
+svg .mono{font-family:var(--f-mono);font-size:11.5px}
+svg .box{fill:var(--surface);stroke:var(--line);stroke-width:1.2}
+svg .soft{fill:var(--code);stroke:var(--line);stroke-width:1}
+svg .acc{fill:var(--tint-accent);stroke:var(--accent);stroke-width:1.4}
+svg .cool{fill:var(--tint-cool);stroke:var(--cool);stroke-width:1.4}
+svg .grn{fill:var(--tint-green);stroke:var(--green);stroke-width:1.4}
+svg .amb{fill:var(--tint-amber);stroke:var(--amber);stroke-width:1.4}
+svg .dim{fill:var(--code);stroke:var(--line);stroke-width:1;opacity:.55}
+svg .line{stroke:var(--muted);stroke-width:1.4;fill:none}
+svg .aline{stroke:var(--accent);stroke-width:1.6;fill:none}
+svg .cline{stroke:var(--cool);stroke-width:1.6;fill:none}
+svg .dash{stroke-dasharray:5 4}
+svg .fa{fill:var(--accent)} svg .fc{fill:var(--cool)} svg .fg{fill:var(--green)} svg .fm{fill:var(--muted)} svg .fam{fill:var(--amber)}
+svg .ta{fill:var(--accent)} svg .tc{fill:var(--cool)} svg .tg{fill:var(--green)} svg .tam{fill:var(--amber)}
+
+/* grids of comparison cards */
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin:18px 0}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 16px;min-width:0}
+.card h4{margin:0 0 6px;font:700 16px var(--f-display)}
+.card p,.card li{font-size:14.5px;margin-bottom:6px}
+.card ul{padding-left:18px;margin:0}
+.card .tag{font:600 11px var(--f-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+
+/* tables */
+.tbl{overflow-x:auto;margin:16px 0 20px;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:14.5px;min-width:560px}
+th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font:600 12px var(--f-mono);letter-spacing:.05em;text-transform:uppercase;color:var(--muted);background:var(--code)}
+tr:last-child td{border-bottom:0}
+td code{white-space:nowrap}
+.num{font-variant-numeric:tabular-nums}
+
+/* Q&A */
+details.qa{border:1px solid var(--line);border-radius:10px;background:var(--surface);margin:8px 0;max-width:78ch}
+details.qa summary{cursor:pointer;padding:12px 16px;font-weight:600;list-style:none;display:flex;gap:12px}
+details.qa summary::-webkit-details-marker{display:none}
+details.qa summary::before{content:"+";font:700 16px var(--f-mono);color:var(--accent);flex:none;width:12px}
+details.qa[open] summary::before{content:"–"}
+details.qa .ans{padding:0 16px 14px 40px;font-size:15px}
+details.qa .ans p:last-child,details.qa .ans ul:last-child{margin-bottom:0}
+.qa-tools{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 4px}
+button.pill{font:500 13px var(--f-body);color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:6px 12px;cursor:pointer}
+button.pill:hover,button.pill:focus-visible{border-color:var(--ink);outline:none}
+.qa-group{font:700 12px/1.2 var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:26px 0 6px}
+
+.foot{font-size:13px;color:var(--muted);padding-top:28px}
+.src li{font-size:14px}
+@media (prefers-reduced-motion:no-preference){html{scroll-behavior:smooth}}
+</style>
+
+<div class="shell">
+<nav class="rail" aria-label="Levels">
+  <h2>Scratch → Expert</h2>
+  <ol id="toc">
+    <li><a href="#story"><span class="lv" style="--c:var(--accent)">00</span>The class story</a></li>
+    <li><a href="#l1"><span class="lv" style="--c:var(--s1)">L1</span>Warehouse basics</a></li>
+    <li><a href="#l2"><span class="lv" style="--c:var(--s2)">L2</span>Architecture</a></li>
+    <li><a href="#l3"><span class="lv" style="--c:var(--s3)">L3</span>Columnar storage</a></li>
+    <li><a href="#l4"><span class="lv" style="--c:var(--s4)">L4</span>Table design</a></li>
+    <li><a href="#l5"><span class="lv" style="--c:var(--s5)">L5</span>Loading data</a></li>
+    <li><a href="#l6"><span class="lv" style="--c:var(--s6)">L6</span>Query performance</a></li>
+    <li><a href="#l7"><span class="lv" style="--c:var(--s7)">L7</span>Workloads &amp; scaling</a></li>
+    <li><a href="#l8"><span class="lv" style="--c:var(--s8)">L8</span>Lakehouse &amp; sharing</a></li>
+    <li><a href="#l9"><span class="lv" style="--c:var(--s9)">L9</span>Security &amp; ops</a></li>
+    <li><a href="#l10"><span class="lv" style="--c:var(--s10)">L10</span>System design</a></li>
+    <li><a href="#lab"><span class="lv">★</span>The lab, hardened</a></li>
+    <li><a href="#api"><span class="lv" style="--c:var(--s3)">API</span>Data API &amp; playbook</a></li>
+    <li><a href="#cmds"><span class="lv" style="--c:var(--s5)">SQL</span>Command reference</a></li>
+    <li><a href="#interview"><span class="lv">?</span>Interview bank</a></li>
+    <li><a href="#cheat"><span class="lv">≡</span>Cheat sheet</a></li>
+    <li><a href="#new"><span class="lv">26</span>What's new 2026</a></li>
+  </ol>
+  <div class="spec" aria-hidden="true"></div>
+</nav>
+
+<main>
+<header class="hero">
+  <div class="eyebrow">AWS Data Engineering · Study guide</div>
+  <h1>Amazon Redshift, from <em>scratch</em> to <em>expert</em></h1>
+  <p class="lede">One story told in ten levels. It starts with the sales file from the Glue + Redshift class and ends with the system-design answers interviewers look for. Each level opens with an infographic, explains the why before the how, and ties back to the pipeline you already built.</p>
+  <div class="spectrum" aria-hidden="true">
+    <span style="background:var(--s1)"></span><span style="background:var(--s2)"></span><span style="background:var(--s3)"></span><span style="background:var(--s4)"></span><span style="background:var(--s5)"></span><span style="background:var(--s6)"></span><span style="background:var(--s7)"></span><span style="background:var(--s8)"></span><span style="background:var(--s9)"></span><span style="background:var(--s10)"></span>
+  </div>
+  <div class="spectrum-l"><span>L1 · scratch</span><span>L10 · expert</span></div>
+  <div class="meta-row">
+    <span><b>Source:</b> Glue + Redshift class transcript and lab files, plus AWS documentation</span>
+    <span><b>Current to:</b> October 2026</span>
+    <span><b>Progress:</b> <span id="prog">0</span> of 17 sections marked done</span>
+  </div>
+</header>
+
+<!-- ============ 00 STORY ============ -->
+<section class="ch" id="story" style="--c:var(--accent)">
+  <div class="ch-head"><div class="ch-num">00</div><div><div class="eyebrow">Start here · the class, minus the noise</div><h2>A sales file lands. What happens next?</h2></div></div>
+
+  <p class="story">A business team wants to know revenue, cost and profit by region and by country. The data arrives as a CSV in S3. A file isn't something analysts can query, and at gigabyte or petabyte scale you can't even open it. So you, the data engineer, build a pipeline that turns that file into clean warehouse tables, runs on its own when the file arrives, and never creates duplicates.</p>
+
+  <p>The class covered one complete pipeline. Strip away the logistics and these ideas are what's left:</p>
+
+  <figure class="plate">
+    <div class="plate-title">Infographic 0.1 · The event-driven pipeline from the lab</div>
+    <div class="svgwrap">
+    <svg viewBox="0 0 760 400" role="img" aria-label="Producer uploads to S3 raw, S3 event triggers Lambda, Lambda starts Step Functions, which runs Glue job 1 then jobs 2 and 3 in parallel, loading Redshift tables">
+      <defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="fm"/></marker>
+      <marker id="ara" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="fa"/></marker></defs>
+      <!-- row 1 -->
+      <rect x="10" y="20" width="110" height="64" rx="8" class="soft"/><text x="65" y="47" text-anchor="middle" class="th">Producer</text><text x="65" y="66" text-anchor="middle" class="ts">source team</text>
+      <rect x="160" y="20" width="130" height="64" rx="8" class="cool"/><text x="225" y="47" text-anchor="middle" class="th">S3 raw/</text><text x="225" y="66" text-anchor="middle" class="ts">bronze · sales.csv</text>
+      <rect x="330" y="20" width="120" height="64" rx="8" class="box"/><text x="390" y="47" text-anchor="middle" class="th">Lambda</text><text x="390" y="66" text-anchor="middle" class="ts">the bridge</text>
+      <rect x="490" y="20" width="160" height="64" rx="8" class="acc"/><text x="570" y="47" text-anchor="middle" class="th">Step Functions</text><text x="570" y="66" text-anchor="middle" class="ts">orchestrator</text>
+      <path d="M120 52H156" class="line" marker-end="url(#ar)"/><text x="138" y="44" text-anchor="middle" class="ts">upload</text>
+      <path d="M290 52H326" class="aline" marker-end="url(#ara)"/><text x="308" y="104" text-anchor="middle" class="ts ta">ObjectCreated</text><text x="308" y="118" text-anchor="middle" class="ts">prefix raw/ · .csv</text>
+      <path d="M450 52H486" class="line" marker-end="url(#ar)"/><text x="468" y="104" text-anchor="middle" class="ts">StartExecution</text>
+      <!-- job 1 -->
+      <path d="M570 84V140" class="line" marker-end="url(#ar)"/>
+      <rect x="440" y="144" width="260" height="78" rx="8" class="box"/>
+      <text x="570" y="168" text-anchor="middle" class="th">Glue job 1 · raw load</text>
+      <text x="570" y="188" text-anchor="middle" class="ts">read CSV → rename + cast → Parquet</text>
+      <text x="570" y="205" text-anchor="middle" class="ts">COPY into stage → DELETE + INSERT target</text>
+      <rect x="160" y="152" width="200" height="62" rx="8" class="grn"/><text x="260" y="178" text-anchor="middle" class="th">S3 curated/</text><text x="260" y="197" text-anchor="middle" class="ts">silver · Parquet</text>
+      <path d="M440 183H364" class="line" marker-end="url(#ar)"/>
+      <!-- parallel -->
+      <path d="M520 222V262M620 222V262" class="line" marker-end="url(#ar)"/>
+      <text x="570" y="248" text-anchor="middle" class="ts">then, in parallel</text>
+      <rect x="420" y="266" width="150" height="54" rx="8" class="box"/><text x="495" y="289" text-anchor="middle" class="t">Job 2 · by region</text><text x="495" y="306" text-anchor="middle" class="ts">GROUP BY region</text>
+      <rect x="580" y="266" width="170" height="54" rx="8" class="box"/><text x="665" y="289" text-anchor="middle" class="t">Job 3 · country+item</text><text x="665" y="306" text-anchor="middle" class="ts">GROUP BY country, item</text>
+      <!-- redshift -->
+      <rect x="10" y="250" width="380" height="136" rx="10" class="acc"/>
+      <text x="26" y="274" class="th">Redshift Serverless · gold</text>
+      <rect x="26" y="286" width="170" height="40" rx="6" class="box"/><text x="111" y="304" text-anchor="middle" class="mono">stage_sales</text><text x="111" y="319" text-anchor="middle" class="ts">truncated each run</text>
+      <rect x="206" y="286" width="170" height="40" rx="6" class="box"/><text x="291" y="304" text-anchor="middle" class="mono">target_sales</text><text x="291" y="319" text-anchor="middle" class="ts">899 rows</text>
+      <rect x="26" y="334" width="170" height="40" rx="6" class="box"/><text x="111" y="352" text-anchor="middle" class="mono">..._by_region</text><text x="111" y="367" text-anchor="middle" class="ts">7 rows</text>
+      <rect x="206" y="334" width="170" height="40" rx="6" class="box"/><text x="291" y="352" text-anchor="middle" class="mono">..._by_country_item</text><text x="291" y="367" text-anchor="middle" class="ts">736 rows</text>
+      <path d="M440 214L396 262" class="line" marker-end="url(#ar)"/>
+      <path d="M420 300H396" class="line" marker-end="url(#ar)"/>
+      <text x="570" y="350" text-anchor="middle" class="ts">If job 1 fails, a Catch sends the run to</text>
+      <text x="570" y="366" text-anchor="middle" class="ts ta">PipelineFailed, and jobs 2 and 3 never start.</text>
+      <text x="570" y="388" text-anchor="middle" class="ts">All logs go to CloudWatch by default.</text>
+    </svg>
+    </div>
+    <figcaption><b>Read it as a sentence:</b> a file arriving is an <i>event</i>. The event triggers Lambda, Lambda starts the state machine, and the state machine runs Glue in dependency order. Redshift ends up holding the tables analysts query.</figcaption>
+  </figure>
+
+  <h3>The ideas from class, cleaned up</h3>
+  <div class="cards">
+    <div class="card"><span class="tag">Pattern</span><h4>Source → process → load → orchestrate</h4><p>Every pipeline has this shape. The services can change: Glue becomes EMR, Step Functions becomes Airflow, Redshift becomes Snowflake. The pattern stays the same.</p></div>
+    <div class="card"><span class="tag">Lake vs warehouse</span><h4>S3 holds anything; Redshift holds tables</h4><p>A lake stores any format (CSV, JSON, video) with no enforced structure. A warehouse needs a defined schema of typed columns, and that is what makes it fast to query.</p></div>
+    <div class="card"><span class="tag">Medallion</span><h4>Bronze → silver → gold</h4><p>Raw as received → cleansed and typed (Parquet) → aggregated for business use. The lab keeps bronze and silver in S3 and gold in Redshift. The lab guide calls this "Pattern 2".</p></div>
+    <div class="card"><span class="tag">Orchestration</span><h4>Dependencies and failure handling</h4><p>Job 1 must succeed before jobs 2 and 3 run, and a failure stops the chain. Step Functions owns the order, parallel branches and catches.</p></div>
+    <div class="card"><span class="tag">Event vs schedule</span><h4>Run when data arrives</h4><p>A 10 PM cron job fails if the file is late. An event trigger runs only after the file exists, so a late file doesn't break it.</p></div>
+    <div class="card"><span class="tag">Upsert</span><h4>Update else insert</h4><p>Re-running the same file still leaves 899 rows. Matching rows are replaced, not appended. This is <b>idempotency</b>, and interviewers love it.</p></div>
+    <div class="card"><span class="tag">Serverless</span><h4>Pay for use, not for servers</h4><p>Like Google Drive, you use the service without renting machines. Start on Redshift Serverless, and move to provisioned only when a steady workload makes it cheaper.</p></div>
+    <div class="card"><span class="tag">Environments</span><h4>Dev → QA → Prod with IaC</h4><p>Engineers build manually in dev. DevOps then scripts it (setup.sh in the lab, CloudFormation or CDK in real life) and promotes the same code to higher accounts.</p></div>
+  </div>
+
+  <h3>Questions students asked, answered properly</h3>
+  <details class="qa"><summary>How does the data get into S3 in the first place?</summary><div class="ans"><p>Most of the time (roughly 70–80% in practice) the <b>source team pushes</b> files into a bucket and prefix you give them, in a format you agree on. You can also <b>pull</b> data yourself: Glue JDBC reads from a database, AWS DMS or zero-ETL for change data capture, AppFlow for SaaS. You own the landing contract: the bucket, the prefix, the format and the trigger.</p></div></details>
+  <details class="qa"><summary>Three CSV files arrive. Does the pipeline run three times?</summary><div class="ans"><p>Yes. Each <code>ObjectCreated</code> event invokes Lambda once. To run once per batch, ask the source to finish with a zero-byte <b>marker file</b> (<code>_SUCCESS</code> or <code>batch.done</code>), filter the S3 notification on that suffix, and have the Glue job read the whole prefix. Other options: batch events through SQS or EventBridge, or move to a schedule when arrival times are reliable.</p></div></details>
+  <details class="qa"><summary>A 5 GB file is uploading in parts. Will the event fire too early?</summary><div class="ans"><p>No. S3 emits <code>ObjectCreated:CompleteMultipartUpload</code> only after the object is fully written and visible. Readers never see a half-written object.</p></div></details>
+  <details class="qa"><summary>Why three tables from one CSV?</summary><div class="ans"><p>Each table serves a different question, so each has a different <b>grain</b>. <code>target_sales</code> is one row per order, <code>by_region</code> is one row per region, and <code>by_country_item</code> is one row per country and item type. Pre-aggregated tables make dashboards fast and cheap. Inside Redshift you could also build them as <b>materialized views</b> (Level 6).</p></div></details>
+  <details class="qa"><summary>Who configures CloudWatch logs?</summary><div class="ans"><p>Nobody needs to. Lambda, Glue and Step Functions send logs to CloudWatch by default (Step Functions logging levels are configurable). In Redshift you also query <code>SYS_*</code> system views and can turn on audit logging (Level 9).</p></div></details>
+
+  <div class="note n-lab"><b>Lab facts to remember</b><p>Data: <code>sales.csv</code> has 899 orders across 14 columns (uuid, Country, ItemType, SalesChannel, OrderPriority, OrderDate, Region, ShipDate, UnitsSold, UnitPrice, UnitCost, TotalRevenue, TotalCost, TotalProfit). The homework file <code>sales2.csv</code> has 15 rows: 5 existing UUIDs with changed values and 10 new ones, giving <b>909</b> rows after the upsert. Glue 5.0 with 2 × G.1X workers. Redshift Serverless at 8 base RPUs, database <code>dev</code>.</p></div>
+  <div class="done-row"><label><input type="checkbox" data-done="story"> Mark section done</label></div>
+</section>
+
+<!-- ============ L1 ============ -->
+<section class="ch" id="l1" style="--c:var(--s1)">
+  <div class="ch-head"><div class="ch-num">L1</div><div><div class="eyebrow">Level 1 · Foundations</div><h2>Why a warehouse exists at all</h2></div></div>
+  <p class="story">Amazon's order database is built to save one order in milliseconds. Ask it "total profit by region for the last five years" and it has to read every column of every order row by row, while customers are still checking out. A warehouse is a second copy of the data, laid out for the opposite job: reading a few columns across billions of rows.</p>
+
+  <figure class="plate">
+    <div class="plate-title">Infographic 1.1 · OLTP vs OLAP: same data, opposite jobs</div>
+    <div class="svgwrap">
+    <svg viewBox="0 0 760 250" role="img" aria-label="OLTP systems handle many small writes; OLAP warehouses handle few large analytical reads">
+      <rect x="10" y="10" width="360" height="230" rx="10" class="cool"/>
+      <text x="30" y="40" class="th tc">OLTP · the app database</text>
+      <text x="30" y="62" class="ts">Aurora, RDS, DynamoDB, Oracle</text>
+      <text x="30" y="92" class="t">• Thousands of tiny reads and writes per second</text>
+      <text x="30" y="116" class="t">• "Get order 535113847", "update address"</text>
+      <text x="30" y="140" class="t">• Row-oriented, normalized (3NF)</text>
+      <text x="30" y="164" class="t">• Enforced keys, ACID per transaction</text>
+      <text x="30" y="188" class="t">• Data size: GBs to low TBs</text>
+      <text x="30" y="218" class="ts">Optimised for: write latency</text>
+      <rect x="390" y="10" width="360" height="230" rx="10" class="acc"/>
+      <text x="410" y="40" class="th ta">OLAP · the warehouse</text>
+      <text x="410" y="62" class="ts">Redshift, Snowflake, BigQuery, Synapse</text>
+      <text x="410" y="92" class="t">• Few, heavy queries scanning billions of rows</text>
+      <text x="410" y="116" class="t">• "SUM(profit) by region by year"</text>
+      <text x="410" y="140" class="t">• Column-oriented, denormalized (star schema)</text>
+      <text x="410" y="164" class="t">• Bulk loads, history kept for years</text>
+      <text x="410" y="188" class="t">• Data size: TBs to PBs</text>
+      <text x="410" y="218" class="ts">Optimised for: scan throughput</text>
+    </svg></div>
+    <figcaption><b>Rule of thumb:</b> never run analytics on the production OLTP database. Copy the data to the warehouse with ETL, ELT or zero-ETL.</figcaption>
+  </figure>
+
+  <h3>What Amazon Redshift actually is</h3>
+  <p>Redshift is a fully managed, <b>massively parallel processing (MPP)</b>, <b>columnar</b> data warehouse. It speaks PostgreSQL-flavoured SQL (it began as a fork of ParAccel on PostgreSQL 8.0.2) and connects over JDBC/ODBC or the HTTP-based <b>Data API</b>. Your lab setup script used the Data API to create tables with <code>aws redshift-data execute-statement</code>. Three ideas explain almost all of its speed:</p>
+  <ol>
+    <li><b>MPP:</b> data is split across many slices, each scanning its share at the same time.</li>
+    <li><b>Columnar storage:</b> a query reads only the columns it needs, and similar values compress very well.</li>
+    <li><b>Skipping:</b> zone maps (min/max per block) let it skip blocks that can't match a filter.</li>
+  </ol>
+
+  <h3>Lake, warehouse, lakehouse</h3>
+  <div class="cards">
+    <div class="card"><span class="tag">Data lake · S3</span><h4>Store everything cheaply</h4><ul><li>Any format, schema-on-read</li><li>Cheapest storage, infinite scale</li><li>Queried by Athena, Spark, Redshift Spectrum</li><li>Weak at updates without a table format</li></ul></div>
+    <div class="card"><span class="tag">Warehouse · Redshift</span><h4>Serve SQL fast</h4><ul><li>Schema-on-write, typed tables</li><li>Sub-second dashboards and high concurrency</li><li>ACID, MERGE, materialized views</li><li>More expensive per TB stored</li></ul></div>
+    <div class="card"><span class="tag">Lakehouse · Iceberg on S3</span><h4>Both, on open formats</h4><ul><li>ACID tables on S3 (Iceberg, Delta, Hudi)</li><li>Many engines share one copy</li><li>Time travel and schema evolution</li><li>Redshift reads and, since 2026, writes Iceberg</li></ul></div>
+  </div>
+
+  <h3>Redshift next to its rivals</h3>
+  <div class="tbl"><table>
+    <tr><th>Engine</th><th>Model</th><th>Pick it when</th></tr>
+    <tr><td>Redshift</td><td>Provisioned clusters or serverless, AWS-native</td><td>You're on AWS, need fast BI with high concurrency, and want IAM, Glue, Lake Formation and zero-ETL integration</td></tr>
+    <tr><td>Athena</td><td>Serverless SQL over S3, $ per TB scanned</td><td>Ad-hoc or occasional queries on lake data with no warehouse to manage</td></tr>
+    <tr><td>EMR / Glue Spark</td><td>Spark clusters or jobs</td><td>Heavy transformation, ML feature engineering, non-SQL logic</td></tr>
+    <tr><td>Snowflake</td><td>Multi-cloud, virtual warehouses</td><td>Multi-cloud strategy, or teams already invested in it. Skills transfer almost 1:1 from Redshift</td></tr>
+    <tr><td>BigQuery</td><td>GCP serverless, slots</td><td>You're on GCP</td></tr>
+  </table></div>
+  <div class="note n-int"><b>Interview line</b><p>"Redshift is AWS's MPP columnar warehouse. I'd choose it over Athena when the same queries run repeatedly by many concurrent BI users and need consistent sub-second latency. I'd keep Athena for ad-hoc exploration of the lake."</p></div>
+  <div class="done-row"><label><input type="checkbox" data-done="l1"> Mark section done</label></div>
+</section>
+
+<!-- ============ L2 ============ -->
+<section class="ch" id="l2" style="--c:var(--s2)">
+  <div class="ch-head"><div class="ch-num">L2</div><div><div class="eyebrow">Level 2 · Architecture</div><h2>Leader, compute nodes, slices, and where data really lives</h2></div></div>
+  <p class="story">Picture a restaurant. The <b>leader node</b> is the head chef: it reads the order (your SQL), writes the recipe (query plan), and hands each line cook a piece of the work. The <b>compute nodes</b> are the stations, and each <b>slice</b> is one cook with their own share of the ingredients. The pantry is <b>Redshift Managed Storage</b> on S3, with a fast local fridge (SSD cache) at every station.</p>
+
+  <figure class="plate">
+    <div class="plate-title">Infographic 2.1 · Provisioned RA3 / RG cluster</div>
+    <div class="svgwrap">
+    <svg viewBox="0 0 760 360" role="img" aria-label="Clients connect to the leader node, which coordinates compute nodes divided into slices, backed by Redshift Managed Storage in S3">
+      <defs><marker id="ar2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="fm"/></marker></defs>
+      <rect x="10" y="20" width="160" height="80" rx="8" class="soft"/><text x="90" y="46" text-anchor="middle" class="th">Clients</text><text x="90" y="66" text-anchor="middle" class="ts">QuickSight, Tableau, dbt</text><text x="90" y="82" text-anchor="middle" class="ts">JDBC/ODBC · Data API</text>
+      <path d="M170 60H246" class="line" marker-end="url(#ar2)"/><text x="208" y="52" text-anchor="middle" class="ts">SQL</text>
+      <rect x="250" y="14" width="260" height="92" rx="8" class="acc"/>
+      <text x="380" y="38" text-anchor="middle" class="th">Leader node</text>
+      <text x="380" y="58" text-anchor="middle" class="ts">parse → optimize → plan → compile</text>
+      <text x="380" y="74" text-anchor="middle" class="ts">catalog · result cache · final aggregation</text>
+      <text x="380" y="92" text-anchor="middle" class="ts">(free on provisioned; no user data)</text>
+      <path d="M300 106L130 150M380 106V150M460 106L630 150" class="line" marker-end="url(#ar2)"/>
+      <g>
+        <rect x="20" y="154" width="220" height="110" rx="8" class="box"/><text x="130" y="176" text-anchor="middle" class="th">Compute node 1</text>
+        <rect x="34" y="188" width="92" height="62" rx="6" class="cool"/><text x="80" y="214" text-anchor="middle" class="t">slice 0</text><text x="80" y="232" text-anchor="middle" class="ts">CPU+RAM+disk</text>
+        <rect x="134" y="188" width="92" height="62" rx="6" class="cool"/><text x="180" y="214" text-anchor="middle" class="t">slice 1</text><text x="180" y="232" text-anchor="middle" class="ts">its own rows</text>
+      </g>
+      <g>
+        <rect x="270" y="154" width="220" height="110" rx="8" class="box"/><text x="380" y="176" text-anchor="middle" class="th">Compute node 2</text>
+        <rect x="284" y="188" width="92" height="62" rx="6" class="cool"/><text x="330" y="214" text-anchor="middle" class="t">slice 2</text>
+        <rect x="384" y="188" width="92" height="62" rx="6" class="cool"/><text x="430" y="214" text-anchor="middle" class="t">slice 3</text>
+      </g>
+      <g>
+        <rect x="520" y="154" width="220" height="110" rx="8" class="box"/><text x="630" y="176" text-anchor="middle" class="th">Compute node N</text>
+        <rect x="534" y="188" width="92" height="62" rx="6" class="cool"/><text x="580" y="214" text-anchor="middle" class="t">slice …</text>
+        <rect x="634" y="188" width="92" height="62" rx="6" class="cool"/><text x="680" y="214" text-anchor="middle" class="t">slice …</text>
+      </g>
+      <text x="380" y="284" text-anchor="middle" class="ts">each node: local NVMe SSD = hot cache · data moves between nodes over the network ("redistribution")</text>
+      <rect x="20" y="296" width="720" height="54" rx="8" class="grn"/>
+      <text x="380" y="320" text-anchor="middle" class="th">Redshift Managed Storage (RMS) on S3</text>
+      <text x="380" y="338" text-anchor="middle" class="ts">durable copy of all data · storage billed separately · lets you scale compute without moving data</text>
+    </svg></div>
+    <figcaption><b>Key insight:</b> the slice is the unit of parallelism. Everything in Level 4 (distribution) and Level 5 (COPY file counts) comes back to keeping every slice equally busy.</figcaption>
+  </figure>
+
+  <h3>Node families (2026)</h3>
+  <div class="tbl"><table>
+    <tr><th>Family</th><th>Status</th><th>What to know</th></tr>
+    <tr><td><b>RG</b> (Graviton)</td><td>New, May 2026</td><td>rg.large, rg.xlarge, rg.4xlarge, rg.12xlarge. AWS cites up to 2.2× faster warehouse queries and 30% lower price per vCPU than RA3, plus a built-in data-lake query engine. Migrate from RA3 by snapshot restore or resize.</td></tr>
+    <tr><td><b>RA3</b></td><td>Mainstream</td><td>ra3.large, xlplus, 4xlarge, 16xlarge. Managed storage separates compute from storage. Required for data sharing, multi-AZ and concurrency scaling for writes.</td></tr>
+    <tr><td><b>DC2</b></td><td>Deprecated</td><td>Dense compute with local SSD only. Deprecated in 2025, with migration to RA3 or Serverless. Know it only as history.</td></tr>
+    <tr><td>DS2</td><td>Retired</td><td>Old HDD-based dense storage. If an interviewer mentions it, say you'd migrate to RA3 or RG.</td></tr>
+  </table></div>
+
+  <h3>Redshift Serverless: namespace + workgroup</h3>
+  <figure class="plate">
+    <div class="plate-title">Infographic 2.2 · Serverless splits storage from compute</div>
+    <div class="svgwrap">
+    <svg viewBox="0 0 760 300" role="img" aria-label="Namespace holds storage objects; workgroup holds compute measured in RPUs that scale from 4 to 1024">
+      <rect x="10" y="14" width="330" height="200" rx="10" class="grn"/>
+      <text x="30" y="42" class="th">Namespace = storage</text>
+      <text x="30" y="64" class="ts">mission-deh-hof-glue-redshift-ns</text>
+      <text x="30" y="94" class="t">• databases, schemas, tables, data</text>
+      <text x="30" y="118" class="t">• users, roles, permissions</text>
+      <text x="30" y="142" class="t">• admin credentials, KMS key, IAM roles</text>
+      <text x="30" y="166" class="t">• snapshots and recovery points</text>
+      <text x="30" y="196" class="ts">billed per GB-month of managed storage</text>
+      <rect x="420" y="14" width="330" height="200" rx="10" class="acc"/>
+      <text x="440" y="42" class="th">Workgroup = compute</text>
+      <text x="440" y="64" class="ts">mission-deh-hof-glue-redshift-wg</text>
+      <text x="440" y="94" class="t">• base capacity in RPUs (1 RPU = 16 GB RAM)</text>
+      <text x="440" y="118" class="t">• max capacity, max RPU-hours limits</text>
+      <text x="440" y="142" class="t">• VPC, subnets, security groups, endpoint</text>
+      <text x="440" y="166" class="t">• price-performance target (AI scaling)</text>
+      <text x="440" y="196" class="ts">billed per RPU-second while queries run</text>
+      <path d="M340 114H420" class="line"/><text x="380" y="106" text-anchor="middle" class="ts">1 : 1</text>
+      <!-- scale bar -->
+      <text x="10" y="248" class="ts">base RPU</text>
+      <rect x="80" y="236" width="660" height="16" rx="4" class="soft"/>
+      <rect x="80" y="236" width="18" height="16" rx="4" class="fc"/>
+      <rect x="98" y="236" width="70" height="16" class="cool"/>
+      <text x="84" y="274" class="mono">4</text><text x="120" y="274" class="mono">8–24</text><text x="196" y="274" class="mono">32</text><text x="372" y="274" class="mono">128 default</text><text x="566" y="274" class="mono">512</text><text x="716" y="274" class="mono">1024</text>
+      <path d="M200 236V256M400 236V256M590 236V256" class="line"/>
+      <text x="80" y="294" class="ts">4 RPU: ≤32 TB, ≤100 columns per table · 8–24: ≤128 TB · &gt;128 TB needs ≥32 · steps of 8 up to 512, then 32 (1024 in large regions)</text>
+    </svg></div>
+    <figcaption><b>Billing:</b> you pay for RPU-hours, metered per second (60-second minimum), only while queries run, plus storage. Idle means no compute bill. That's why the lab costs about $1–2.</figcaption>
+  </figure>
+
+  <h3>Provisioned vs Serverless: the decision</h3>
+  <div class="tbl"><table>
+    <tr><th>Question</th><th>Serverless</th><th>Provisioned (RA3/RG)</th></tr>
+    <tr><td>Workload shape</td><td>Spiky, unpredictable, dev/test, new projects</td><td>Steady 24×7, predictable</td></tr>
+    <tr><td>Ops effort</td><td>None: no node sizing, patching or resizing</td><td>Choose node type and count, resize, pause/resume</td></tr>
+    <tr><td>Cost model</td><td>RPU-seconds; Serverless Reservations for steady base</td><td>Node-hours; Reserved Instances (1 or 3 years) for big discounts</td></tr>
+    <tr><td>Scaling</td><td>Automatic, with AI-driven price-performance slider</td><td>Concurrency scaling, elastic resize</td></tr>
+    <tr><td>Fine control</td><td>Less (no manual WLM queues)</td><td>Manual WLM, parameter groups, maintenance track</td></tr>
+  </table></div>
+  <div class="note n-int"><b>Interview line, from class</b><p>"We started on Serverless because it's fast to set up and bills only when used. Once usage became steady and predictable, we compared RPU-hours against reserved RA3 nodes. That comparison is AWS's own guidance for when to switch."</p></div>
+
+  <h3>How a query travels</h3>
+  <figure class="plate">
+    <div class="plate-title">Infographic 2.3 · Query lifecycle</div>
+    <div class="svgwrap">
+    <svg viewBox="0 0 760 150" role="img" aria-label="Query lifecycle: submit, result cache check, parse and rewrite, optimize, compile to segments, execute on slices, aggregate on leader, return">
+      <defs><marker id="ar3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="fm"/></marker></defs>
+      <g class="t">
+      <rect x="6" y="30" width="96" height="62" rx="8" class="soft"/><text x="54" y="56" text-anchor="middle" class="t">1 Submit</text><text x="54" y="74" text-anchor="middle" class="ts">SQL arrives</text>
+      <rect x="114" y="30" width="96" height="62" rx="8" class="grn"/><text x="162" y="56" text-anchor="middle" class="t">2 Cache?</text><text x="162" y="74" text-anchor="middle" class="ts">hit → return</text>
+      <rect x="222" y="30" width="96" height="62" rx="8" class="box"/><text x="270" y="56" text-anchor="middle" class="t">3 Parse</text><text x="270" y="74" text-anchor="middle" class="ts">rewrite</text>
+      <rect x="330" y="30" width="96" height="62" rx="8" class="box"/><text x="378" y="56" text-anchor="middle" class="t">4 Optimize</text><text x="378" y="74" text-anchor="middle" class="ts">uses stats</text>
+      <rect x="438" y="30" width="96" height="62" rx="8" class="amb"/><text x="486" y="56" text-anchor="middle" class="t">5 Compile</text><text x="486" y="74" text-anchor="middle" class="ts">segments</text>
+      <rect x="546" y="30" width="96" height="62" rx="8" class="cool"/><text x="594" y="56" text-anchor="middle" class="t">6 Execute</text><text x="594" y="74" text-anchor="middle" class="ts">all slices</text>
+      <rect x="654" y="30" width="100" height="62" rx="8" class="acc"/><text x="704" y="56" text-anchor="middle" class="t">7 Merge</text><text x="704" y="74" text-anchor="middle" class="ts">leader returns</text>
+      </g>
+      <path d="M102 61H110M210 61H218M318 61H326M426 61H434M534 61H542M642 61H650" class="line" marker-end="url(#ar3)"/>
+      <text x="162" y="118" text-anchor="middle" class="ts">result cache: same SQL,</text><text x="162" y="134" text-anchor="middle" class="ts">unchanged data → instant</text>
+      <text x="486" y="118" text-anchor="middle" class="ts">compiled code is cached;</text><text x="486" y="134" text-anchor="middle" class="ts">first run is slower</text>
+      <text x="378" y="118" text-anchor="middle" class="ts">stale stats → bad plans,</text><text x="378" y="134" text-anchor="middle" class="ts">so ANALYZE matters</text>
+    </svg></div>
+  </figure>
+  <p>The plan is broken into <b>streams → segments → steps</b>. A stream is a set of segments that run together. A segment is compiled code that each slice runs. Steps are individual operations such as scan, hash, aggregate or join. When you read <code>EXPLAIN</code> output (Level 6), you're reading this plan.</p>
+  <div class="note n-warn"><b>Leader-node-only gotchas</b><p>Some functions run only on the leader, such as certain catalog queries and <code>CURRENT_SCHEMA()</code>-style system functions. Mixing them with user-table queries throws errors. Also, the leader is a single point of coordination. Huge result sets returned to a client (<code>SELECT *</code> on a billion rows) bottleneck there. Use <code>UNLOAD</code> to S3 instead.</p></div>
+  <div class="done-row"><label><input type="checkbox" data-done="l2"> Mark section done</label></div>
+</section>
+
+<!-- ============ L3 ============ -->
+<section class="ch" id="l3" style="--c:var(--s3)">
+  <div class="ch-head"><div class="ch-num">L3</div><div><div class="eyebrow">Level 3 · Storage internals</div><h2>Columnar blocks, compression and zone maps</h2></div></div>
+  <p class="story">Your query is <code>SELECT region, SUM(total_profit) FROM target_sales GROUP BY region</code>. The table has 14 columns. A row store reads all 14. Redshift reads 2. The data it does read is compressed 3–10×, and whole blocks are skipped when a filter rules them out. That's most of the performance story, before any tuning.</p>
+
+  <figure class="plate">
+    <div class="plate-title">Infographic 3.1 · Row store vs column store</div>
+    <div class="svgwrap">
+    <svg viewBox="0 0 760 250" role="img" aria-label="Row storage keeps whole rows together; columnar storage keeps each column in its own blocks so a query reads only needed columns">
+      <text x="10" y="22" class="th">Row store (OLTP)</text>
+      <g>
+        <rect x="10" y="34" width="340" height="30" rx="4" class="soft"/><text x="20" y="54" class="mono">535113847 | Chad | Office Supplies | Offline | H | …</text>
+        <rect x="10" y="68" width="340" height="30" rx="4" class="soft"/><text x="20" y="88" class="mono">874708545 | Latvia | Beverages | Online | C | …</text>
+        <rect x="10" y="102" width="340" height="30" rx="4" class="soft"/><text x="20" y="122" class="mono">854349935 | Panama | Cosmetics | Offline | L | …</text>
+      </g>
+      <text x="10" y="156" class="ts">SUM(total_profit) must read every byte of every row</text>
+      <text x="10" y="176" class="ts ta">→ 14 of 14 columns read</text>
+      <text x="400" y="22" class="th">Column store (Redshift)</text>
+      <g>
+        <rect x="400" y="34" width="56" height="140" rx="4" class="dim"/><text x="428" y="188" text-anchor="middle" class="ts">uuid</text>
+        <rect x="462" y="34" width="56" height="140" rx="4" class="dim"/><text x="490" y="188" text-anchor="middle" class="ts">country</text>
+        <rect x="524" y="34" width="56" height="140" rx="4" class="cool"/><text x="552" y="188" text-anchor="middle" class="ts tc">region</text>
+        <rect x="586" y="34" width="56" height="140" rx="4" class="dim"/><text x="614" y="188" text-anchor="middle" class="ts">…</text>
+        <rect x="648" y="34" width="56" height="140" rx="4" class="cool"/><text x="676" y="188" text-anchor="middle" class="ts tc">profit</text>
+      </g>
+      <text x="400" y="214" class="ts">each column lives in its own 1 MB blocks</text>
+      <text x="400" y="234" class="ts tg">→ 2 of 14 columns read, then compressed</text>
+    </svg></div>
+  </figure>
+
+  <h3>Blocks and compression encodings</h3>
+  <p>Each column is stored in immutable <b>1 MB blocks</b>. Because a block holds one data type with often-repeated values, compression works extremely well, and less I/O means faster queries. With <code>ENCODE AUTO</code> (the default), Redshift picks and changes encodings for you.</p>
+  <div class="tbl"><table>
+    <tr><th>Encoding</th><th>Best for</th></tr>
+    <tr><td><code>AZ64</code></td><td>Numbers, dates and timestamps. AWS's own algorithm and the default for those types.</td></tr>
+    <tr><td><code>ZSTD</code></td><td>General-purpose strings and mixed text, with a high ratio</td></tr>
+    <tr><td><code>LZO</code></td><td>Older default for strings</td></tr>
+    <tr><td><code>BYTEDICT</code></td><td>Low-cardinality strings (region has 7 values)</td></tr>
+    <tr><td><code>RUNLENGTH</code></td><td>Long runs of the same value, such as a sorted status column</td></tr>
+    <tr><td><code>DELTA / DELTA32K</code></td><td>Steadily increasing numbers (IDs, dates)</td></tr>
+    <tr><td><code>MOSTLY8/16/32</code></td><td>Big-int columns whose values are mostly small</td></tr>
+    <tr><td><code>RAW</code></td><td>No compression. Sometimes used on BOOLEAN or very short columns</td></tr>
+  </table></div>
+  <pre><code><span class="c">-- See what Redshift would recommend for an existing table</span>
+<span class="k">ANALYZE COMPRESSION</span> public.target_sales;</code></pre>
+
+  <h3>Zone maps: skip blocks you don't need</h3>
+  <figure class="plate">
+    <div class="plate-title">Infographic 3.2 · Zone maps prune blocks before reading them</div>
+    <div class="svgwrap">
+    <svg viewBox="0 0 760 210" role="img" aria-label="Each block stores min and max values; a date filter skips blocks whose range does not overlap">
+      <text x="10" y="22" class="mono">WHERE order_date BETWEEN '2016-03-01' AND '2016-05-31'</text>
+      <g>
+        <rect x="10" y="42" width="140" height="74" rx="6" class="dim"/><text x="80" y="66" text-anchor="middle" class="ts">block 1</text><text x="80" y="86" text-anchor="middle" class="mono">min 2010-01-02</text><text x="80" y="104" text-anchor="middle" class="mono">max 2012-06-30</text>
+        <rect x="160" y="42" width="140" height="74" rx="6" class="dim"/><text x="230" y="66" text-anchor="middle" class="ts">block 2</text><text x="230" y="86" text-anchor="middle" class="mono">min 2012-07-01</text><text x="230" y="104" text-anchor="middle" class="mono">max 2015-12-31</text>
+        <rect x="310" y="42" width="140" height="74" rx="6" class="grn"/><text x="380" y="66" text-anchor="middle" class="ts tg">block 3 · READ</text><text x="380" y="86" text-anchor="middle" class="mono">min 2016-01-01</text><text x="380" y="104" text-anchor="middle" class="mono">max 2016-08-14</text>
+        <rect x="460" y="42" width="140" height="74" rx="6" class="dim"/><text x="530" y="66" text-anchor="middle" class="ts">block 4</text><text x="530" y="86" text-anchor="middle" class="mono">min 2016-08-15</text><text x="530" y="104" text-anchor="middle" class="mono">max 2017-07-20</text>
+        <rect x="610" y="42" width="140" height="74" rx="6" class="dim"/><text x="680" y="66" text-anchor="middle" class="ts">block 5</text><text x="680" y="86" text-anchor="middle" class="mono">min 2017-07-21</text><text x="680" y="104" text-anchor="middle" class="mono">max 2017-12-31</text>
+      </g>
+      <text x="10" y="146" class="t">Sorted on order_date → tight, non-overlapping ranges → 4 of 5 blocks skipped.</text>
+      <text x="10" y="170" class="t ta">Unsorted → every block's range spans 2010–2017 → nothing can be skipped.</text>
+      <text x="10" y="196" class="ts">This is why the sort key (Level 4) matters, and why the lab's VARCHAR dates hurt: string min/max gives weak pruning.</text>
+    </svg></div>
+  </figure>
+
+  <h3>Deletes, updates and VACUUM</h3>
+  <p>Blocks are immutable. An <code>UPDATE</code> is really a delete plus an insert. A <code>DELETE</code> only <i>marks</i> rows as deleted, so they still take space and get scanned until removed. New rows land in an <b>unsorted region</b> at the end. Two background jobs clean up:</p>
+  <ul>
+    <li><b>VACUUM</b> reclaims space from deleted rows (<code>DELETE ONLY</code>) and re-sorts (<code>SORT ONLY</code>, <code>FULL</code>, <code>REINDEX</code> for interleaved). Redshift runs <b>automatic vacuum delete</b> and <b>automatic table sort</b> in quiet periods.</li>
+    <li><b>ANALYZE</b> refreshes the statistics the optimizer uses. <b>Auto analyze</b> runs in the background. COPY into an empty table also updates stats (<code>STATUPDATE</code>).</li>
+  </ul>
+  <div class="note n-lab"><b>Connect to the lab</b><p>Each upsert run deletes matching UUIDs from <code>target_sales</code> and inserts fresh rows. Over months of daily runs, that leaves ghost rows and unsorted data. Auto vacuum usually keeps up. After a huge backfill, run <code>VACUUM FULL target_sales TO 99 PERCENT; ANALYZE target_sales;</code> yourself, and check <code>svv_table_info.unsorted</code> and <code>stats_off</code>.</p></div>
+  <div class="done-row"><label><input type="checkbox" data-done="l3"> Mark section done</label></div>
+</section>
+
+<!-- ============ L4 ============ -->
+<section class="ch" id="l4" style="--c:var(--s4)">
+  <div class="ch-head"><div class="ch-num">L4</div><div><div class="eyebrow">Level 4 · Physical design</div><h2>Distribution, sort keys, data types and the star schema</h2></div></div>
+  <p class="story">To join <code>sales</code> to <code>country</code>, matching rows must sit on the same slice. If they don't, Redshift ships data across the network mid-query, which is the single biggest cause of slow joins. Distribution decides <i>which slice</i> a row lives on. The sort key decides <i>what order</i> rows sit in on that slice. Together they decide whether a query flies or crawls.</p>
+
+  <figure class="plate">
+    <div class="plate-title">Infographic 4.1 · The four distribution styles across 4 slices</div>
+    <div class="svgwrap">
+    <svg viewBox="0 0 760 330" role="img" aria-label="EVEN spreads round robin, KEY hashes a column so equal keys colocate, ALL copies the table to every node, AUTO lets Redshift choose">
+      <!-- EVEN -->
+      <rect x="10" y="10" width="360" height="150" rx="10" class="box"/>
+      <text x="26" y="34" class="th">EVEN</text><text x="80" y="34" class="ts">round-robin, ignores values</text>
+      <g class="mono">
+        <rect x="26" y="48" width="78" height="96" rx="5" class="soft"/><text x="65" y="66" text-anchor="middle" class="ts">slice 0</text><text x="65" y="88" text-anchor="middle" class="mono">Chad</text><text x="65" y="106" text-anchor="middle" class="mono">Peru</text><text x="65" y="124" text-anchor="middle" class="mono">India</text>
+        <rect x="110" y="48" width="78" height="96" rx="5" class="soft"/><text x="149" y="66" text-anchor="middle" class="ts">slice 1</text><text x="149" y="88" text-anchor="middle" class="mono">India</text><text x="149" y="106" text-anchor="middle" class="mono">Chad</text>
+        <rect x="194" y="48" width="78" height="96" rx="5" class="soft"/><text x="233" y="66" text-anchor="middle" class="ts">slice 2</text><text x="233" y="88" text-anchor="middle" class="mono">Peru</text><text x="233" y="106" text-anchor="middle" class="mono">India</text>
+        <rect x="278" y="48" width="78" height="96" rx="5" class="soft"/><text x="317" y="66" text-anchor="middle" class="ts">slice 3</text><text x="317" y="88" text-anchor="middle" class="mono">Chad</text><text x="317" y="106" text-anchor="middle" class="mono">Peru</text>
+      </g>
+      <!-- KEY -->
+      <rect x="390" y="10" width="360" height="150" rx="10" class="grn"/>
+      <text x="406" y="34" class="th">KEY (country)</text><text x="514" y="34" class="ts">hash(value) → slice</text>
+      <rect x="406" y="48" width="78" height="96" rx="5" class="box"/><text x="445" y="66" text-anchor="middle" class="ts">slice 0</text><text x="445" y="88" text-anchor="middle" class="mono">Chad</text><text x="445" y="106" text-anchor="middle" class="mono">Chad</text><text x="445" y="124" text-anchor="middle" class="mono">Chad</text>
+      <rect x="490" y="48" width="78" height="96" rx="5" class="box"/><text x="529" y="66" text-anchor="middle" class="ts">slice 1</text><text x="529" y="88" text-anchor="middle" class="mono">India</text><text x="529" y="106" text-anchor="middle" class="mono">India</text><text x="529" y="124" text-anchor="middle" class="mono">India</text>
+      <rect x="574" y="48" width="78" height="96" rx="5" class="box"/><text x="613" y="66" text-anchor="middle" class="ts">slice 2</text><text x="613" y="88" text-anchor="middle" class="mono">Peru</text><text x="613" y="106" text-anchor="middle" class="mono">Peru</text><text x="613" y="124" text-anchor="middle" class="mono">Peru</text>
+      <rect x="658" y="48" width="78" height="96" rx="5" class="box"/><text x="697" y="66" text-anchor="middle" class="ts">slice 3</text><text x="697" y="94" text-anchor="middle" class="ts">(empty =</text><text x="697" y="110" text-anchor="middle" class="ts">skew risk)</text>
+      <!-- ALL -->
+      <rect x="10" y="172" width="360" height="148" rx="10" class="cool"/>
+      <text x="26" y="196" class="th">ALL</text><text x="64" y="196" class="ts">full copy on every node (first slice)</text>
+      <rect x="26" y="210" width="160" height="94" rx="5" class="box"/><text x="106" y="230" text-anchor="middle" class="ts">node 1</text><text x="106" y="254" text-anchor="middle" class="mono">dim_region (7 rows)</text><text x="106" y="276" text-anchor="middle" class="ts">whole table</text>
+      <rect x="196" y="210" width="160" height="94" rx="5" class="box"/><text x="276" y="230" text-anchor="middle" class="ts">node 2</text><text x="276" y="254" text-anchor="middle" class="mono">dim_region (7 rows)</text><text x="276" y="276" text-anchor="middle" class="ts">whole table</text>
+      <!-- AUTO -->
+      <rect x="390" y="172" width="360" height="148" rx="10" class="acc"/>
+      <text x="406" y="196" class="th">AUTO (default)</text>
+      <text x="406" y="222" class="t">Small table → starts as ALL</text>
+      <text x="406" y="244" class="t">Grows → switches to EVEN</text>
+      <text x="406" y="266" class="t">Clear join pattern → may pick KEY</text>
+      <text x="406" y="294" class="ts">Changes happen in the background, logged in</text>
+      <text x="406" y="310" class="mono">svl_auto_worker_action</text>
+    </svg></div>
+  </figure>
+
+  <div class="tbl"><table>
+    <tr><th>Style</th><th>Use when</th><th>Watch out</th></tr>
+    <tr><td><code>KEY</code></td><td>Large fact table and its largest dimension joined on the same column. Distribute both on that column so the join is local.</td><td><b>Skew:</b> a column with few or uneven values (country, NULL-heavy, "unknown") overloads one slice. Pick high-cardinality, evenly spread keys such as customer_id.</td></tr>
+    <tr><td><code>ALL</code></td><td>Small, slowly changing dimensions (under a few million rows) joined everywhere</td><td>Every load writes to every node, and storage multiplies by the node count</td></tr>
+    <tr><td><code>EVEN</code></td><td>Tables with no dominant join, or staging tables</td><td>Joins on it always need redistribution</td></tr>
+    <tr><td><code>AUTO</code></td><td>Your default, especially on Serverless</td><td>Override only with evidence from EXPLAIN or system views</td></tr>
+  </table></div>
+  <pre><code><span class="c">-- Detect skew: rows on the busiest slice vs the quietest</span>
+<span class="k">SELECT</span> "table", diststyle, skew_rows, unsorted, stats_off, tbl_rows
+<span class="k">FROM</span> svv_table_info <span class="k">ORDER BY</span> skew_rows <span class="k">DESC</span>;</code></pre>
+
+  <h3>Sort keys</h3>
+  <ul>
+    <li><b>Compound</b> (default when you list columns): sorted by col1, then col2. Great for filters on the leading column (dates). Useless if you filter only on col2.</li>
+    <li><b>Interleaved:</b> equal weight to each column. Rarely worth it today: slow to vacuum (<code>REINDEX</code>) and bad with ever-increasing columns like dates.</li>
+    <li><b>AUTO</b> (default): Redshift watches your query patterns and chooses one. This is <b>Automatic Table Optimization (ATO)</b>.</li>
+  </ul>
+  <p>Good sort key candidates: columns in range filters (<code>order_date</code>), columns frequently in <code>WHERE</code>, or the join column, because sorted data on both sides allows a <b>merge join</b>, the fastest join type.</p>
+
+  <h3>Data types: small, exact, correct</h3>
+  <ul>
+    <li>Use the narrowest type: <code>SMALLINT</code> before <code>INTEGER</code> before <code>BIGINT</code>.</li>
+    <li>Size <code>VARCHAR</code> realistically. Redshift allocates memory for the declared width during queries, so <code>VARCHAR(65535)</code> everywhere wastes RAM. Lengths are in <b>bytes</b>, so multi-byte UTF-8 needs headroom.</li>
+    <li>Store dates as <code>DATE</code> or <code>TIMESTAMP</code>, never VARCHAR. You get proper zone maps, date functions and AZ64 compression.</li>
+    <li>Money: <code>DECIMAL(p,s)</code>, not FLOAT.</li>
+    <li>Semi-structured JSON: the <code>SUPER</code> type, queried with PartiQL dot notation (<code>payload.customer.city</code>).</li>
+    <li>Surrogate keys: <code>BIGINT IDENTITY(1,1)</code>. Values are unique but not gap-free or ordered across slices.</li>
+  </ul>
+  <div class="note n-warn"><b>Constraints are not enforced</b><p>PRIMARY KEY, FOREIGN KEY and UNIQUE are <b>informational only</b>. The optimizer uses them for planning, but Redshift will happily store duplicates. Only <code>NOT NULL</code> is enforced. That's exactly why the lab needs an upsert: the database won't stop the duplicates. If you declare a PK, make sure it's true, or you'll get wrong query results.</p></div>
+
+  <h3>Modeling: from flat file to star schema</h3>
+  <figure class="plate">
+    <div class="plate-title">Infographic 4.2 · Turning sales.csv into a star schema</div>
+    <div class="svgwrap">
+    <svg viewBox="0 0 760 300" role="img" aria-label="A central fact_sales table linked to dim_date, dim_country, dim_item and dim_channel dimensions">
+      <rect x="270" y="92" width="220" height="140" rx="10" class="acc"/>
+      <text x="380" y="116" text-anchor="middle" class="th">fact_sales</text>
+      <text x="290" y="140" class="mono">order_id (uuid)</text><text x="290" y="158" class="mono">date_key, country_key</text><text x="290" y="176" class="mono">item_key, channel_key</text><text x="290" y="194" class="mono">units_sold, revenue,</text><text x="290" y="212" class="mono">cost, profit</text>
+      <rect x="20" y="20" width="200" height="96" rx="8" class="cool"/><text x="120" y="44" text-anchor="middle" class="th">dim_date</text><text x="36" y="66" class="mono">date_key, date, month</text><text x="36" y="84" class="mono">quarter, year, is_weekend</text><text x="36" y="104" class="ts">DISTSTYLE ALL</text>
+      <rect x="20" y="190" width="200" height="96" rx="8" class="cool"/><text x="120" y="214" text-anchor="middle" class="th">dim_country</text><text x="36" y="236" class="mono">country_key, country</text><text x="36" y="254" class="mono">region</text><text x="36" y="274" class="ts">ALL · region rolls up here</text>
+      <rect x="540" y="20" width="200" height="96" rx="8" class="cool"/><text x="640" y="44" text-anchor="middle" class="th">dim_item</text><text x="556" y="66" class="mono">item_key, item_type</text><text x="556" y="84" class="mono">unit_price, unit_cost</text><text x="556" y="104" class="ts">SCD type 2 if prices change</text>
+      <rect x="540" y="190" width="200" height="96" rx="8" class="cool"/><text x="640" y="214" text-anchor="middle" class="th">dim_channel</text><text x="556" y="236" class="mono">channel_key, channel</text><text x="556" y="254" class="mono">order_priority</text><text x="556" y="274" class="ts">tiny → ALL</text>
+      <path d="M220 80L270 120M220 230L270 200M540 80L490 120M540 230L490 200" class="aline"/>
+      <text x="380" y="262" text-anchor="middle" class="ts">fact: DISTKEY on the biggest join key or AUTO,</text><text x="380" y="278" text-anchor="middle" class="ts">SORTKEY (date_key)</text>
+    </svg></div>
+    <figcaption><b>Why it matters:</b> the lab's flat <code>target_sales</code> is fine for a demo. In a real warehouse, conformed dimensions let every team slice facts the same way, and history-tracking (SCD) lives in the dimensions.</figcaption>
+  </figure>
+  <div class="cards">
+    <div class="card"><span class="tag">Star</span><h4>Denormalized dimensions</h4><p>One join per dimension. Simple for BI tools, and the Redshift default choice.</p></div>
+    <div class="card"><span class="tag">Snowflake schema</span><h4>Normalized dimensions</h4><p>Country → region as separate tables. Saves space, but adds joins, so it's usually avoided in Redshift.</p></div>
+    <div class="card"><span class="tag">SCD type 1</span><h4>Overwrite</h4><p>Keep only the latest value. The lab's upsert is SCD1 at row level.</p></div>
+    <div class="card"><span class="tag">SCD type 2</span><h4>Keep history</h4><p>Close the old row (<code>valid_to</code>, <code>is_current=false</code>) and insert a new one. Done with MERGE plus an INSERT.</p></div>
+  </div>
+  <pre><code><span class="c">-- Production version of the lab's target table</span>
+<span class="k">CREATE TABLE</span> public.fact_sales (
+  order_id      <span class="k">BIGINT NOT NULL</span>,
+  country       <span class="k">VARCHAR</span>(60)  <span class="k">NOT NULL</span>,
+  region        <span class="k">VARCHAR</span>(40)  <span class="k">NOT NULL</span>,
+  item_type     <span class="k">VARCHAR</span>(30),
+  sales_channel <span class="k">VARCHAR</span>(10),
+  order_priority <span class="k">CHAR</span>(1),
+  order_date    <span class="k">DATE NOT NULL</span>,      <span class="c">-- not VARCHAR(20)</span>
+  ship_date     <span class="k">DATE</span>,
+  units_sold    <span class="k">INTEGER</span>,
+  unit_price    <span class="k">DECIMAL</span>(10,2),
+  unit_cost     <span class="k">DECIMAL</span>(10,2),
+  total_revenue <span class="k">DECIMAL</span>(15,2),
+  total_cost    <span class="k">DECIMAL</span>(15,2),
+  total_profit  <span class="k">DECIMAL</span>(15,2),
+  load_ts       <span class="k">TIMESTAMP DEFAULT</span> GETDATE(),
+  <span class="k">PRIMARY KEY</span> (order_id)              <span class="c">-- informational only</span>
+)
+<span class="k">DISTSTYLE AUTO</span>
+<span class="k">COMPOUND SORTKEY</span> (order_date);</code></pre>
+  <div class="done-row"><label><input type="checkbox" data-done="l4"> Mark section done</label></div>
+</section>
+
+<!-- ============ L5 ============ -->
+<section class="ch" id="l5" style="--c:var(--s5)">
+  <div class="ch-head"><div class="ch-num">L5</div><div><div class="eyebrow">Level 5 · Ingestion</div><h2>COPY, upserts, MERGE, streaming and zero-ETL</h2></div></div>
+  <p class="story">In the lab, Glue "wrote to Redshift". Under the hood, Glue's Redshift connector wrote temporary files to <code>s3://…/tmp/</code> and issued a <b>COPY</b>. That's the core lesson of this level: bulk data enters Redshift through COPY, in parallel, from S3. Row-by-row <code>INSERT</code> is the slow path.</p>
+
+  <figure class="plate">
+    <div class="plate-title">Infographic 5.1 · Why the number of files matters to COPY</div>
+    <div class="svgwrap">
+    <svg viewBox="0 0 760 240" role="img" aria-label="One large file is loaded by one slice while others idle; many equal files are loaded by all slices in parallel">
+      <defs><marker id="ar5" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="fm"/></marker></defs>
+      <text x="10" y="22" class="th ta">1 big uncompressed CSV</text>
+      <rect x="10" y="36" width="120" height="150" rx="6" class="amb"/><text x="70" y="110" text-anchor="middle" class="mono">sales.csv</text><text x="70" y="128" text-anchor="middle" class="ts">8 GB</text>
+      <path d="M130 70L196 60" class="line" marker-end="url(#ar5)"/>
+      <rect x="200" y="40" width="130" height="32" rx="5" class="cool"/><text x="265" y="61" text-anchor="middle" class="t">slice 0 · busy</text>
+      <rect x="200" y="80" width="130" height="32" rx="5" class="dim"/><text x="265" y="101" text-anchor="middle" class="ts">slice 1 · idle</text>
+      <rect x="200" y="120" width="130" height="32" rx="5" class="dim"/><text x="265" y="141" text-anchor="middle" class="ts">slice 2 · idle</text>
+      <rect x="200" y="160" width="130" height="32" rx="5" class="dim"/><text x="265" y="181" text-anchor="middle" class="ts">slice 3 · idle</text>
+      <text x="420" y="22" class="th tg">N equal compressed files (N = multiple of slices)</text>
+      <g>
+        <rect x="420" y="40" width="80" height="32" rx="5" class="grn"/><text x="460" y="61" text-anchor="middle" class="mono">part_00.gz</text>
+        <rect x="420" y="80" width="80" height="32" rx="5" class="grn"/><text x="460" y="101" text-anchor="middle" class="mono">part_01.gz</text>
+        <rect x="420" y="120" width="80" height="32" rx="5" class="grn"/><text x="460" y="141" text-anchor="middle" class="mono">part_02.gz</text>
+        <rect x="420" y="160" width="80" height="32" rx="5" class="grn"/><text x="460" y="181" text-anchor="middle" class="mono">part_03.gz</text>
+      </g>
+      <path d="M500 56H596M500 96H596M500 136H596M500 176H596" class="line" marker-end="url(#ar5)"/>
+      <rect x="600" y="40" width="140" height="32" rx="5" class="cool"/><text x="670" y="61" text-anchor="middle" class="t">slice 0 · busy</text>
+      <rect x="600" y="80" width="140" height="32" rx="5" class="cool"/><text x="670" y="101" text-anchor="middle" class="t">slice 1 · busy</text>
+      <rect x="600" y="120" width="140" height="32" rx="5" class="cool"/><text x="670" y="141" text-anchor="middle" class="t">slice 2 · busy</text>
+      <rect x="600" y="160" width="140" height="32" rx="5" class="cool"/><text x="670" y="181" text-anchor="middle" class="t">slice 3 · busy</text>
+      <text x="10" y="222" class="ts">Aim for files of 1 MB–1 GB after compression, evenly sized, count a multiple of slices. Columnar files (Parquet/ORC) are split automatically.</text>
+    </svg></div>
+  </figure>
+
+  <h3>COPY: the command you must know by heart</h3>
+  <pre><code><span class="k">COPY</span> public.stage_sales
+<span class="k">FROM</span> 's3://mission-deh-hof-glue-redshift-ACCT/curated/sales/'
+<span class="k">IAM_ROLE</span> 'arn:aws:iam::ACCT:role/redshift-copy-role'   <span class="c">-- or IAM_ROLE default</span>
+<span class="k">FORMAT AS PARQUET</span>;
+
+<span class="c">-- CSV variant with the options interviewers ask about</span>
+<span class="k">COPY</span> public.stage_sales
+<span class="k">FROM</span> 's3://bucket/raw/sales.csv'
+<span class="k">IAM_ROLE default</span>
+<span class="k">CSV IGNOREHEADER</span> 1
+<span class="k">DATEFORMAT</span> 'auto' <span class="k">TIMEFORMAT</span> 'auto'
+<span class="k">REGION</span> 'us-east-1'
+<span class="k">MAXERROR</span> 10            <span class="c">-- tolerate up to 10 bad rows</span>
+<span class="k">COMPUPDATE OFF</span>         <span class="c">-- skip encoding analysis on stage tables</span>
+<span class="k">STATUPDATE OFF</span>;</code></pre>
+  <div class="cards">
+    <div class="card"><span class="tag">Sources</span><h4>Where COPY reads from</h4><p>S3 (most common), DynamoDB, EMR, remote hosts over SSH. Formats: CSV, delimited text, JSON (with <code>'auto'</code> or a jsonpaths file), Avro, Parquet, ORC. Compressed: GZIP, BZIP2, LZOP, ZSTD.</p></div>
+    <div class="card"><span class="tag">Manifest</span><h4>Load exactly these files</h4><p>A JSON manifest lists the exact S3 keys, with <code>"mandatory": true</code>. It avoids loading stray files and makes reruns deterministic.</p></div>
+    <div class="card"><span class="tag">Errors</span><h4>Find the bad row</h4><p>Query <code>sys_load_error_detail</code> (or <code>stl_load_errors</code> on provisioned) for the line number, column and reason.</p></div>
+    <div class="card"><span class="tag">Auto-copy</span><h4>COPY JOB</h4><p><code>COPY … JOB CREATE my_job AUTO ON</code> watches an S3 prefix and loads new files automatically, tracking what's been loaded. It's a lighter alternative to Lambda triggers for simple loads.</p></div>
+  </div>
+  <pre><code><span class="c">-- Export the other way: Redshift → S3, as partitioned Parquet</span>
+<span class="k">UNLOAD</span> ('SELECT * FROM public.fact_sales WHERE order_date &lt; ''2015-01-01''')
+<span class="k">TO</span> 's3://bucket/archive/sales/'
+<span class="k">IAM_ROLE default FORMAT AS PARQUET PARTITION BY</span> (region);</code></pre>
+
+  <h3>Upsert patterns: making loads idempotent</h3>
+  <figure class="plate">
+    <div class="plate-title">Infographic 5.2 · Three ways to land a batch in a target table</div>
+    <div class="svgwrap">
+    <svg viewBox="0 0 760 270" role="img" aria-label="Pattern A delete and insert via staging used in the lab, pattern B MERGE, pattern C truncate and reload">
+      <rect x="10" y="10" width="240" height="250" rx="10" class="grn"/>
+      <text x="26" y="36" class="th">A · Stage + DELETE/INSERT</text><text x="26" y="54" class="ts">used by lab job 1</text>
+      <text x="26" y="84" class="mono">1 TRUNCATE stage</text>
+      <text x="26" y="106" class="mono">2 COPY batch → stage</text>
+      <text x="26" y="128" class="mono">3 BEGIN;</text>
+      <text x="26" y="150" class="mono">4 DELETE target USING</text>
+      <text x="40" y="168" class="mono">stage ON key</text>
+      <text x="26" y="190" class="mono">5 INSERT target</text>
+      <text x="40" y="208" class="mono">SELECT * FROM stage</text>
+      <text x="26" y="230" class="mono">6 END;</text>
+      <text x="26" y="252" class="ts">portable, simple, very fast</text>
+      <rect x="260" y="10" width="240" height="250" rx="10" class="cool"/>
+      <text x="276" y="36" class="th">B · MERGE</text><text x="276" y="54" class="ts">native since 2023</text>
+      <text x="276" y="84" class="mono">MERGE INTO target t</text>
+      <text x="276" y="106" class="mono">USING stage s</text>
+      <text x="276" y="128" class="mono">ON t.id = s.id</text>
+      <text x="276" y="150" class="mono">WHEN MATCHED THEN</text>
+      <text x="290" y="168" class="mono">UPDATE SET …</text>
+      <text x="276" y="190" class="mono">WHEN NOT MATCHED</text>
+      <text x="290" y="208" class="mono">THEN INSERT …</text>
+      <text x="276" y="252" class="ts">one statement, readable SCD1</text>
+      <rect x="510" y="10" width="240" height="250" rx="10" class="amb"/>
+      <text x="526" y="36" class="th">C · Full refresh</text><text x="526" y="54" class="ts">lab jobs 2 &amp; 3 (aggregates)</text>
+      <text x="526" y="84" class="mono">recompute whole result</text>
+      <text x="526" y="106" class="mono">BEGIN;</text>
+      <text x="526" y="128" class="mono">DELETE FROM target;</text>
+      <text x="526" y="150" class="mono">INSERT … SELECT</text>
+      <text x="540" y="168" class="mono">… GROUP BY …;</text>
+      <text x="526" y="190" class="mono">END;</text>
+      <text x="526" y="222" class="ts">TRUNCATE commits implicitly,</text>
+      <text x="526" y="238" class="ts">so use DELETE inside a transaction</text>
+      <text x="526" y="252" class="ts">to keep readers consistent</text>
+    </svg></div>
+  </figure>
+  <pre><code><span class="c">-- Pattern B, the modern answer for the lab's upsert</span>
+<span class="k">BEGIN</span>;
+<span class="k">MERGE INTO</span> public.target_sales <span class="k">USING</span> public.stage_sales s
+<span class="k">ON</span> target_sales.uuid = s.uuid
+<span class="k">WHEN MATCHED THEN UPDATE SET</span>
+  units_sold = s.units_sold, total_revenue = s.total_revenue,
+  total_cost = s.total_cost, total_profit = s.total_profit, order_date = s.order_date
+<span class="k">WHEN NOT MATCHED THEN INSERT VALUES</span>
+  (s.uuid, s.country, s.item_type, s.sales_channel, s.order_priority, s.order_date, s.region,
+   s.ship_date, s.units_sold, s.unit_price, s.unit_cost, s.total_revenue, s.total_cost, s.total_profit);
+<span class="k">END</span>;
+
+<span class="c">-- Dedup inside the batch first: MERGE fails when one target row matches 2 source rows</span>
+<span class="k">CREATE TEMP TABLE</span> stage_dedup <span class="k">AS</span>
+<span class="k">SELECT</span> * <span class="k">FROM</span> (
+  <span class="k">SELECT</span> s.*, <span class="k">ROW_NUMBER</span>() <span class="k">OVER</span> (<span class="k">PARTITION BY</span> uuid <span class="k">ORDER BY</span> load_ts <span class="k">DESC</span>) <span class="k">AS</span> rn
+  <span class="k">FROM</span> stage_sales s) <span class="k">WHERE</span> rn = 1;   <span class="c">-- then MERGE … USING stage_dedup</span></code></pre>
+  <div class="note n-int"><b>Interview line: why not TRUNCATE + INSERT for the main table?</b><p>"Full reloads rewrite the whole table every run, so cost grows with history, and readers see an empty table if anything fails between statements. An upsert only touches changed keys, runs in one transaction, and gives the same result if the same file is replayed. That's idempotency. For small aggregates, a full recompute inside a transaction is simpler and correct."</p></div>
+  <div class="note n-tip"><b>Also know</b><ul><li><b>ALTER TABLE APPEND</b> moves blocks from a staging table into a target instantly (no copy) when the schemas match. Good for append-only facts.</li><li><b>Temp stage tables</b> (<code>CREATE TEMP TABLE … (LIKE target)</code>) avoid stage collisions when two pipeline runs overlap.</li><li><b>Deep copy</b> (<code>CREATE TABLE new AS SELECT …</code>, then swap) re-sorts a badly fragmented table faster than VACUUM.</li></ul></div>
+
+  <h3>Beyond batch: four other ways data arrives</h3>
+  <div class="tbl"><table>
+    <tr><th>Method</th><th>How it works</th><th>Latency</th><th>Use for</th></tr>
+    <tr><td><b>Streaming ingestion</b></td><td>External schema over a Kinesis Data Stream or MSK topic, then a materialized view with <code>AUTO REFRESH YES</code> that pulls records into Redshift</td><td>Seconds</td><td>Clickstream, IoT, fraud dashboards</td></tr>
+    <tr><td><b>Zero-ETL</b></td><td>Managed replication from Aurora MySQL/PostgreSQL, RDS MySQL, DynamoDB and some SaaS apps. No pipeline code, with CDC applied continuously</td><td>Seconds to minutes</td><td>Operational analytics without building CDC</td></tr>
+    <tr><td><b>DMS CDC</b></td><td>AWS DMS reads database logs and writes to S3 or Redshift</td><td>Minutes</td><td>Sources zero-ETL doesn't cover (Oracle, SQL Server)</td></tr>
+    <tr><td><b>Firehose</b></td><td>Buffers a stream to S3, then issues COPY</td><td>About 1–5 minutes</td><td>Simple managed streaming loads</td></tr>
+  </table></div>
+  <pre><code><span class="c">-- Streaming ingestion in two statements</span>
+<span class="k">CREATE EXTERNAL SCHEMA</span> kds <span class="k">FROM KINESIS IAM_ROLE default</span>;
+<span class="k">CREATE MATERIALIZED VIEW</span> clicks_mv <span class="k">AUTO REFRESH YES AS</span>
+<span class="k">SELECT</span> approximate_arrival_timestamp,
+       JSON_PARSE(kinesis_data) <span class="k">AS</span> payload       <span class="c">-- SUPER column</span>
+<span class="k">FROM</span> kds."clickstream";</code></pre>
+  <div class="done-row"><label><input type="checkbox" data-done="l5"> Mark section done</label></div>
+</section>
+
+<!-- ============ L6 ============ -->
+<section class="ch" id="l6" style="--c:var(--s6)">
+  <div class="ch-head"><div class="ch-num">L6</div><div><div class="eyebrow">Level 6 · Tuning</div><h2>Reading EXPLAIN, materialized views and the tuning checklist</h2></div></div>
+  <p class="story">A dashboard that took 2 seconds now takes 40. You don't guess. You run <code>EXPLAIN</code>, look for the expensive step (usually a redistribution or a full scan), check the system views for skew and stale stats, then fix the cause: a key, a sort, a stat, or a precomputed result.</p>
+
+  <h3>The redistribution labels in EXPLAIN</h3>
+  <figure class="plate">
+    <div class="plate-title">Infographic 6.1 · Join data movement, from best to worst</div>
+    <div class="svgwrap">
+    <svg viewBox="0 0 760 260" role="img" aria-label="Ranking of join redistribution types from DS_DIST_NONE best to DS_DIST_BOTH worst">
+      <rect x="10" y="14" width="10" height="230" rx="5" class="fg"/>
+      <rect x="10" y="164" width="10" height="80" rx="5" class="fa"/>
+      <g>
+        <text x="36" y="34" class="mono tg">DS_DIST_NONE</text><text x="210" y="34" class="t">Tables colocated on the join key. Nothing moves. The goal.</text>
+        <text x="36" y="64" class="mono tg">DS_DIST_ALL_NONE</text><text x="210" y="64" class="t">Inner table is DISTSTYLE ALL. Nothing moves.</text>
+        <text x="36" y="94" class="mono">DS_DIST_INNER</text><text x="210" y="94" class="t">Inner table redistributed to match the outer.</text>
+        <text x="36" y="124" class="mono">DS_DIST_OUTER</text><text x="210" y="124" class="t">Outer table redistributed.</text>
+        <text x="36" y="154" class="mono tam">DS_DIST_ALL_INNER</text><text x="210" y="154" class="t">Whole inner table sent to one slice (outer is ALL).</text>
+        <text x="36" y="184" class="mono ta">DS_BCAST_INNER</text><text x="210" y="184" class="t">Inner table copied to every node. Fine if it's small, terrible if large.</text>
+        <text x="36" y="214" class="mono ta">DS_DIST_BOTH</text><text x="210" y="214" class="t">Both sides reshuffled. The usual sign of a wrong DISTKEY.</text>
+      </g>
+      <text x="36" y="246" class="ts">Fix: make big-big joins share a DISTKEY, make small dims ALL, or let AUTO learn from the workload.</text>
+    </svg></div>
+  </figure>
+  <pre><code><span class="k">EXPLAIN</span>
+<span class="k">SELECT</span> c.region, <span class="k">SUM</span>(f.total_profit)
+<span class="k">FROM</span> fact_sales f <span class="k">JOIN</span> dim_country c <span class="k">ON</span> f.country = c.country
+<span class="k">WHERE</span> f.order_date &gt;= '2016-01-01'
+<span class="k">GROUP BY</span> 1;
+<span class="c">-- XN HashAggregate ...
+--   XN Hash Join DS_DIST_ALL_NONE (cost=...)        &lt;- good: dim_country is ALL
+--     XN Seq Scan on fact_sales f  Filter: (order_date &gt;= '2016-01-01')</span></code></pre>
+  <p>Join algorithms: <b>merge join</b> (both sides sorted and distributed on the join key, fastest), <b>hash join</b> (most common), and <b>nested loop</b> (usually a missing join condition or a cross join, so investigate it).</p>
+
+  <h3>Your diagnostic toolkit</h3>
+  <div class="tbl"><table>
+    <tr><th>View</th><th>Answers</th></tr>
+    <tr><td><code>SYS_QUERY_HISTORY</code></td><td>What ran, how long, queue vs execution time, result-cache hits (works on Serverless and provisioned)</td></tr>
+    <tr><td><code>SYS_QUERY_DETAIL</code></td><td>Per-step metrics: rows, bytes, spill to disk</td></tr>
+    <tr><td><code>SVV_TABLE_INFO</code></td><td>Size, skew, unsorted %, stats_off, encoding per table</td></tr>
+    <tr><td><code>STL_ALERT_EVENT_LOG</code></td><td>Optimizer warnings: missing stats, nested loops, very selective filters (provisioned)</td></tr>
+    <tr><td><code>SYS_LOAD_ERROR_DETAIL</code></td><td>COPY failures</td></tr>
+    <tr><td><code>SVL_AUTO_WORKER_ACTION</code></td><td>What automatic table optimization changed</td></tr>
+    <tr><td><code>SYS_SERVERLESS_USAGE</code></td><td>RPUs used over time, which shows cost drivers</td></tr>
+  </table></div>
+  <pre><code><span class="c">-- Top 10 slowest queries in the last day</span>
+<span class="k">SELECT</span> query_id, elapsed_time/1e6 <span class="k">AS</span> secs, queue_time/1e6 <span class="k">AS</span> queued,
+       result_cache_hit, <span class="k">LEFT</span>(query_text, 80)
+<span class="k">FROM</span> sys_query_history
+<span class="k">WHERE</span> start_time &gt; <span class="k">DATEADD</span>(day, -1, GETDATE())
+<span class="k">ORDER BY</span> elapsed_time <span class="k">DESC LIMIT</span> 10;</code></pre>
+
+  <h3>Precompute: materialized views</h3>
+  <p>The lab's aggregate tables are hand-built materialized results. Redshift can maintain them for you:</p>
+  <pre><code><span class="k">CREATE MATERIALIZED VIEW</span> mv_sales_by_region
+<span class="k">AUTO REFRESH YES AS</span>
+<span class="k">SELECT</span> region, <span class="k">SUM</span>(total_revenue) <span class="k">AS</span> revenue, <span class="k">SUM</span>(total_profit) <span class="k">AS</span> profit,
+       <span class="k">SUM</span>(units_sold) <span class="k">AS</span> units, <span class="k">COUNT</span>(*) <span class="k">AS</span> orders
+<span class="k">FROM</span> public.target_sales <span class="k">GROUP BY</span> region;
+
+<span class="k">REFRESH MATERIALIZED VIEW</span> mv_sales_by_region;   <span class="c">-- incremental when possible</span></code></pre>
+  <ul>
+    <li><b>Incremental refresh</b> applies only changes for supported query shapes (SUM, COUNT, joins). Others recompute fully.</li>
+    <li><b>Automatic query rewrite:</b> queries against the base table can be answered from the MV automatically.</li>
+    <li><b>AutoMV:</b> Redshift may create and drop MVs on its own based on your workload.</li>
+    <li>Cascading MVs (an MV on an MV) and MVs on external (Spectrum) and Iceberg tables are supported. Iceberg MVs arrived in 2026.</li>
+  </ul>
+  <div class="note n-lab"><b>Lab upgrade idea</b><p>Glue jobs 2 and 3 (which read Redshift over JDBC, aggregate in Spark and write back) could be two materialized views. Fewer moving parts, no Spark cluster, refreshed right after the load. This is the ELT mindset: push transformations into the warehouse when they're pure SQL.</p></div>
+
+  <h3>Other speed features</h3>
+  <div class="cards">
+    <div class="card"><span class="tag">Result cache</span><h4>Free repeat answers</h4><p>Identical query, unchanged data, same user rights: served from the leader in milliseconds. Turn it off when benchmarking: <code>SET enable_result_cache_for_session TO off;</code></p></div>
+    <div class="card"><span class="tag">SQA</span><h4>Short query acceleration</h4><p>Predicts short queries and runs them in a fast lane so dashboards don't wait behind ETL.</p></div>
+    <div class="card"><span class="tag">Approximate</span><h4>APPROXIMATE COUNT(DISTINCT)</h4><p>HyperLogLog, about 2% error, much faster on huge cardinalities. HLL sketches can be stored and combined.</p></div>
+    <div class="card"><span class="tag">Late binding</span><h4>WITH NO SCHEMA BINDING</h4><p>Views that don't lock underlying tables, so you can drop and recreate tables during loads. Required for views over Spectrum.</p></div>
+  </div>
+
+  <h3>The tuning checklist, in order</h3>
+  <ol>
+    <li>Is it queueing or executing? (<code>queue_time</code> vs <code>execution_time</code>.) Queueing means a workload or scaling problem (Level 7).</li>
+    <li>Are stats fresh? <code>stats_off</code> above 10 means <code>ANALYZE</code>.</li>
+    <li>Is the table mostly unsorted or full of deleted rows? Run <code>VACUUM</code> or a deep copy.</li>
+    <li>Any <code>DS_BCAST_INNER</code> or <code>DS_DIST_BOTH</code> on big tables? Fix distribution.</li>
+    <li>Are range filters on the sort key? Do you filter on wrapped columns like <code>DATE(ts)</code>? Filter the raw column instead.</li>
+    <li>Spilling to disk? Look for <code>is_diskbased</code> in the query details. Use narrower VARCHARs, fewer columns, more memory per slot, or more RPUs.</li>
+    <li>Selecting more than you need? Avoid <code>SELECT *</code>; columnar rewards narrow queries.</li>
+    <li>Same heavy aggregate every few minutes? Materialized view.</li>
+  </ol>
+  <div class="done-row"><label><input type="checkbox" data-done="l6"> Mark section done</label></div>
+</section>
+
+<!-- ============ L7 ============ -->
+<section class="ch" id="l7" style="--c:var(--s7)">
+  <div class="ch-head"><div class="ch-num">L7</div><div><div class="eyebrow">Level 7 · Concurrency</div><h2>Workload management, concurrency scaling and resizing</h2></div></div>
+  <p class="story">At 9 AM, 200 analysts open dashboards while a nightly ETL job is still loading. Without rules, a single monster query can starve everyone. Workload management (WLM) is the bouncer: it decides who gets in, how much memory they get, and when to call in extra clusters.</p>
+
+  <figure class="plate">
+    <div class="plate-title">Infographic 7.1 · How a query gets a seat</div>
+    <div class="svgwrap">
+    <svg viewBox="0 0 760 280" role="img" aria-label="Queries are routed by WLM into queues by user group or query group; short queries go to SQA; overflow goes to concurrency scaling clusters; QMR rules abort or log runaway queries">
+      <defs><marker id="ar7" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="fm"/></marker></defs>
+      <rect x="10" y="100" width="120" height="70" rx="8" class="soft"/><text x="70" y="128" text-anchor="middle" class="th">Queries</text><text x="70" y="148" text-anchor="middle" class="ts">BI · ETL · ad-hoc</text>
+      <path d="M130 135H166" class="line" marker-end="url(#ar7)"/>
+      <rect x="170" y="90" width="120" height="90" rx="8" class="acc"/><text x="230" y="120" text-anchor="middle" class="th">WLM router</text><text x="230" y="140" text-anchor="middle" class="ts">user group /</text><text x="230" y="156" text-anchor="middle" class="ts">query group</text>
+      <path d="M290 110L346 40M290 125L346 100M290 145L346 160M290 165L346 222" class="line" marker-end="url(#ar7)"/>
+      <rect x="350" y="16" width="200" height="44" rx="6" class="grn"/><text x="450" y="36" text-anchor="middle" class="t">SQA fast lane</text><text x="450" y="52" text-anchor="middle" class="ts">predicted short queries</text>
+      <rect x="350" y="76" width="200" height="44" rx="6" class="box"/><text x="450" y="96" text-anchor="middle" class="t">Queue: dashboards</text><text x="450" y="112" text-anchor="middle" class="ts">priority HIGH</text>
+      <rect x="350" y="136" width="200" height="44" rx="6" class="box"/><text x="450" y="156" text-anchor="middle" class="t">Queue: ETL</text><text x="450" y="172" text-anchor="middle" class="ts">priority NORMAL</text>
+      <rect x="350" y="198" width="200" height="44" rx="6" class="box"/><text x="450" y="218" text-anchor="middle" class="t">Queue: ad-hoc</text><text x="450" y="234" text-anchor="middle" class="ts">priority LOW · QMR limits</text>
+      <path d="M550 98H606" class="line dash" marker-end="url(#ar7)"/>
+      <rect x="610" y="60" width="140" height="80" rx="8" class="cool"/><text x="680" y="86" text-anchor="middle" class="t">Concurrency</text><text x="680" y="102" text-anchor="middle" class="t">scaling clusters</text><text x="680" y="122" text-anchor="middle" class="ts">burst when queued</text>
+      <rect x="610" y="170" width="140" height="80" rx="8" class="amb"/><text x="680" y="196" text-anchor="middle" class="t">QMR rules</text><text x="680" y="214" text-anchor="middle" class="ts">log · hop · abort</text><text x="680" y="230" text-anchor="middle" class="ts">e.g. scan &gt; 1 TB</text>
+      <path d="M550 220H606" class="line dash" marker-end="url(#ar7)"/>
+      <text x="10" y="270" class="ts">Serverless: no queues to configure. Capacity scales automatically within your max RPU, and query limits act like QMR.</text>
+    </svg></div>
+  </figure>
+  <div class="cards">
+    <div class="card"><span class="tag">Auto WLM</span><h4>Recommended</h4><p>Redshift sets concurrency and memory per query dynamically. You set <b>priorities</b> (HIGHEST … LOWEST) per queue.</p></div>
+    <div class="card"><span class="tag">Manual WLM</span><h4>Full control</h4><p>Up to 8 queues, fixed slots and memory %. Only for very specific needs; it's easy to get wrong.</p></div>
+    <div class="card"><span class="tag">QMR</span><h4>Query monitoring rules</h4><p>Predicates like <code>query_execution_time &gt; 600</code>, <code>scan_row_count</code> or <code>spill</code> trigger log, hop (move queue) or abort.</p></div>
+    <div class="card"><span class="tag">Concurrency scaling</span><h4>Burst for reads (and writes)</h4><p>Adds transient clusters when queries queue. Provisioned clusters earn about 1 free hour of credit per day of use, then pay per second. Set a usage limit.</p></div>
+  </div>
+
+  <h3>Changing size and keeping costs sane (provisioned)</h3>
+  <div class="tbl"><table>
+    <tr><th>Operation</th><th>What happens</th><th>Downtime</th></tr>
+    <tr><td><b>Elastic resize</b></td><td>Add or remove nodes (or change type within limits) by redistributing slices</td><td>Minutes, with a short read-only window</td></tr>
+    <tr><td><b>Classic resize</b></td><td>New cluster, data copied over. Any node type or count</td><td>Hours (read-only during)</td></tr>
+    <tr><td><b>Snapshot restore</b></td><td>Restore to a new cluster or type, such as RA3 → RG or DC2 → RA3</td><td>Cut-over required</td></tr>
+    <tr><td><b>Pause / resume</b></td><td>Stop paying compute (storage still billed). Schedule it for dev clusters</td><td>While paused</td></tr>
+    <tr><td><b>Reserved nodes</b></td><td>1 or 3 year commitment for steady clusters, the biggest discount</td><td>None</td></tr>
+  </table></div>
+  <div class="note n-tip"><b>Serverless equivalents</b><ul><li><b>Base capacity</b> sets starting performance; <b>max capacity</b> caps scale-out.</li><li><b>Usage limits</b> (max RPU-hours per day, week or month) alert, log or turn off user queries.</li><li><b>Price-performance target</b> (cost ↔ balanced ↔ performance) drives AI-driven scaling. It's on by default at Balanced. Best for 8–512 RPU workloads.</li><li><b>Serverless Reservations</b> discount a committed RPU baseline.</li></ul></div>
+
+  <h3>Transactions and isolation</h3>
+  <p>Redshift is ACID. Provisioned clusters historically default to <b>SERIALIZABLE</b> isolation. Serverless and newer databases default to <b>SNAPSHOT</b> isolation, which allows more concurrency. Under serializable, two concurrent writers to the same table can fail with <code>ERROR: 1023 Serializable isolation violation</code>. The fixes are to serialize the writers (one pipeline at a time, or an explicit <code>LOCK table</code> at the start of the transaction), retry with backoff, or switch the database to snapshot isolation.</p>
+  <div class="note n-lab"><b>Connect to the lab</b><p>If two files land a minute apart, two Step Functions executions run Glue job 1 at the same time, and both truncate and load <code>stage_sales</code>. That's a race. Fixes: a per-run temp stage table, Step Functions concurrency control (a Lambda check for running executions, or an SQS FIFO in front), or a batch marker file so there's only one run.</p></div>
+  <div class="done-row"><label><input type="checkbox" data-done="l7"> Mark section done</label></div>
+</section>
+
+<!-- ============ L8 ============ -->
+<section class="ch" id="l8" style="--c:var(--s8)">
+  <div class="ch-head"><div class="ch-num">L8</div><div><div class="eyebrow">Level 8 · Beyond the cluster</div><h2>Spectrum, Iceberg, federated query, data sharing and ML</h2></div></div>
+  <p class="story">Your warehouse holds two years of hot data. Ten years of history sits in S3 as Parquet, finance wants to join against live Aurora data, and a sister team in another AWS account needs read access. You don't copy anything. You query it where it lives.</p>
+
+  <figure class="plate">
+    <div class="plate-title">Infographic 8.1 · Redshift as the hub of the lakehouse</div>
+    <div class="svgwrap">
+    <svg viewBox="0 0 760 330" role="img" aria-label="Redshift in the center connected to S3 via Spectrum and Iceberg using the Glue Data Catalog, to Aurora via federated query, to consumer warehouses via data sharing, and to SageMaker via Redshift ML">
+      <rect x="280" y="120" width="200" height="90" rx="12" class="acc"/><text x="380" y="152" text-anchor="middle" class="th">Redshift</text><text x="380" y="172" text-anchor="middle" class="ts">local tables (hot)</text><text x="380" y="190" text-anchor="middle" class="ts">one SQL surface</text>
+      <rect x="10" y="20" width="220" height="100" rx="8" class="grn"/><text x="120" y="46" text-anchor="middle" class="th">S3 data lake</text><text x="120" y="66" text-anchor="middle" class="ts">Parquet / ORC via Spectrum</text><text x="120" y="84" text-anchor="middle" class="ts">Iceberg tables: read + write</text><text x="120" y="102" text-anchor="middle" class="ts">(cold, history, shared)</text>
+      <rect x="10" y="210" width="220" height="100" rx="8" class="soft"/><text x="120" y="236" text-anchor="middle" class="th">Glue Data Catalog</text><text x="120" y="256" text-anchor="middle" class="ts">table definitions + partitions</text><text x="120" y="274" text-anchor="middle" class="ts">Lake Formation permissions</text><text x="120" y="292" text-anchor="middle" class="ts">auto-mounted as awsdatacatalog</text>
+      <rect x="530" y="20" width="220" height="100" rx="8" class="cool"/><text x="640" y="46" text-anchor="middle" class="th">Federated query</text><text x="640" y="66" text-anchor="middle" class="ts">Aurora / RDS PostgreSQL</text><text x="640" y="84" text-anchor="middle" class="ts">and MySQL, live rows</text><text x="640" y="102" text-anchor="middle" class="ts">no copy</text>
+      <rect x="530" y="210" width="220" height="100" rx="8" class="cool"/><text x="640" y="236" text-anchor="middle" class="th">Data sharing</text><text x="640" y="256" text-anchor="middle" class="ts">consumer warehouses read</text><text x="640" y="274" text-anchor="middle" class="ts">(and write) live data</text><text x="640" y="292" text-anchor="middle" class="ts">cross-account / region</text>
+      <path d="M230 80L280 140M230 250L280 190M530 80L480 140M530 250L480 190" class="aline"/>
+      <rect x="300" y="250" width="160" height="60" rx="8" class="amb"/><text x="380" y="274" text-anchor="middle" class="t">Redshift ML</text><text x="380" y="292" text-anchor="middle" class="ts">CREATE MODEL → SageMaker</text>
+      <path d="M380 210V250" class="aline"/>
+      <rect x="300" y="20" width="160" height="60" rx="8" class="soft"/><text x="380" y="44" text-anchor="middle" class="t">Zero-ETL / streaming</text><text x="380" y="62" text-anchor="middle" class="ts">continuous inflow</text>
+      <path d="M380 80V120" class="aline"/>
+    </svg></div>
+  </figure>
+
+  <h3>Redshift Spectrum: query S3 without loading</h3>
+  <pre><code><span class="k">CREATE EXTERNAL SCHEMA</span> lake
+<span class="k">FROM DATA CATALOG DATABASE</span> 'sales_lake'
+<span class="k">IAM_ROLE default CREATE EXTERNAL DATABASE IF NOT EXISTS</span>;
+
+<span class="c">-- Join 10 years of S3 history to a hot local table</span>
+<span class="k">SELECT</span> h.region, <span class="k">SUM</span>(h.total_profit)
+<span class="k">FROM</span> lake.sales_history h            <span class="c">-- Parquet in S3, partitioned by year</span>
+<span class="k">WHERE</span> h.year <span class="k">BETWEEN</span> 2015 <span class="k">AND</span> 2018      <span class="c">-- partition pruning</span>
+<span class="k">GROUP BY</span> 1;</code></pre>
+  <ul>
+    <li>Spectrum runs on a separate fleet of AWS-managed nodes. On provisioned you pay about <b>$5 per TB scanned</b>; on Serverless it's included in RPU usage.</li>
+    <li>Cut scanned bytes: columnar formats (Parquet), compression, <b>partitions</b> on common filters, and fewer, larger files (128 MB–1 GB).</li>
+    <li>Filters and aggregations are pushed down to the Spectrum layer, and only results come back.</li>
+    <li>The lab's <code>curated/sales/</code> Parquet folder could be crawled into the Glue Catalog and queried this way with zero loading.</li>
+  </ul>
+
+  <h3>Apache Iceberg in Redshift (2025–2026)</h3>
+  <p>Iceberg is an open table format that adds ACID transactions, schema evolution, hidden partitioning and time travel to files on S3. Redshift has moved from read-only to a full Iceberg engine:</p>
+  <ul>
+    <li><b>Writes</b> (INSERT and more) to Iceberg tables through the auto-mounted Glue Data Catalog, with Lake Formation permissions respected.</li>
+    <li><b>ALTER TABLE</b> for Iceberg schema, partition and property changes (May 2026).</li>
+    <li><b>Iceberg v3</b> support with deletion vectors, row lineage and default column values (August 2026).</li>
+    <li><b>Iceberg materialized views</b> stored in S3 or S3 table buckets, readable by other engines (October 2026).</li>
+    <li>Automatic resolution of non-conflicting concurrent writes (rolled out September 2026).</li>
+  </ul>
+  <div class="note n-int"><b>Interview line</b><p>"For shared, multi-engine data I'd keep the gold tables as Iceberg in S3 Tables or the Glue Catalog, so Spark, Athena and Redshift all read one copy. Redshift-local tables stay for the hottest, most concurrent BI workloads, where its storage engine is fastest."</p></div>
+
+  <h3>Federated query</h3>
+  <pre><code><span class="k">CREATE EXTERNAL SCHEMA</span> live_orders
+<span class="k">FROM POSTGRES DATABASE</span> 'orders' <span class="k">SCHEMA</span> 'public'
+<span class="k">URI</span> 'orders-db.cluster-xyz.us-east-1.rds.amazonaws.com' <span class="k">PORT</span> 5432
+<span class="k">IAM_ROLE default</span>
+<span class="k">SECRET_ARN</span> 'arn:aws:secretsmanager:us-east-1:ACCT:secret:orders-ro';</code></pre>
+  <p>Good for small lookups and "latest status" joins. Bad for heavy scans, which put load on the OLTP database. For heavy use, replicate it with zero-ETL instead.</p>
+
+  <h3>Data sharing</h3>
+  <ul>
+    <li>A <b>producer</b> creates a datashare, adds schemas, tables or views, and grants it to a <b>consumer</b> namespace or account. Consumers query live data with their own compute. No copies, no ETL.</li>
+    <li><b>Multi-warehouse writes</b> (GA late 2024): consumers can also write to shared databases. Typical use is isolating ETL compute from BI compute on the same data.</li>
+    <li>Architectures: <b>hub and spoke</b> (one ETL producer, many BU consumers), <b>data mesh</b> (each domain shares its products), and cross-region DR reads.</li>
+    <li>Works with RA3, RG and Serverless. AWS Data Exchange can license shares to external customers.</li>
+  </ul>
+  <pre><code><span class="c">-- Producer</span>
+<span class="k">CREATE DATASHARE</span> sales_share;
+<span class="k">ALTER DATASHARE</span> sales_share <span class="k">ADD SCHEMA</span> public;
+<span class="k">ALTER DATASHARE</span> sales_share <span class="k">ADD TABLE</span> public.target_sales_by_region;
+<span class="k">GRANT USAGE ON DATASHARE</span> sales_share <span class="k">TO NAMESPACE</span> '&lt;consumer-namespace-guid&gt;';
+<span class="c">-- Consumer</span>
+<span class="k">CREATE DATABASE</span> sales_ro <span class="k">FROM DATASHARE</span> sales_share <span class="k">OF NAMESPACE</span> '&lt;producer-guid&gt;';</code></pre>
+
+  <h3>ML and AI inside the warehouse</h3>
+  <ul>
+    <li><b>Redshift ML:</b> <code>CREATE MODEL … FROM (SELECT …) TARGET churn FUNCTION predict_churn</code> trains with SageMaker Autopilot and exposes a SQL function for inference. It can also call Bedrock LLMs for text tasks.</li>
+    <li><b>Amazon Q generative SQL</b> in Query Editor v2 turns plain-English questions into SQL using your schema.</li>
+    <li><b>UDFs:</b> SQL UDFs and <b>Lambda UDFs</b> (any language). <b>Python UDFs reached end of support after June 30, 2026</b>, so migrate them to Lambda or SQL UDFs. That's a likely interview gotcha.</li>
+  </ul>
+  <div class="done-row"><label><input type="checkbox" data-done="l8"> Mark section done</label></div>
+</section>
+
+<!-- ============ L9 ============ -->
+<section class="ch" id="l9" style="--c:var(--s9)">
+  <div class="ch-head"><div class="ch-num">L9</div><div><div class="eyebrow">Level 9 · Production readiness</div><h2>Security, governance, monitoring, backup and cost</h2></div></div>
+  <p class="story">The lab used <code>admin / Admin123</code>, a publicly accessible workgroup and IAM roles with <code>AmazonS3FullAccess</code>. That's perfect for learning in 25 minutes and unacceptable in production. This level is the gap between a demo and a system a bank would trust.</p>
+
+  <figure class="plate">
+    <div class="plate-title">Infographic 9.1 · Defense in depth, outside in</div>
+    <div class="svgwrap">
+    <svg viewBox="0 0 760 300" role="img" aria-label="Concentric security layers: network, identity, database permissions, fine-grained controls, encryption and audit">
+      <rect x="10" y="10" width="740" height="280" rx="16" class="soft"/>
+      <text x="30" y="36" class="th">1 · Network</text><text x="150" y="36" class="ts">private subnets, security groups, publicly accessible OFF, VPC endpoints, enhanced VPC routing</text>
+      <rect x="40" y="50" width="680" height="226" rx="14" class="cool"/>
+      <text x="60" y="76" class="th">2 · Identity</text><text x="170" y="76" class="ts">IAM roles for COPY/UNLOAD, IAM Identity Center SSO, Secrets Manager, no shared admin</text>
+      <rect x="70" y="90" width="620" height="172" rx="12" class="grn"/>
+      <text x="90" y="116" class="th">3 · Database RBAC</text><text x="236" y="116" class="ts">roles, GRANT on schema/table/column, least privilege</text>
+      <rect x="100" y="130" width="560" height="118" rx="10" class="amb"/>
+      <text x="120" y="156" class="th">4 · Fine-grained</text><text x="250" y="156" class="ts">row-level security · column grants · dynamic data masking</text>
+      <rect x="130" y="170" width="500" height="64" rx="8" class="acc"/>
+      <text x="150" y="196" class="th">5 · Data</text><text x="210" y="196" class="ts">KMS encryption at rest · TLS in transit · audit logs</text>
+      <text x="150" y="218" class="ts">→ CloudTrail (API calls) + audit logging (connections, users, SQL)</text>
+    </svg></div>
+  </figure>
+
+  <h3>The controls, concretely</h3>
+  <pre><code><span class="c">-- Role-based access</span>
+<span class="k">CREATE ROLE</span> analyst;
+<span class="k">GRANT USAGE ON SCHEMA</span> public <span class="k">TO ROLE</span> analyst;
+<span class="k">GRANT SELECT ON</span> public.target_sales_by_region <span class="k">TO ROLE</span> analyst;
+<span class="k">GRANT ROLE</span> analyst <span class="k">TO</span> bi_user;
+
+<span class="c">-- Row-level security: APAC analysts only see Asia rows</span>
+<span class="k">CREATE RLS POLICY</span> apac_only
+<span class="k">WITH</span> (region <span class="k">VARCHAR</span>(100)) <span class="k">USING</span> (region = 'Asia');
+<span class="k">ATTACH RLS POLICY</span> apac_only <span class="k">ON</span> public.target_sales <span class="k">TO ROLE</span> apac_analyst;
+<span class="k">ALTER TABLE</span> public.target_sales <span class="k">ROW LEVEL SECURITY ON</span>;
+
+<span class="c">-- Dynamic data masking: hide unit_cost from non-finance users</span>
+<span class="k">CREATE MASKING POLICY</span> hide_cost <span class="k">WITH</span> (c <span class="k">DECIMAL</span>(10,2)) <span class="k">USING</span> (<span class="k">NULL</span>::<span class="k">DECIMAL</span>(10,2));
+<span class="k">ATTACH MASKING POLICY</span> hide_cost <span class="k">ON</span> public.target_sales(unit_cost) <span class="k">TO PUBLIC</span>;</code></pre>
+  <div class="cards">
+    <div class="card"><span class="tag">Credentials</span><h4>Never hard-code passwords</h4><p>Store admin credentials in Secrets Manager (<code>--manage-admin-password</code>), let Glue connections reference a secret, and let apps use IAM (<code>GetCredentials</code> or the Data API) for temporary credentials.</p></div>
+    <div class="card"><span class="tag">Encryption</span><h4>At rest and in transit</h4><p>AWS-owned or customer-managed KMS keys. Require SSL with <code>require_ssl</code> on provisioned. Snapshots inherit encryption.</p></div>
+    <div class="card"><span class="tag">Governance</span><h4>Lake Formation + catalog</h4><p>Central table, column and row permissions across Redshift, Athena and EMR on Glue Catalog and Iceberg data. Tag-based access control scales it.</p></div>
+    <div class="card"><span class="tag">Audit</span><h4>Who did what</h4><p>Audit logging to CloudWatch or S3 (connection, user and user-activity logs). <code>SYS_QUERY_HISTORY</code> for recent SQL. Long-term system-table retention to S3 Tables (2026).</p></div>
+  </div>
+
+  <h3>Backup and disaster recovery</h3>
+  <div class="tbl"><table>
+    <tr><th>Feature</th><th>Provisioned</th><th>Serverless</th></tr>
+    <tr><td>Automatic</td><td>Automated snapshots about every 8 hours or 5 GB of changes. Retention 1–35 days (default 1)</td><td>Recovery points every 30 minutes, kept 24 hours</td></tr>
+    <tr><td>Manual</td><td>Manual snapshots kept until deleted</td><td>Snapshots created from recovery points or on demand</td></tr>
+    <tr><td>Cross-region</td><td>Snapshot copy to another region for DR</td><td>Supported</td></tr>
+    <tr><td>High availability</td><td>Multi-AZ (RA3/RG): standby compute in a second AZ, automatic failover</td><td>Built-in AZ resilience; relocate if an AZ fails</td></tr>
+    <tr><td>Restore granularity</td><td>Whole cluster, or a single table from a snapshot</td><td>Namespace, or a single table</td></tr>
+  </table></div>
+
+  <h3>Monitoring that matters</h3>
+  <ul>
+    <li><b>CloudWatch metrics:</b> <code>CPUUtilization</code>, <code>PercentageDiskSpaceUsed</code>, <code>QueriesCompletedPerSecond</code>, <code>WLMQueueLength</code>, <code>ConcurrencyScalingSeconds</code>; Serverless <code>ComputeCapacity</code> and <code>ComputeSeconds</code>.</li>
+    <li><b>Alarms</b> on queue length, disk usage over 80%, and failed loads. Send them to SNS, then email or Slack.</li>
+    <li><b>Redshift Advisor</b> gives automatic recommendations: distribution keys, sort keys, compression, file splitting for COPY, and skipping compression analysis.</li>
+    <li><b>Pipeline side:</b> Step Functions execution history, Glue job metrics and logs, Lambda errors. Alert on <code>ExecutionsFailed</code>.</li>
+  </ul>
+
+  <h3>Cost levers</h3>
+  <div class="tbl"><table>
+    <tr><th>Lever</th><th>Effect</th></tr>
+    <tr><td>Serverless usage limits and max capacity</td><td>Hard ceiling on RPU-hours, the first thing to set in any account</td></tr>
+    <tr><td>Right base RPU</td><td>Start at 8–32 for small teams; 128 is the default and often oversized for dev</td></tr>
+    <tr><td>Reserved nodes / Serverless Reservations</td><td>Big discounts for steady, committed usage</td></tr>
+    <tr><td>Pause dev clusters</td><td>Pay storage only overnight and on weekends</td></tr>
+    <tr><td>Move cold data to S3 (UNLOAD + Spectrum or Iceberg)</td><td>Cheaper storage, still queryable</td></tr>
+    <tr><td>Materialized views and the result cache</td><td>Fewer repeated heavy scans, so fewer RPU-seconds</td></tr>
+    <tr><td>Spectrum and concurrency-scaling usage limits</td><td>Stops surprise bills from runaway scans</td></tr>
+    <tr><td>Tear down labs</td><td>The class reminder: run the teardown script after every practice session</td></tr>
+  </table></div>
+  <div class="done-row"><label><input type="checkbox" data-done="l9"> Mark section done</label></div>
+</section>
+
+<!-- ============ L10 ============ -->
+<section class="ch" id="l10" style="--c:var(--s10)">
+  <div class="ch-head"><div class="ch-num">L10</div><div><div class="eyebrow">Level 10 · Expert</div><h2>System design with Redshift at the center</h2></div></div>
+  <p class="story">At expert level, the interviewer isn't asking "what is a sort key". They ask: "Design analytics for an e-commerce company. 50 million orders a day, a 5-minute freshness SLA for ops, and nightly finance reporting. Walk me through it." You answer with a reference architecture, then defend every choice with a trade-off.</p>
+
+  <figure class="plate">
+    <div class="plate-title">Infographic 10.1 · Reference architecture: batch + CDC + streaming into one warehouse</div>
+    <div class="svgwrap">
+    <svg viewBox="0 0 760 400" role="img" aria-label="Sources feed S3 lake, zero-ETL and streaming into Redshift; orchestration by Step Functions or MWAA; consumers include BI, data sharing, ML and APIs; governance spans all">
+      <defs><marker id="ar10" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="fm"/></marker></defs>
+      <text x="10" y="20" class="ts">SOURCES</text><text x="210" y="20" class="ts">INGEST + LAKE</text><text x="440" y="20" class="ts">WAREHOUSE</text><text x="636" y="20" class="ts">CONSUME</text>
+      <rect x="10" y="32" width="160" height="50" rx="6" class="soft"/><text x="90" y="54" text-anchor="middle" class="t">Partner files</text><text x="90" y="70" text-anchor="middle" class="ts">CSV · daily batch</text>
+      <rect x="10" y="102" width="160" height="50" rx="6" class="soft"/><text x="90" y="124" text-anchor="middle" class="t">Aurora orders DB</text><text x="90" y="140" text-anchor="middle" class="ts">OLTP</text>
+      <rect x="10" y="172" width="160" height="50" rx="6" class="soft"/><text x="90" y="194" text-anchor="middle" class="t">App clickstream</text><text x="90" y="210" text-anchor="middle" class="ts">events/sec</text>
+      <rect x="10" y="242" width="160" height="50" rx="6" class="soft"/><text x="90" y="264" text-anchor="middle" class="t">SaaS (CRM)</text><text x="90" y="280" text-anchor="middle" class="ts">AppFlow / zero-ETL</text>
+      <rect x="210" y="32" width="200" height="120" rx="8" class="grn"/><text x="310" y="54" text-anchor="middle" class="th">S3 lake</text><text x="310" y="74" text-anchor="middle" class="ts">bronze raw/ → silver curated/</text><text x="310" y="92" text-anchor="middle" class="ts">Glue jobs (PySpark) · DQ checks</text><text x="310" y="110" text-anchor="middle" class="ts">Iceberg tables · Glue Catalog</text><text x="310" y="128" text-anchor="middle" class="ts">S3 event → Lambda/EventBridge</text>
+      <rect x="210" y="172" width="200" height="50" rx="8" class="cool"/><text x="310" y="194" text-anchor="middle" class="t">Kinesis Data Streams</text><text x="310" y="210" text-anchor="middle" class="ts">streaming ingestion MV</text>
+      <rect x="210" y="242" width="200" height="50" rx="8" class="cool"/><text x="310" y="264" text-anchor="middle" class="t">Zero-ETL integration</text><text x="310" y="280" text-anchor="middle" class="ts">CDC, seconds latency</text>
+      <path d="M170 57H206M170 197H206M170 267H206" class="line" marker-end="url(#ar10)"/>
+      <path d="M170 127C190 127 190 260 206 262" class="line" marker-end="url(#ar10)"/>
+      <rect x="440" y="32" width="170" height="260" rx="10" class="acc"/>
+      <text x="525" y="56" text-anchor="middle" class="th">Redshift</text>
+      <text x="456" y="82" class="ts">staging → COPY</text>
+      <text x="456" y="102" class="ts">MERGE into core</text>
+      <text x="456" y="122" class="ts">star schema, SCD2</text>
+      <text x="456" y="142" class="ts">MVs for marts</text>
+      <text x="456" y="162" class="ts">dbt for SQL models</text>
+      <text x="456" y="182" class="ts">Spectrum for history</text>
+      <text x="456" y="202" class="ts">ETL workgroup and</text>
+      <text x="456" y="218" class="ts">BI workgroup split</text>
+      <text x="456" y="238" class="ts">via data sharing</text>
+      <text x="456" y="266" class="ts">RLS · masking</text>
+      <path d="M410 92H436M410 197H436M410 267H436" class="line" marker-end="url(#ar10)"/>
+      <rect x="636" y="32" width="114" height="50" rx="6" class="box"/><text x="693" y="54" text-anchor="middle" class="t">QuickSight</text><text x="693" y="70" text-anchor="middle" class="ts">BI dashboards</text>
+      <rect x="636" y="102" width="114" height="50" rx="6" class="box"/><text x="693" y="124" text-anchor="middle" class="t">Consumers</text><text x="693" y="140" text-anchor="middle" class="ts">data shares</text>
+      <rect x="636" y="172" width="114" height="50" rx="6" class="box"/><text x="693" y="194" text-anchor="middle" class="t">SageMaker</text><text x="693" y="210" text-anchor="middle" class="ts">Redshift ML</text>
+      <rect x="636" y="242" width="114" height="50" rx="6" class="box"/><text x="693" y="264" text-anchor="middle" class="t">Apps / APIs</text><text x="693" y="280" text-anchor="middle" class="ts">Data API</text>
+      <path d="M610 57H632M610 127H632M610 197H632M610 267H632" class="line" marker-end="url(#ar10)"/>
+      <rect x="10" y="314" width="740" height="36" rx="6" class="amb"/><text x="380" y="337" text-anchor="middle" class="t">Orchestration: Step Functions (event-driven) or MWAA/Airflow (complex DAGs) · retries · alerts</text>
+      <rect x="10" y="356" width="740" height="36" rx="6" class="soft"/><text x="380" y="379" text-anchor="middle" class="t">Governance: IAM · Lake Formation · KMS · CloudTrail · CloudWatch · cost limits · IaC (CDK/CloudFormation/Terraform)</text>
+    </svg></div>
+  </figure>
+
+  <h3>How to answer any design question: the 6-step frame</h3>
+  <ol>
+    <li><b>Clarify requirements:</b> data volume and velocity, freshness SLA, number of users and queries, retention, compliance (PII), budget.</li>
+    <li><b>Ingestion per source:</b> files → S3 + COPY; OLTP → zero-ETL or DMS; events → streaming; SaaS → AppFlow or zero-ETL.</li>
+    <li><b>Storage layers:</b> bronze, silver and gold. Decide what lives in S3/Iceberg and what lives in Redshift (hot, concurrent).</li>
+    <li><b>Modeling:</b> star schema, grain, SCD strategy, distribution and sort keys for the top queries.</li>
+    <li><b>Orchestration and reliability:</b> event or schedule, dependencies, idempotent loads, retries, DLQs, data-quality gates, backfills.</li>
+    <li><b>Operate:</b> security, monitoring, cost controls, CI/CD, DR. Then name the trade-offs you accepted.</li>
+  </ol>
+
+  <h3>Decision tables you should be able to say out loud</h3>
+  <div class="tbl"><table>
+    <tr><th>Choice</th><th>Pick A when…</th><th>Pick B when…</th></tr>
+    <tr><td>Event-driven vs scheduled</td><td>Arrival time varies; you want the lowest latency (the lab)</td><td>Arrival is reliable; you need fixed reporting windows; many sources must all be present</td></tr>
+    <tr><td>Step Functions vs MWAA (Airflow)</td><td>AWS-native, event-driven, serverless, pay per transition</td><td>Large DAGs, cross-system dependencies, backfills, a Python-heavy team, portability</td></tr>
+    <tr><td>ETL in Glue vs ELT in Redshift</td><td>Heavy parsing, unstructured data, Python logic, data stays in the lake</td><td>Pure SQL transforms on data already loaded (dbt, MERGE, MVs); fewer moving parts</td></tr>
+    <tr><td>Redshift vs Athena</td><td>Repeated BI queries, high concurrency, sub-second SLAs</td><td>Ad-hoc, infrequent queries over S3; no warehouse to run</td></tr>
+    <tr><td>Load into Redshift vs Spectrum/Iceberg</td><td>Hot data, joins, dashboards</td><td>Cold history, rarely queried, shared with Spark and Athena</td></tr>
+    <tr><td>Zero-ETL vs DMS vs Glue JDBC pull</td><td>Supported AWS source, minimal ops, near real time</td><td>Unsupported sources or transformations needed in flight (DMS); periodic snapshots (Glue)</td></tr>
+    <tr><td>Serverless vs provisioned</td><td>Spiky, new or unknown workload</td><td>Steady 24×7 load where reserved pricing wins</td></tr>
+  </table></div>
+
+  <h3>Reliability patterns every senior answer includes</h3>
+  <div class="cards">
+    <div class="card"><span class="tag">Idempotency</span><h4>Safe to replay</h4><p>Stage + MERGE or DELETE/INSERT keyed on a business key, with a manifest of processed files. Re-running yesterday gives the same result.</p></div>
+    <div class="card"><span class="tag">Completeness</span><h4>Marker files</h4><p><code>_SUCCESS</code> or <code>.done</code> triggers a single run per batch (from class). Add row-count and checksum validation against a control file.</p></div>
+    <div class="card"><span class="tag">Data quality</span><h4>Gate before gold</h4><p>Glue Data Quality rules (completeness, uniqueness, ranges). Bad rows go to quarantine, and the pipeline fails loudly.</p></div>
+    <div class="card"><span class="tag">Late data</span><h4>Reprocess windows</h4><p>Upsert by key and recompute affected partitions or aggregates for the last N days, not just today.</p></div>
+    <div class="card"><span class="tag">Schema drift</span><h4>Detect, don't explode</h4><p>Catalog or crawler compares schemas. New columns land in SUPER or are added with ALTER TABLE. Breaking changes alert the source team.</p></div>
+    <div class="card"><span class="tag">Failures</span><h4>Retry, catch, alert</h4><p>Step Functions <code>Retry</code> with backoff on Glue throttling, <code>Catch</code> → SNS alert, DLQ on Lambda, and a runbook for backfills.</p></div>
+    <div class="card"><span class="tag">Small files</span><h4>Compact first</h4><p>Thousands of tiny files slow COPY and Spectrum. Compact to 128 MB–1 GB Parquet in the silver layer.</p></div>
+    <div class="card"><span class="tag">Isolation</span><h4>Separate ETL from BI</h4><p>Two workgroups on one dataset through data sharing (multi-warehouse writes), so heavy loads never slow dashboards.</p></div>
+  </div>
+
+  <h3>Worked scenario (practise saying this)</h3>
+  <details class="qa" open><summary>"50 M orders/day, ops dashboard within 5 minutes, finance reporting nightly, 300 BI users."</summary><div class="ans">
+    <p><b>Ingest:</b> Orders live in Aurora PostgreSQL, so a <b>zero-ETL integration</b> replicates them to Redshift in seconds with no pipeline code. Payment-partner files land in S3 <code>raw/</code> with a <code>_SUCCESS</code> marker that triggers Step Functions.</p>
+    <p><b>Model:</b> <code>fact_orders</code> (grain: one order line) with <code>DISTKEY(customer_id)</code> and <code>SORTKEY(order_date)</code>. Dimensions use ALL or AUTO. <code>dim_customer</code> is SCD2, maintained by MERGE.</p>
+    <p><b>Freshness:</b> The ops dashboard reads auto-refreshing materialized views over the replicated tables, refreshed within minutes. Finance runs nightly dbt models into marts.</p>
+    <p><b>Concurrency:</b> One Serverless workgroup for ETL and a separate one for BI over a data share (or a provisioned cluster with concurrency scaling). Each has its own max-RPU limit.</p>
+    <p><b>History:</b> Data older than 2 years is unloaded to Iceberg on S3 and queried through Spectrum when needed.</p>
+    <p><b>Ops:</b> RLS for regional managers, masking on PII, KMS, alarms on queue length and failed loads, IaC for every environment. <b>Trade-off accepted:</b> materialized views add refresh cost, but buy the 5-minute SLA without a streaming stack.</p>
+  </div></details>
+  <div class="done-row"><label><input type="checkbox" data-done="l10"> Mark section done</label></div>
+</section>
+
+<!-- ============ LAB ============ -->
+<section class="ch" id="lab" style="--c:var(--accent)">
+  <div class="ch-head"><div class="ch-num">★</div><div><div class="eyebrow">Joining the dots · your project</div><h2>The class lab, reviewed like a senior engineer</h2></div></div>
+  <p class="story">Now you can look back at the lab with every level in hand. It works, and it was built to teach in 25 minutes. Here is what each piece does, which level explains it, and what you'd change before calling it production. Talking through this table is a strong interview answer on its own.</p>
+  <div class="tbl"><table>
+    <tr><th>Lab piece</th><th>What it does</th><th>Level</th><th>Production upgrade</th></tr>
+    <tr><td>S3 notification <code>raw/*.csv</code> → Lambda</td><td>Event trigger, one run per file</td><td>00, L10</td><td>Trigger on a <code>_SUCCESS</code> marker; or EventBridge → Step Functions directly (no Lambda needed)</td></tr>
+    <tr><td>Step Functions: job 1 → (job 2 ∥ job 3)</td><td>Dependency plus parallel fan-out, Catch → fail</td><td>L10</td><td>Add <code>Retry</code> with backoff, SNS alert on failure, limit to one execution at a time</td></tr>
+    <tr><td>Glue job 1 writes Parquet to <code>curated/</code></td><td>Silver layer for reprocessing</td><td>00, L8</td><td>Partition by <code>order_date</code>, register in the Glue Catalog, make it an Iceberg table</td></tr>
+    <tr><td><code>from_jdbc_conf</code> + <code>redshift_tmp_dir</code></td><td>Writes temp files to S3, then COPY into stage</td><td>L5</td><td>Or COPY the curated Parquet directly from SQL. Same result, fewer hops</td></tr>
+    <tr><td><code>preactions: TRUNCATE stage</code></td><td>Clears stage</td><td>L5, L7</td><td>Use a per-run temp stage table so concurrent runs can't collide</td></tr>
+    <tr><td><code>postactions: DELETE USING … ; INSERT …</code></td><td>Upsert, idempotent</td><td>L5</td><td>Wrap in BEGIN/END, deduplicate the stage, or use <code>MERGE</code></td></tr>
+    <tr><td>Jobs 2 and 3: JDBC read → Spark groupBy → write</td><td>Full recompute of aggregates</td><td>L6</td><td>Replace with two materialized views (pure ELT, no Spark)</td></tr>
+    <tr><td>Tables: <code>order_date VARCHAR(20)</code></td><td>Stores dates as text</td><td>L3, L4</td><td><code>DATE</code> + <code>SORTKEY(order_date)</code> for real zone-map pruning</td></tr>
+    <tr><td>No DISTKEY/SORTKEY declared</td><td>AUTO decides</td><td>L4</td><td>Fine at 899 rows; at scale, verify with EXPLAIN and <code>svv_table_info</code></td></tr>
+    <tr><td><code>admin / Admin123</code> in the Glue connection</td><td>Plain-text password</td><td>L9</td><td>Secrets Manager secret plus <code>--manage-admin-password</code></td></tr>
+    <tr><td>Workgroup <code>--publicly-accessible</code>, SG open to itself on all ports</td><td>Easy connectivity</td><td>L9</td><td>Private subnets, port 5439 only, VPC endpoints</td></tr>
+    <tr><td>IAM: <code>AmazonS3FullAccess</code>, <code>AmazonRedshiftFullAccess</code></td><td>Broad permissions</td><td>L9</td><td>Least privilege scoped to the bucket and prefix and the workgroup ARN</td></tr>
+    <tr><td><code>setup.sh</code> with rollback trap</td><td>Infrastructure as code (bash + CLI)</td><td>00</td><td>CloudFormation, CDK or Terraform with dev/QA/prod parameters and CI/CD</td></tr>
+    <tr><td>Base capacity 8 RPU</td><td>Small and cheap</td><td>L2, L9</td><td>Add a usage limit (max RPU-hours) so a mistake can't run up a bill</td></tr>
+  </table></div>
+  <h3>Your 60-second project pitch</h3>
+  <div class="note n-int"><b>Say it like this</b><p>"I built an event-driven ELT pipeline on AWS. Source files land in an S3 raw zone. An S3 event triggers Lambda, which starts a Step Functions workflow. The first Glue PySpark job cleans and types the data, writes Parquet to a curated silver layer, then bulk-loads Redshift Serverless through a staging table and upserts on the order key, so reruns never duplicate. Two aggregation jobs then run in parallel to build region and country-item marts. Failures stop the chain and alert. If I rebuilt it today, I'd trigger on a batch marker file, replace the aggregation jobs with materialized views, use MERGE, store real DATE types with a date sort key, and move credentials to Secrets Manager."</p></div>
+  <div class="done-row"><label><input type="checkbox" data-done="lab"> Mark section done</label></div>
+</section>
+
+
+<!-- ============ API ============ -->
+<section class="ch" id="api" style="--c:var(--s3)">
+  <div class="ch-head"><div class="ch-num">API</div><div><div class="eyebrow">Connect · automate · troubleshoot</div><h2>Data API, drivers, stored procedures and the error playbook</h2></div></div>
+  <p class="story">In the lab, the setup script never installed a database driver or opened a connection to port 5439. It ran <code>aws redshift-data execute-statement</code> six times and the tables appeared. That's the Redshift Data API: SQL over a plain HTTPS AWS API call. Knowing when to use it, and when to use a JDBC connection instead, is a standard interview question.</p>
+
+  <h3>Four ways to talk to Redshift</h3>
+  <div class="tbl"><table>
+    <tr><th>Option</th><th>How it works</th><th>Use it for</th></tr>
+    <tr><td><b>JDBC / ODBC drivers</b></td><td>Persistent TCP connection to the endpoint on port 5439 (needs network reach into the VPC)</td><td>BI tools (QuickSight, Tableau, Power BI), dbt, SQL clients, long interactive sessions, large result sets streamed back</td></tr>
+    <tr><td><b>Python connectors</b></td><td><code>redshift_connector</code> (AWS's driver), <code>psycopg2</code>, <code>awswrangler</code> (pandas ↔ Redshift via S3 + COPY/UNLOAD)</td><td>Python apps and notebooks; awswrangler for loading DataFrames fast</td></tr>
+    <tr><td><b>Data API</b></td><td>HTTPS calls through the AWS SDK or CLI. Asynchronous: submit, poll, fetch. No driver, no connection, no password in code</td><td>Lambda, Step Functions, scripts, web backends, event-driven jobs, CI/CD schema deployments</td></tr>
+    <tr><td><b>Query Editor v2</b></td><td>Browser SQL IDE in the console</td><td>Ad-hoc queries, notebooks, charts, saved queries, scheduled queries, Amazon Q generative SQL</td></tr>
+  </table></div>
+
+  <h3>Data API: how a call actually flows</h3>
+  <figure class="plate">
+    <div class="plate-title">Infographic A.1 · The asynchronous Data API pattern</div>
+    <div class="svgwrap">
+    <svg viewBox="0 0 760 290" role="img" aria-label="Caller submits ExecuteStatement and gets an Id, polls DescribeStatement until FINISHED, then fetches rows with GetStatementResult; optionally EventBridge notifies on completion">
+      <defs><marker id="ara1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="fm"/></marker></defs>
+      <rect x="10" y="20" width="150" height="250" rx="10" class="soft"/>
+      <text x="85" y="46" text-anchor="middle" class="th">Caller</text>
+      <text x="85" y="66" text-anchor="middle" class="ts">Lambda · Step Functions</text>
+      <text x="85" y="82" text-anchor="middle" class="ts">script · web app</text>
+      <text x="85" y="120" text-anchor="middle" class="ts">IAM permission</text>
+      <text x="85" y="136" text-anchor="middle" class="ts">redshift-data:*</text>
+      <text x="85" y="174" text-anchor="middle" class="ts">auth: Secrets Manager</text>
+      <text x="85" y="190" text-anchor="middle" class="ts">secret, or temporary</text>
+      <text x="85" y="206" text-anchor="middle" class="ts">IAM credentials, or</text>
+      <text x="85" y="222" text-anchor="middle" class="ts">Identity Center</text>
+      <rect x="290" y="20" width="180" height="250" rx="10" class="cool"/>
+      <text x="380" y="46" text-anchor="middle" class="th">Data API endpoint</text>
+      <text x="380" y="66" text-anchor="middle" class="ts">HTTPS · AWS-managed</text>
+      <text x="380" y="82" text-anchor="middle" class="ts">holds results 24 h</text>
+      <rect x="600" y="20" width="150" height="250" rx="10" class="acc"/>
+      <text x="675" y="46" text-anchor="middle" class="th">Redshift</text>
+      <text x="675" y="66" text-anchor="middle" class="ts">workgroup or cluster</text>
+      <text x="675" y="82" text-anchor="middle" class="ts">(inside a VPC; the</text>
+      <text x="675" y="98" text-anchor="middle" class="ts">caller doesn't need</text>
+      <text x="675" y="114" text-anchor="middle" class="ts">to be)</text>
+      <path d="M160 110H286" class="line" marker-end="url(#ara1)"/><text x="223" y="102" text-anchor="middle" class="mono">1 ExecuteStatement</text>
+      <path d="M286 130H160" class="line" marker-end="url(#ara1)"/><text x="223" y="146" text-anchor="middle" class="mono">← Id (uuid)</text>
+      <path d="M470 120H596" class="aline" marker-end="url(#ara1)"/><text x="533" y="112" text-anchor="middle" class="ts">runs SQL</text>
+      <path d="M160 180H286" class="line" marker-end="url(#ara1)"/><text x="223" y="172" text-anchor="middle" class="mono">2 DescribeStatement</text>
+      <text x="223" y="196" text-anchor="middle" class="ts">SUBMITTED → STARTED →</text><text x="223" y="210" text-anchor="middle" class="ts">FINISHED | FAILED | ABORTED</text>
+      <path d="M160 240H286" class="line" marker-end="url(#ara1)"/><text x="223" y="232" text-anchor="middle" class="mono">3 GetStatementResult</text>
+      <text x="223" y="258" text-anchor="middle" class="ts">rows as JSON (V2 = CSV), paged</text>
+      <path d="M470 220H596" class="line dash"/><text x="533" y="212" text-anchor="middle" class="ts">or: WithEvent →</text><text x="533" y="238" text-anchor="middle" class="ts">EventBridge on finish</text>
+    </svg></div>
+    <figcaption><b>Why asynchronous matters:</b> a Lambda doesn't have to sit waiting (and paying) for a 10-minute query. Submit it, store the Id, and let Step Functions poll or EventBridge tell you when it finishes.</figcaption>
+  </figure>
+
+  <div class="tbl"><table>
+    <tr><th>Operation</th><th>What it does</th></tr>
+    <tr><td><code>ExecuteStatement</code></td><td>Run one SQL statement. Supports named parameters (<code>:id</code>), <code>WithEvent</code>, <code>SessionKeepAliveSeconds</code>/<code>SessionId</code>, <code>ResultFormat</code> JSON or CSV, and <code>ClientToken</code> for idempotency</td></tr>
+    <tr><td><code>BatchExecuteStatement</code></td><td>Run several SQL statements in order. Default <code>ExecutionMode=TRANSACTION</code> (all or nothing); <code>AUTO_COMMIT</code> commits each one</td></tr>
+    <tr><td><code>DescribeStatement</code></td><td>Status, duration, rows affected, error message, and sub-statement status for batches</td></tr>
+    <tr><td><code>GetStatementResult</code> / <code>…V2</code></td><td>Fetch result rows (JSON / CSV), paginated with <code>NextToken</code></td></tr>
+    <tr><td><code>ListStatements</code>, <code>CancelStatement</code></td><td>Recent statements, and stopping a running one</td></tr>
+    <tr><td><code>ListDatabases</code>, <code>ListSchemas</code>, <code>ListTables</code>, <code>DescribeTable</code></td><td>Browse metadata without writing catalog SQL</td></tr>
+    <tr><td><code>ListSessions</code></td><td>See reusable sessions (session reuse keeps temp tables and SET values between calls)</td></tr>
+  </table></div>
+
+  <div class="cards">
+    <div class="card"><span class="tag">Limits to quote</span><h4>Know these numbers</h4><ul><li>Query runtime: up to 24 hours</li><li>Results kept: 24 hours</li><li>Result size: 500 MB (after gzip)</li><li>Statement size: 200 KB</li><li>Active queries: 500 per cluster or workgroup</li><li>Sessions: 500; one query at a time per session</li><li>Client token valid: 8 hours</li><li>Long polling: <code>WaitTimeSeconds</code> up to 30 s</li></ul></div>
+    <div class="card"><span class="tag">Auth</span><h4>Three ways, no passwords in code</h4><ul><li><b>Secrets Manager:</b> pass <code>SecretArn</code></li><li><b>Temporary credentials:</b> Serverless → workgroup name, DB user derived from your IAM identity (<code>IAM:foo</code>), needs <code>redshift-serverless:GetCredentials</code>. Provisioned → <code>GetClusterCredentials</code> or <code>…WithIAM</code></li><li><b>IAM Identity Center</b> (trusted identity propagation)</li></ul></div>
+    <div class="card"><span class="tag">Gotchas</span><h4>What trips people up</h4><ul><li>Parameters replace <i>values only</i>, never table or column names</li><li>A parameter can't be SQL NULL (it becomes the string "null")</li><li>Huge exports: use UNLOAD to S3, not GetStatementResult</li><li>Step Functions doesn't retry SDK calls by default: add <code>Retry</code> and a <code>ClientToken</code></li><li>Throttling returns <code>ThrottlingException</code>, so back off and retry</li></ul></div>
+  </div>
+
+  <pre><code><span class="c"># CLI: what the lab's setup script did, step by step</span>
+ID=$(aws redshift-data execute-statement \
+  --workgroup-name mission-deh-hof-glue-redshift-wg --database dev \
+  --sql "SELECT region, SUM(total_profit) FROM public.target_sales GROUP BY 1" \
+  --query Id --output text)
+aws redshift-data describe-statement --id "$ID" --query Status    <span class="c"># poll until FINISHED</span>
+aws redshift-data get-statement-result --id "$ID"</code></pre>
+  <pre><code><span class="c"># Python (boto3) inside a Lambda: parameterised, waits with long polling</span>
+<span class="k">import</span> boto3
+rsd = boto3.client(<span class="h">"redshift-data"</span>)
+resp = rsd.execute_statement(
+    WorkgroupName=<span class="h">"analytics-wg"</span>, Database=<span class="h">"dev"</span>,
+    Sql=<span class="h">"SELECT COUNT(*) FROM public.target_sales WHERE region = :r"</span>,
+    Parameters=[{<span class="h">"name"</span>: <span class="h">"r"</span>, <span class="h">"value"</span>: <span class="h">"Asia"</span>}],
+    WithEvent=True)                       <span class="c"># EventBridge event when it finishes</span>
+st = rsd.describe_statement(Id=resp[<span class="h">"Id"</span>])
+<span class="k">if</span> st[<span class="h">"Status"</span>] == <span class="h">"FINISHED"</span> <span class="k">and</span> st[<span class="h">"HasResultSet"</span>]:
+    rows = rsd.get_statement_result(Id=resp[<span class="h">"Id"</span>])[<span class="h">"Records"</span>]</code></pre>
+  <pre><code><span class="c">// Step Functions task: refresh the region MV straight from the state machine (no Glue job)</span>
+{
+  "Type": "Task",
+  "Resource": "arn:aws:states:::aws-sdk:redshiftdata:executeStatement",
+  "Parameters": {
+    "WorkgroupName": "mission-deh-hof-glue-redshift-wg",
+    "Database": "dev",
+    "Sql": "REFRESH MATERIALIZED VIEW mv_sales_by_region",
+    "ClientToken.$": "States.ArrayGetItem(States.StringSplit($$.Execution.Id, ':'), 7)"
+  },
+  "Retry": [{ "ErrorEquals": ["States.ALL"], "MaxAttempts": 3, "BackoffRate": 2 }],
+  "Next": "WaitForRefresh"
+}</code></pre>
+  <div class="note n-lab"><b>Connect to the lab</b><p>Glue jobs 2 and 3 spin up a Spark cluster just to run a GROUP BY that Redshift can do itself. A leaner design: Step Functions calls the Data API (<code>executeStatement</code> → wait → <code>describeStatement</code> loop) to run the MERGE and refresh two materialized views. No Spark, faster, cheaper, and the same orchestration you already understand.</p></div>
+  <div class="note n-int"><b>Interview line: "When would you use the Data API?"</b><p>"For event-driven and serverless callers: Lambda, Step Functions, scripts. It removes driver packaging, connection pooling, VPC wiring for the caller, and stored passwords, because auth is IAM or Secrets Manager. Calls are asynchronous, so long queries don't hold a Lambda open. I wouldn't use it for BI tools or for pulling huge result sets. Those need JDBC, or UNLOAD to S3."</p></div>
+
+  <h3>Stored procedures: logic that lives in the warehouse</h3>
+  <pre><code><span class="k">CREATE OR REPLACE PROCEDURE</span> etl.upsert_sales(p_batch <span class="k">VARCHAR</span>)
+<span class="k">AS</span> $$
+<span class="k">DECLARE</span>
+  v_rows <span class="k">INT</span>;
+<span class="k">BEGIN</span>
+  <span class="k">MERGE INTO</span> public.target_sales <span class="k">USING</span> public.stage_sales s
+    <span class="k">ON</span> target_sales.uuid = s.uuid
+  <span class="k">WHEN MATCHED THEN UPDATE SET</span> units_sold = s.units_sold, total_profit = s.total_profit
+  <span class="k">WHEN NOT MATCHED THEN INSERT VALUES</span> (s.uuid, s.country, s.item_type, s.sales_channel,
+    s.order_priority, s.order_date, s.region, s.ship_date, s.units_sold, s.unit_price,
+    s.unit_cost, s.total_revenue, s.total_cost, s.total_profit);
+  <span class="k">GET DIAGNOSTICS</span> v_rows := ROW_COUNT;
+  <span class="k">INSERT INTO</span> etl.load_audit <span class="k">VALUES</span> (p_batch, v_rows, GETDATE());
+  <span class="k">RAISE INFO</span> 'batch % merged % rows', p_batch, v_rows;
+<span class="k">EXCEPTION WHEN OTHERS THEN</span>
+  <span class="k">RAISE EXCEPTION</span> 'upsert failed for batch %: %', p_batch, SQLERRM;
+<span class="k">END</span>;
+$$ <span class="k">LANGUAGE</span> plpgsql;
+
+<span class="k">CALL</span> etl.upsert_sales('2026-10-24');</code></pre>
+  <ul>
+    <li>Language is <b>PL/pgSQL</b>: variables, IF/LOOP, cursors, dynamic SQL with <code>EXECUTE</code>, RAISE, exception blocks.</li>
+    <li>Procedures can <code>COMMIT</code>/<code>ROLLBACK</code> inside when called outside an explicit transaction block. The <code>NONATOMIC</code> option makes each statement commit on its own, which suits long ETL steps.</li>
+    <li><code>SECURITY DEFINER</code> lets users run a procedure with the owner's rights without being granted access to the underlying tables. This is a common security pattern.</li>
+    <li>Schedule them with <b>Query Editor v2 scheduled queries</b> (EventBridge Scheduler + Data API under the hood), or call them from Step Functions or Airflow.</li>
+    <li>UDFs: <b>SQL UDFs</b> (scalar, inline) and <b>Lambda UDFs</b> (any language, external calls). Python UDFs are past end of support.</li>
+  </ul>
+
+  <h3>Error and incident playbook</h3>
+  <div class="tbl"><table>
+    <tr><th>Symptom / error</th><th>Likely cause</th><th>Fix</th></tr>
+    <tr><td><code>Load into table failed. Check 'stl_load_errors'</code></td><td>Bad row: type mismatch, wrong delimiter, extra columns</td><td>Query <code>sys_load_error_detail</code>; fix the source, or use <code>MAXERROR</code>, <code>ACCEPTINVCHARS</code>, <code>TRUNCATECOLUMNS</code>, <code>FILLRECORD</code> or <code>NULL AS</code> deliberately</td></tr>
+    <tr><td><code>Invalid digit, Value 'N', Pos 0</code></td><td>Text in a numeric column, often a header row or "N/A"</td><td><code>IGNOREHEADER 1</code>, <code>NULL AS 'N/A'</code>, or clean in Glue</td></tr>
+    <tr><td><code>String length exceeds DDL length</code></td><td>Value longer than VARCHAR(n) bytes (multi-byte UTF-8)</td><td>Widen the column, or <code>TRUNCATECOLUMNS</code> if truncation is acceptable</td></tr>
+    <tr><td><code>S3ServiceException: Access Denied</code> during COPY</td><td>IAM role not attached to the namespace or cluster, or missing bucket/KMS permission</td><td>Attach the role, grant <code>s3:GetObject</code>/<code>ListBucket</code> and <code>kms:Decrypt</code></td></tr>
+    <tr><td><code>1023 Serializable isolation violation</code></td><td>Concurrent transactions touching the same tables</td><td>Serialize writers, LOCK early, retry, or use SNAPSHOT isolation</td></tr>
+    <tr><td>Query hangs, nothing happening</td><td>Waiting on a lock held by an open transaction (often an idle session that never committed)</td><td>Check <code>svv_transactions</code> and <code>stv_locks</code>, then <code>PG_TERMINATE_BACKEND(pid)</code> the blocker</td></tr>
+    <tr><td><code>Disk Full</code> or heavy spill (provisioned)</td><td>Huge intermediate results, a missing join condition, skew</td><td>Fix the query and keys; RA3/RG offload to RMS; add nodes</td></tr>
+    <tr><td>Glue job: <code>Communications link failure</code> / timeout</td><td>Glue can't reach Redshift: SG, subnet or S3 endpoint missing</td><td>Self-referencing SG rule plus an S3 gateway endpoint (exactly what setup step 6 did)</td></tr>
+    <tr><td>Query Editor v2: "user information couldn't be retrieved"</td><td>First-time console setup or permissions propagating (seen in class)</td><td>Wait a few minutes, refresh, check IAM permissions</td></tr>
+    <tr><td>Serverless bill spike</td><td>Runaway query or high base RPU</td><td>Usage limits, max capacity, query limits; check <code>sys_serverless_usage</code></td></tr>
+  </table></div>
+
+  <h3>Migrating to Redshift</h3>
+  <ul>
+    <li><b>AWS SCT</b> (Schema Conversion Tool) converts Teradata, Oracle, SQL Server, Netezza and Greenplum DDL, views and procedures, and flags what needs manual work. The DMS console includes a web-based <b>DMS Schema Conversion</b> option.</li>
+    <li><b>Data movement:</b> bulk export → S3 → COPY for history, then <b>DMS</b> CDC or zero-ETL to catch up and run in parallel until cut-over.</li>
+    <li>Typical mappings: Teradata PI → DISTKEY, partitioned primary index → SORTKEY, enforced PKs → dedup logic, BTEQ scripts → stored procedures or dbt.</li>
+    <li>Validate with row counts and column checksums per table, then compare the top-N business reports side by side.</li>
+  </ul>
+  <div class="done-row"><label><input type="checkbox" data-done="api"> Mark section done</label></div>
+</section>
+
+<!-- ============ COMMANDS ============ -->
+<section class="ch" id="cmds" style="--c:var(--s5)">
+  <div class="ch-head"><div class="ch-num">SQL</div><div><div class="eyebrow">Reference · every command with the why</div><h2>The Redshift command reference</h2></div></div>
+  <p class="story">Interviewers rarely ask you to recite syntax. They ask why: why COPY and not INSERT, why CTAS loses your sort key, why TRUNCATE breaks your transaction. Each command below comes with the one-line reason it exists, so you can answer the why.</p>
+
+  <figure class="plate">
+    <div class="plate-title">Infographic S.1 · Which command for which job</div>
+    <div class="svgwrap">
+    <svg viewBox="0 0 760 250" role="img" aria-label="Command map grouped into define, load, change, export, maintain, secure and observe">
+      <rect x="10" y="10" width="240" height="110" rx="8" class="grn"/><text x="26" y="34" class="th">Define (DDL)</text><text x="26" y="56" class="mono">CREATE TABLE · CTAS · LIKE</text><text x="26" y="74" class="mono">ALTER TABLE · DROP</text><text x="26" y="92" class="mono">VIEW · MATERIALIZED VIEW</text><text x="26" y="110" class="mono">EXTERNAL SCHEMA / TABLE</text>
+      <rect x="260" y="10" width="240" height="110" rx="8" class="cool"/><text x="276" y="34" class="th">Load and change (DML)</text><text x="276" y="56" class="mono">COPY · INSERT … SELECT</text><text x="276" y="74" class="mono">MERGE · UPDATE … FROM</text><text x="276" y="92" class="mono">DELETE … USING · TRUNCATE</text><text x="276" y="110" class="mono">ALTER TABLE APPEND</text>
+      <rect x="510" y="10" width="240" height="110" rx="8" class="amb"/><text x="526" y="34" class="th">Export and share</text><text x="526" y="56" class="mono">UNLOAD → S3</text><text x="526" y="74" class="mono">CREATE DATASHARE</text><text x="526" y="92" class="mono">Data API · SELECT</text><text x="526" y="110" class="mono">CREATE MODEL (ML)</text>
+      <rect x="10" y="130" width="240" height="110" rx="8" class="soft"/><text x="26" y="154" class="th">Maintain</text><text x="26" y="176" class="mono">VACUUM · ANALYZE</text><text x="26" y="194" class="mono">ANALYZE COMPRESSION</text><text x="26" y="212" class="mono">REFRESH MATERIALIZED VIEW</text><text x="26" y="230" class="mono">deep copy (CTAS + swap)</text>
+      <rect x="260" y="130" width="240" height="110" rx="8" class="acc"/><text x="276" y="154" class="th">Secure</text><text x="276" y="176" class="mono">CREATE USER / ROLE</text><text x="276" y="194" class="mono">GRANT · REVOKE</text><text x="276" y="212" class="mono">ALTER DEFAULT PRIVILEGES</text><text x="276" y="230" class="mono">RLS · MASKING POLICY</text>
+      <rect x="510" y="130" width="240" height="110" rx="8" class="box"/><text x="526" y="154" class="th">Observe and control</text><text x="526" y="176" class="mono">EXPLAIN · SHOW TABLE</text><text x="526" y="194" class="mono">SYS_* / SVV_* views</text><text x="526" y="212" class="mono">LOCK · CANCEL</text><text x="526" y="230" class="mono">SET query_group / search_path</text>
+    </svg></div>
+  </figure>
+
+  <h3>1 · Defining tables</h3>
+  <pre><code><span class="c">-- Full CREATE TABLE anatomy</span>
+<span class="k">CREATE TABLE IF NOT EXISTS</span> sales.fact_sales (
+  sale_id     <span class="k">BIGINT IDENTITY</span>(1,1),           <span class="c">-- surrogate key, unique not gap-free</span>
+  order_id    <span class="k">BIGINT NOT NULL ENCODE</span> az64,
+  region      <span class="k">VARCHAR</span>(40) <span class="k">ENCODE</span> bytedict,
+  order_date  <span class="k">DATE NOT NULL</span>,
+  payload     <span class="k">SUPER</span>,                         <span class="c">-- raw JSON</span>
+  created_at  <span class="k">TIMESTAMP DEFAULT</span> GETDATE()
+)
+<span class="k">DISTSTYLE KEY DISTKEY</span>(order_id)
+<span class="k">COMPOUND SORTKEY</span>(order_date, region)
+<span class="k">BACKUP YES</span>;                                   <span class="c">-- BACKUP NO for rebuildable staging</span>
+
+<span class="c">-- CTAS: fast table from a query. State dist/sort keys yourself, or Redshift picks them from the plan.
+-- Constraints, IDENTITY, defaults and the PK are NOT copied</span>
+<span class="k">CREATE TABLE</span> sales.asia_sales <span class="k">DISTKEY</span>(order_id) <span class="k">SORTKEY</span>(order_date) <span class="k">AS</span>
+<span class="k">SELECT</span> * <span class="k">FROM</span> sales.fact_sales <span class="k">WHERE</span> region = 'Asia';
+
+<span class="c">-- LIKE: copies columns, NOT NULL, dist style and sort keys (no data, no PK/FK)</span>
+<span class="k">CREATE TEMP TABLE</span> stage_sales (<span class="k">LIKE</span> sales.fact_sales);
+
+<span class="c">-- See the real DDL Redshift stored (keys, encodings)</span>
+<span class="k">SHOW TABLE</span> sales.fact_sales;</code></pre>
+  <div class="tbl"><table>
+    <tr><th>ALTER TABLE …</th><th>Why you'd do it</th></tr>
+    <tr><td><code>ADD COLUMN c INT DEFAULT 0</code></td><td>Schema evolution: one column per statement; NOT NULL needs a DEFAULT</td></tr>
+    <tr><td><code>ALTER DISTSTYLE KEY DISTKEY c</code> / <code>ALTER DISTSTYLE ALL</code></td><td>Fix bad distribution without recreating the table (runs in the background)</td></tr>
+    <tr><td><code>ALTER SORTKEY (c)</code> / <code>ALTER SORTKEY AUTO</code></td><td>Change the sort key in place</td></tr>
+    <tr><td><code>ALTER COLUMN c ENCODE zstd</code></td><td>Change compression on one column</td></tr>
+    <tr><td><code>ALTER COLUMN c TYPE VARCHAR(500)</code></td><td>In-place type change is essentially limited to VARCHAR length. Other changes need add → copy → drop → rename</td></tr>
+    <tr><td><code>RENAME TO</code> / <code>RENAME COLUMN</code></td><td>Atomic swap after a deep copy or blue/green rebuild</td></tr>
+    <tr><td><code>APPEND FROM stage</code></td><td>Move blocks from stage to target instantly (append-only facts). The source is emptied</td></tr>
+    <tr><td><code>ROW LEVEL SECURITY ON</code></td><td>Enforce attached RLS policies</td></tr>
+  </table></div>
+
+  <h3>2 · Loading and changing data</h3>
+  <h4>COPY options worth memorizing</h4>
+  <div class="tbl"><table>
+    <tr><th>Option</th><th>What it does / when to use</th></tr>
+    <tr><td><code>FORMAT AS PARQUET | ORC | AVRO | JSON 'auto' | CSV</code></td><td>Input format. Parquet/ORC are fastest, auto-split and typed</td></tr>
+    <tr><td><code>IAM_ROLE 'arn…' | default</code></td><td>Role Redshift assumes to read S3. Never use access keys</td></tr>
+    <tr><td><code>MANIFEST</code></td><td>FROM points to a JSON list of exact files: deterministic, replayable loads</td></tr>
+    <tr><td><code>IGNOREHEADER n</code>, <code>DELIMITER '|'</code>, <code>QUOTE</code>, <code>ESCAPE</code>, <code>REMOVEQUOTES</code></td><td>Text parsing control</td></tr>
+    <tr><td><code>GZIP | BZIP2 | ZSTD | LZOP</code></td><td>Compressed input means less S3 transfer</td></tr>
+    <tr><td><code>DATEFORMAT</code>, <code>TIMEFORMAT 'auto'</code></td><td>Parse non-ISO dates (the lab's "7/27/2012" style)</td></tr>
+    <tr><td><code>NULL AS '\N'</code>, <code>BLANKSASNULL</code>, <code>EMPTYASNULL</code></td><td>How empty values become NULL</td></tr>
+    <tr><td><code>MAXERROR n</code></td><td>Tolerate n bad rows (logged), instead of failing the whole load</td></tr>
+    <tr><td><code>ACCEPTINVCHARS '?'</code>, <code>TRUNCATECOLUMNS</code>, <code>FILLRECORD</code></td><td>Survive bad UTF-8, overlong strings, or short rows. Use deliberately</td></tr>
+    <tr><td><code>COMPUPDATE OFF</code>, <code>STATUPDATE OFF</code></td><td>Skip encoding analysis and stats on staging loads (faster)</td></tr>
+    <tr><td><code>EXPLICIT_IDS</code></td><td>Load your own values into an IDENTITY column (migrations)</td></tr>
+    <tr><td><code>NOLOAD</code></td><td>Validate the files without loading anything (dry run)</td></tr>
+    <tr><td><code>REGION 'us-east-1'</code></td><td>Bucket in a different region from the warehouse</td></tr>
+    <tr><td><code>JOB CREATE name AUTO ON</code></td><td>Auto-copy: keep loading new files from that prefix</td></tr>
+  </table></div>
+  <pre><code><span class="c">-- Bulk insert from another table (parallel, fine)</span>
+<span class="k">INSERT INTO</span> sales.fact_sales (order_id, region, order_date)
+<span class="k">SELECT</span> uuid, region, order_date <span class="k">FROM</span> public.stage_sales;
+
+<span class="c">-- Multi-row VALUES is OK for tiny lookups; never loop single-row INSERTs</span>
+<span class="k">INSERT INTO</span> ref.channel <span class="k">VALUES</span> (1,'Online'),(2,'Offline');
+
+<span class="c">-- UPDATE with a join (Redshift uses FROM)</span>
+<span class="k">UPDATE</span> sales.fact_sales <span class="k">SET</span> region = r.new_region
+<span class="k">FROM</span> ref.region_fix r <span class="k">WHERE</span> fact_sales.region = r.old_region;
+
+<span class="c">-- DELETE with a join (Redshift uses USING), the lab's upsert step</span>
+<span class="k">DELETE FROM</span> public.target_sales <span class="k">USING</span> public.stage_sales s
+<span class="k">WHERE</span> target_sales.uuid = s.uuid;
+
+<span class="c">-- TRUNCATE: instant and frees space, but COMMITS immediately (can't roll back)</span>
+<span class="k">TRUNCATE</span> public.stage_sales;</code></pre>
+
+  <h3>3 · Exporting with UNLOAD</h3>
+  <div class="tbl"><table>
+    <tr><th>Option</th><th>Why</th></tr>
+    <tr><td><code>FORMAT AS PARQUET</code> (or CSV, JSON)</td><td>Columnar output for Spectrum, Athena, Spark</td></tr>
+    <tr><td><code>PARTITION BY (col) [INCLUDE]</code></td><td>Hive-style folders (<code>region=Asia/</code>) for partition pruning</td></tr>
+    <tr><td><code>PARALLEL ON</code> (default) / <code>OFF</code></td><td>One file per slice (fast), or a single ordered file (up to <code>MAXFILESIZE</code>)</td></tr>
+    <tr><td><code>MAXFILESIZE 256 MB</code></td><td>Control the file size downstream engines get</td></tr>
+    <tr><td><code>MANIFEST</code>, <code>HEADER</code>, <code>ALLOWOVERWRITE</code> / <code>CLEANPATH</code></td><td>List the written files, add a CSV header, replace an existing prefix</td></tr>
+    <tr><td><code>ENCRYPTED KMS_KEY_ID '…'</code></td><td>Encrypt output with your KMS key</td></tr>
+  </table></div>
+  <p><b>Why UNLOAD instead of SELECT for exports:</b> a SELECT funnels every row through the leader node to one client connection. UNLOAD has every slice write its share to S3 in parallel. The same logic explains why COPY beats INSERT on the way in.</p>
+
+  <h3>4 · Maintenance commands</h3>
+  <div class="tbl"><table>
+    <tr><th>Command</th><th>Does</th><th>When</th></tr>
+    <tr><td><code>VACUUM FULL t</code></td><td>Reclaim deleted space and re-sort (default)</td><td>After big deletes or updates</td></tr>
+    <tr><td><code>VACUUM DELETE ONLY t</code></td><td>Reclaim space, no sort</td><td>Space is the problem, order is fine</td></tr>
+    <tr><td><code>VACUUM SORT ONLY t</code></td><td>Re-sort, no space reclaim</td><td>Lots of unsorted appends</td></tr>
+    <tr><td><code>VACUUM REINDEX t</code></td><td>Re-analyze interleaved keys, then full vacuum</td><td>Interleaved sort keys only</td></tr>
+    <tr><td><code>VACUUM … TO 99 PERCENT</code> / <code>BOOST</code></td><td>Sort threshold / use more resources (blocks concurrent deletes)</td><td>Maintenance windows</td></tr>
+    <tr><td><code>ANALYZE t</code> / <code>ANALYZE t PREDICATE COLUMNS</code></td><td>Refresh optimizer statistics (all columns / only filter and join columns)</td><td>After loads that change data a lot</td></tr>
+    <tr><td><code>ANALYZE COMPRESSION t</code></td><td>Recommend encodings (takes a lock, reads a sample)</td><td>Tuning legacy tables</td></tr>
+    <tr><td><code>REFRESH MATERIALIZED VIEW mv</code></td><td>Bring the MV up to date (incrementally if possible)</td><td>After loads, or let AUTO REFRESH do it</td></tr>
+  </table></div>
+
+  <h3>5 · Access control</h3>
+  <pre><code><span class="k">CREATE USER</span> etl_user <span class="k">PASSWORD DISABLE</span>;       <span class="c">-- IAM/Data API auth only</span>
+<span class="k">CREATE ROLE</span> etl_writer;
+<span class="k">GRANT USAGE</span>, <span class="k">CREATE ON SCHEMA</span> sales <span class="k">TO ROLE</span> etl_writer;
+<span class="k">GRANT SELECT</span>, <span class="k">INSERT</span>, <span class="k">UPDATE</span>, <span class="k">DELETE ON ALL TABLES IN SCHEMA</span> sales <span class="k">TO ROLE</span> etl_writer;
+<span class="k">GRANT ROLE</span> etl_writer <span class="k">TO</span> etl_user;
+<span class="k">GRANT SELECT</span> (region, total_revenue) <span class="k">ON</span> sales.fact_sales <span class="k">TO ROLE</span> analyst;   <span class="c">-- column-level</span>
+<span class="c">-- Future tables too (a classic "why can't the analyst see the new table?" fix)</span>
+<span class="k">ALTER DEFAULT PRIVILEGES IN SCHEMA</span> sales <span class="k">GRANT SELECT ON TABLES TO ROLE</span> analyst;
+<span class="k">REVOKE ALL ON SCHEMA</span> public <span class="k">FROM PUBLIC</span>;</code></pre>
+
+  <h3>6 · Session, transactions and control</h3>
+  <pre><code><span class="k">SET</span> search_path <span class="k">TO</span> sales, public;          <span class="c">-- unqualified names resolve here (pg_table_def shows only these schemas)</span>
+<span class="k">SET</span> query_group <span class="k">TO</span> 'etl';                   <span class="c">-- route to a WLM queue (provisioned)</span>
+<span class="k">SET</span> enable_result_cache_for_session <span class="k">TO</span> off;  <span class="c">-- honest benchmarks</span>
+<span class="k">SET</span> statement_timeout <span class="k">TO</span> 600000;            <span class="c">-- ms; kill runaways in this session</span>
+
+<span class="k">BEGIN</span>;
+<span class="k">LOCK</span> public.target_sales;                     <span class="c">-- serialize writers up front</span>
+<span class="k">DELETE FROM</span> public.target_sales_by_region;
+<span class="k">INSERT INTO</span> public.target_sales_by_region <span class="k">SELECT</span> … ;
+<span class="k">COMMIT</span>;                                       <span class="c">-- or ROLLBACK</span>
+
+<span class="k">SELECT</span> PG_CANCEL_BACKEND(pid);                <span class="c">-- stop a query</span>
+<span class="k">SELECT</span> PG_TERMINATE_BACKEND(pid);             <span class="c">-- kill the whole session (releases locks)</span>
+<span class="k">CANCEL</span> pid;</code></pre>
+
+  <h3>7 · External and lake objects</h3>
+  <pre><code><span class="k">CREATE EXTERNAL TABLE</span> lake.sales_history (
+  order_id <span class="k">BIGINT</span>, region <span class="k">VARCHAR</span>(40), total_profit <span class="k">DECIMAL</span>(15,2))
+<span class="k">PARTITIONED BY</span> (year <span class="k">INT</span>)
+<span class="k">STORED AS PARQUET</span>
+<span class="k">LOCATION</span> 's3://bucket/curated/sales_history/';
+
+<span class="k">ALTER TABLE</span> lake.sales_history <span class="k">ADD IF NOT EXISTS PARTITION</span> (year=2026)
+<span class="k">LOCATION</span> 's3://bucket/curated/sales_history/year=2026/';
+
+<span class="c">-- Late-binding view over lake + warehouse (survives table drops/recreates)</span>
+<span class="k">CREATE VIEW</span> rpt.all_sales <span class="k">AS</span>
+<span class="k">SELECT</span> order_id, region, total_profit <span class="k">FROM</span> sales.fact_sales
+<span class="k">UNION ALL</span>
+<span class="k">SELECT</span> order_id, region, total_profit <span class="k">FROM</span> lake.sales_history
+<span class="k">WITH NO SCHEMA BINDING</span>;</code></pre>
+
+  <h3>8 · SQL features interviewers test in Redshift</h3>
+  <pre><code><span class="c">-- Latest order per country: window function + QUALIFY (no subquery needed)</span>
+<span class="k">SELECT</span> country, uuid, order_date
+<span class="k">FROM</span> public.target_sales
+<span class="k">QUALIFY ROW_NUMBER</span>() <span class="k">OVER</span> (<span class="k">PARTITION BY</span> country <span class="k">ORDER BY</span> order_date <span class="k">DESC</span>) = 1;
+
+<span class="c">-- Running total and share of region</span>
+<span class="k">SELECT</span> region, order_date, total_revenue,
+  <span class="k">SUM</span>(total_revenue) <span class="k">OVER</span> (<span class="k">PARTITION BY</span> region <span class="k">ORDER BY</span> order_date
+                           <span class="k">ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW</span>) <span class="k">AS</span> running_rev,
+  <span class="k">RATIO_TO_REPORT</span>(total_revenue) <span class="k">OVER</span> (<span class="k">PARTITION BY</span> region) <span class="k">AS</span> share
+<span class="k">FROM</span> public.target_sales;
+
+<span class="c">-- String aggregation, approximate distinct, date math</span>
+<span class="k">SELECT</span> region,
+  <span class="k">LISTAGG</span>(<span class="k">DISTINCT</span> item_type, ', ') <span class="k">WITHIN GROUP</span> (<span class="k">ORDER BY</span> item_type) <span class="k">AS</span> items,
+  <span class="k">APPROXIMATE COUNT</span>(<span class="k">DISTINCT</span> country) <span class="k">AS</span> countries,
+  <span class="k">DATEDIFF</span>(day, <span class="k">MIN</span>(order_date), <span class="k">MAX</span>(order_date)) <span class="k">AS</span> span_days
+<span class="k">FROM</span> public.target_sales <span class="k">GROUP BY</span> region;
+
+<span class="c">-- SUPER + PartiQL: navigate and unnest JSON</span>
+<span class="k">SELECT</span> e.payload.customer.city::<span class="k">VARCHAR</span>, item.sku
+<span class="k">FROM</span> raw.events e, e.payload.items <span class="k">AS</span> item
+<span class="k">WHERE</span> e.payload.type = 'order';</code></pre>
+  <div class="cards">
+    <div class="card"><span class="tag">Dates</span><h4>Functions to know</h4><p><code>DATE_TRUNC('month', d)</code>, <code>DATEADD</code>, <code>DATEDIFF</code>, <code>EXTRACT</code>, <code>TO_CHAR</code>, <code>TO_DATE</code>, <code>CONVERT_TIMEZONE</code>. <code>GETDATE()</code> gives the statement time; <code>SYSDATE</code> gives the transaction start.</p></div>
+    <div class="card"><span class="tag">Strings and nulls</span><h4>Everyday helpers</h4><p><code>NVL</code>/<code>COALESCE</code>, <code>NULLIF</code>, <code>DECODE</code>, <code>CASE</code>, <code>SPLIT_PART</code>, <code>REGEXP_SUBSTR</code>, <code>REGEXP_REPLACE</code>, <code>LEN</code> (characters) vs <code>OCTET_LENGTH</code> (bytes).</p></div>
+    <div class="card"><span class="tag">Windows</span><h4>Ranking and offsets</h4><p><code>ROW_NUMBER</code>, <code>RANK</code>, <code>DENSE_RANK</code>, <code>NTILE</code>, <code>LAG</code>/<code>LEAD</code>, <code>FIRST_VALUE</code>/<code>LAST_VALUE</code> (with an explicit frame), <code>MEDIAN</code>, <code>PERCENTILE_CONT</code>.</p></div>
+    <div class="card"><span class="tag">Not supported</span><h4>Postgres features missing</h4><p>No enforced constraints, no indexes (zone maps and sort keys replace them), no triggers, no sequences (use IDENTITY), limited array types (use SUPER).</p></div>
+  </div>
+
+  <h3>9 · System tables: which family to query</h3>
+  <div class="tbl"><table>
+    <tr><th>Prefix</th><th>Meaning</th><th>Examples</th></tr>
+    <tr><td><code>SYS_</code></td><td>Modern monitoring views. Work on <b>both Serverless and provisioned</b>, so prefer them</td><td><code>sys_query_history</code>, <code>sys_query_detail</code>, <code>sys_load_history</code>, <code>sys_load_error_detail</code>, <code>sys_serverless_usage</code></td></tr>
+    <tr><td><code>STL_</code></td><td>Logged history persisted to disk (about 7 days, provisioned)</td><td><code>stl_query</code>, <code>stl_load_errors</code>, <code>stl_alert_event_log</code></td></tr>
+    <tr><td><code>STV_</code></td><td>Snapshot of current in-memory state</td><td><code>stv_recents</code>, <code>stv_locks</code>, <code>stv_blocklist</code>, <code>stv_inflight</code></td></tr>
+    <tr><td><code>SVL_</code> / <code>SVCS_</code></td><td>Views over STL/STV (SVCS includes concurrency-scaling clusters)</td><td><code>svl_query_summary</code>, <code>svl_auto_worker_action</code></td></tr>
+    <tr><td><code>SVV_</code></td><td>Views over system and catalog objects</td><td><code>svv_table_info</code>, <code>svv_transactions</code>, <code>svv_external_tables</code>, <code>svv_datashares</code></td></tr>
+    <tr><td><code>PG_</code></td><td>PostgreSQL catalog</td><td><code>pg_table_def</code> (only schemas on search_path), <code>pg_user</code>, <code>pg_namespace</code></td></tr>
+  </table></div>
+  <div class="note n-int"><b>Interview line</b><p>"For monitoring I default to the SYS_ views because they work on Serverless and provisioned alike. I drop to STL and STV on provisioned clusters for things like lock waits and block-level details."</p></div>
+  <div class="done-row"><label><input type="checkbox" data-done="cmds"> Mark section done</label></div>
+</section>
+
+<!-- ============ INTERVIEW ============ -->
+<section class="ch" id="interview" style="--c:var(--cool)">
+  <div class="ch-head"><div class="ch-num">?</div><div><div class="eyebrow">Practice · tap a question, answer aloud, then reveal</div><h2>Interview question bank</h2></div></div>
+  <div class="qa-tools"><button class="pill" type="button" id="openAll">Show all answers</button><button class="pill" type="button" id="closeAll">Hide all answers</button></div>
+
+  <div class="qa-group">Fundamentals</div>
+  <details class="qa"><summary>What makes Redshift fast compared to a normal database?</summary><div class="ans"><p>MPP across slices, columnar storage (read only the needed columns), heavy compression, zone maps that skip blocks, compiled query code, result caching, and RMS with local SSD caching. Most speed comes from reading less data and doing it in parallel.</p></div></details>
+  <details class="qa"><summary>Explain leader node vs compute node vs slice.</summary><div class="ans"><p>The leader parses, optimizes, compiles and coordinates, and does final aggregation; it stores no user table data. Compute nodes execute the plan. Each node is divided into slices with their own share of CPU, memory and data, and the slice is the unit of parallelism.</p></div></details>
+  <details class="qa"><summary>What is RA3 managed storage and why does it matter?</summary><div class="ans"><p>RA3 (and RG) nodes keep the durable copy of data in S3-backed Redshift Managed Storage and cache hot blocks on local SSD. Compute and storage scale and bill independently. It also enables data sharing, multi-AZ and fast resizes.</p></div></details>
+  <details class="qa"><summary>Namespace vs workgroup in Serverless?</summary><div class="ans"><p>The namespace is storage and metadata: databases, users, snapshots, encryption. The workgroup is compute and networking: RPUs, limits, VPC and endpoint. You pay RPU-seconds only while queries run, plus storage.</p></div></details>
+  <details class="qa"><summary>Are primary keys enforced in Redshift?</summary><div class="ans"><p>No. PK, FK and UNIQUE are informational and only used by the optimizer. Only NOT NULL is enforced. You prevent duplicates yourself through staging and upsert/MERGE logic, plus dedup checks.</p></div></details>
+
+  <div class="qa-group">Design and tuning</div>
+  <details class="qa"><summary>How do you choose a distribution style?</summary><div class="ans"><p>Start with AUTO. For a large fact joined to a large dimension, distribute both on the join key (KEY) for colocated joins. Small, slowly changing dimensions get ALL. Tables with no clear join pattern get EVEN. Avoid low-cardinality or skewed keys, and check <code>skew_rows</code> in <code>svv_table_info</code>.</p></div></details>
+  <details class="qa"><summary>Compound vs interleaved sort key?</summary><div class="ans"><p>Compound sorts by the columns in order. It's best when queries filter on the leading column (usually date) and supports merge joins. Interleaved weights columns equally for varied filter combinations, but vacuum (REINDEX) is expensive and it handles ever-increasing columns badly. Today the default answer is compound or AUTO.</p></div></details>
+  <details class="qa"><summary>A query got slow overnight. How do you troubleshoot?</summary><div class="ans"><p>Check <code>sys_query_history</code> for queue vs execution time. Run EXPLAIN and look for DS_BCAST or DS_DIST_BOTH and nested loops. Check <code>svv_table_info</code> for stats_off, unsorted % and skew. Check for disk spill. Then fix the cause: ANALYZE or VACUUM, keys, rewriting filters on sort-key columns, WLM priorities or more RPUs, or a materialized view.</p></div></details>
+  <details class="qa"><summary>Why are deletes and updates expensive, and what is VACUUM?</summary><div class="ans"><p>Blocks are immutable. A delete only marks rows, and an update is a delete plus an insert into the unsorted region. VACUUM reclaims deleted space and re-sorts. Auto vacuum runs in the background. After big changes, run VACUUM and ANALYZE, or do a deep copy.</p></div></details>
+  <details class="qa"><summary>What does the result cache do and when is it bypassed?</summary><div class="ans"><p>It returns stored results for identical queries when the underlying data hasn't changed and the user has access. It's bypassed when data changes, for queries with non-deterministic functions such as GETDATE() or RANDOM(), and when it's disabled for the session.</p></div></details>
+  <details class="qa"><summary>When would you use a materialized view instead of an aggregate table?</summary><div class="ans"><p>When the aggregate is pure SQL over Redshift data. Redshift maintains it (incrementally when possible), can auto-refresh it, and can rewrite queries to use it automatically. A hand-built table makes sense when the logic is complex or needs external processing.</p></div></details>
+
+  <div class="qa-group">Loading and pipelines</div>
+  <details class="qa"><summary>Why COPY instead of INSERT? How do you make COPY fast?</summary><div class="ans"><p>COPY loads in parallel on every slice directly from S3. Single-row INSERTs go through the leader one at a time. For speed: split input into equal compressed files (1 MB–1 GB) in a count that's a multiple of slices, use columnar formats, use a manifest, and turn off COMPUPDATE/STATUPDATE for staging loads.</p></div></details>
+  <details class="qa"><summary>Explain your upsert strategy and why it's idempotent.</summary><div class="ans"><p>Load the batch into a staging table, deduplicate on the business key, then in one transaction either DELETE matching keys from the target and INSERT from stage, or MERGE. Replaying the same file produces the same final state: 899 rows stay 899, and the homework file correctly gives 909.</p></div></details>
+  <details class="qa"><summary>Multiple files arrive for one batch. How do you avoid N pipeline runs?</summary><div class="ans"><p>The source writes a marker file (<code>.done</code> or <code>_SUCCESS</code>) last. The S3 notification filters on that suffix, and the job processes the whole prefix or manifest. Alternatives: SQS or EventBridge batching with a short window, or scheduled runs with a completeness check.</p></div></details>
+  <details class="qa"><summary>How would you load near-real-time data into Redshift?</summary><div class="ans"><p>Streaming ingestion: an external schema on Kinesis or MSK plus an auto-refresh materialized view, for seconds of latency. For OLTP sources, zero-ETL integrations. Firehose to S3 then COPY when minute-level latency is fine.</p></div></details>
+  <details class="qa"><summary>How do you handle schema changes from the source?</summary><div class="ans"><p>Agree on a contract with the source team. Detect drift in the catalog or in Glue. Land additive changes safely: new nullable columns via ALTER TABLE, or a SUPER column for semi-structured payloads. Fail fast and alert on breaking changes. Version the silver layer, where Iceberg schema evolution helps.</p></div></details>
+  <details class="qa"><summary>Two pipeline runs overlap and one fails with a serializable isolation error. Why, and what do you do?</summary><div class="ans"><p>Concurrent transactions read and wrote overlapping tables in a way that can't be serialized. Serialize the writers (one execution at a time, or LOCK the table at the start of the transaction), use per-run temp staging, retry with backoff, or use SNAPSHOT isolation.</p></div></details>
+
+  <div class="qa-group">Platform and architecture</div>
+  <details class="qa"><summary>Redshift Spectrum vs Athena vs loading the data?</summary><div class="ans"><p>Load hot, frequently joined data into Redshift. Use Spectrum to join S3 data with Redshift tables from one SQL endpoint. Use Athena for standalone ad-hoc lake queries with no warehouse involved. All three can share the Glue Data Catalog.</p></div></details>
+  <details class="qa"><summary>What is data sharing and when do you use it?</summary><div class="ans"><p>Live, zero-copy access to Redshift data across clusters, workgroups, accounts and regions. Uses: isolating ETL from BI compute, hub-and-spoke or data-mesh designs, giving business units their own compute and cost, and monetizing data through Data Exchange. Consumers can now also write.</p></div></details>
+  <details class="qa"><summary>Serverless or provisioned? Defend your choice.</summary><div class="ans"><p>Serverless for new, spiky or dev workloads: no capacity planning, and you pay only while queries run. Provisioned RA3/RG with reserved nodes when the load is steady 24×7 and predictable, so the commitment is cheaper and you get fine WLM control. AWS's guidance, and the class's, is to start serverless and re-evaluate once usage is understood.</p></div></details>
+  <details class="qa"><summary>How do you secure a Redshift warehouse holding PII?</summary><div class="ans"><p>Private VPC with no public access, KMS encryption, TLS. IAM or SSO identities with RBAC roles. RLS for row restrictions, dynamic masking or column grants for PII, Lake Formation for lake data, Secrets Manager for credentials, and audit logging plus CloudTrail for evidence.</p></div></details>
+  <details class="qa"><summary>How do you control Redshift cost?</summary><div class="ans"><p>Serverless usage limits and max RPU; the right base RPU; reservations; pausing dev clusters; MVs and the result cache to avoid recomputation; offloading cold data to S3/Iceberg; Spectrum and concurrency-scaling limits; monitoring <code>sys_serverless_usage</code>; tearing down unused environments.</p></div></details>
+  <details class="qa"><summary>What changed in Redshift recently that I should mention?</summary><div class="ans"><p>Graviton RG instances (2026), DC2 deprecation, Iceberg writes, ALTER and v3 support, Iceberg materialized views, AI-driven Serverless scaling with price-performance targets, a 4-RPU minimum base, multi-warehouse writes, zero-ETL expansion, and Python UDFs reaching end of support (use Lambda or SQL UDFs).</p></div></details>
+
+  <div class="qa-group">COPY and UNLOAD deep dive</div>
+  <details class="qa"><summary>Walk me through what happens when you run COPY from S3.</summary><div class="ans"><p>The leader lists the S3 objects (or reads the manifest) and assigns files to slices. Each slice downloads, decompresses, parses and encodes its files in parallel, then writes column blocks. Distribution decides which slice finally stores each row. The load is one transaction: it either commits fully or rolls back, and errors go to <code>sys_load_error_detail</code>. On an empty table, COPY can also choose encodings (COMPUPDATE) and update stats (STATUPDATE).</p></div></details>
+  <details class="qa"><summary>Your COPY of one 20 GB CSV takes 40 minutes. How do you speed it up?</summary><div class="ans"><p>A single uncompressed file means one slice does the parsing. Split it into many equal, compressed files (count a multiple of the slice count, 1 MB–1 GB each), or better, convert to Parquet in the silver layer. Load into a staging table with COMPUPDATE and STATUPDATE off, check the bucket is in the same region, and make sure the target's sort key isn't forcing a huge re-sort.</p></div></details>
+  <details class="qa"><summary>How do you make sure COPY loads exactly the right files, once?</summary><div class="ans"><p>Use a <b>manifest</b> listing the exact keys with <code>mandatory: true</code>, and record loaded manifests in an audit table. Alternatives: COPY JOB auto-copy (tracks loaded files itself), or moving processed files to an <code>archive/</code> prefix. Combine with an upsert so a replay is still harmless.</p></div></details>
+  <details class="qa"><summary>COPY failed with "Invalid digit" on row 1. What happened?</summary><div class="ans"><p>The header row was read as data. Add <code>IGNOREHEADER 1</code>. If it's a mid-file value like "N/A", use <code>NULL AS 'N/A'</code> or clean the data upstream. Always confirm the line and column in <code>sys_load_error_detail</code> before changing options.</p></div></details>
+  <details class="qa"><summary>Why UNLOAD instead of SELECT to export 500 million rows?</summary><div class="ans"><p>SELECT sends every row through the leader to one client, which makes it slow and memory-heavy. UNLOAD has all slices write files to S3 in parallel, in Parquet with partitions if you like, encrypted with KMS. Downstream engines (Athena, Spark, Spectrum) read them directly.</p></div></details>
+  <details class="qa"><summary>Can COPY do an upsert by itself?</summary><div class="ans"><p>No. COPY only appends. Upsert is a pattern: COPY into staging, then DELETE+INSERT or MERGE into the target in one transaction. That's exactly what the lab's preactions and postactions do.</p></div></details>
+
+  <div class="qa-group">Sort keys and distribution scenarios</div>
+  <details class="qa"><summary>Most queries filter on order_date and join on customer_id. Design the keys.</summary><div class="ans"><p><code>DISTKEY(customer_id)</code> on the fact and the customer dimension, so the join is colocated (DS_DIST_NONE). <code>SORTKEY(order_date)</code> on the fact for zone-map pruning on date filters. Check customer_id isn't skewed (no giant "guest" customer). If it is, consider AUTO or EVEN plus a smaller dimension as ALL.</p></div></details>
+  <details class="qa"><summary>You chose DISTKEY(country) and one slice is 10× bigger. Why, and what now?</summary><div class="ans"><p>Low cardinality and an uneven value distribution: a few countries dominate, so hashing puts their rows on the same slice. That slice becomes the bottleneck for every query. Switch to a high-cardinality key (order_id or customer_id) or AUTO with <code>ALTER TABLE … ALTER DISTSTYLE</code>, then confirm with <code>skew_rows</code>.</p></div></details>
+  <details class="qa"><summary>Why does filtering on DATE(order_ts) ignore my sort key?</summary><div class="ans"><p>Wrapping the column in a function hides its raw min/max from zone-map pruning. Filter the raw column with a range instead: <code>order_ts &gt;= '2026-10-01' AND order_ts &lt; '2026-10-02'</code>.</p></div></details>
+  <details class="qa"><summary>Why can a compound sort key on (region, order_date) be useless for a date-only filter?</summary><div class="ans"><p>Compound sorting is hierarchical. Data is ordered by region first, so dates are scattered across every region's block range and the date min/max per block is wide. Put the most common filter column first, usually the date.</p></div></details>
+  <details class="qa"><summary>When does ALL distribution hurt?</summary><div class="ans"><p>When the table is large or changes often. Every insert or update is written to every node, storage multiplies by the node count, and loads slow down. Keep ALL for small, slowly changing dimensions.</p></div></details>
+  <details class="qa"><summary>What's a merge join and how do you get one?</summary><div class="ans"><p>The fastest join: both tables are distributed and sorted on the join column, so slices stream through both in order with no hash table. It needs matching DISTKEY and SORTKEY on the join column and mostly sorted (vacuumed) data.</p></div></details>
+
+  <div class="qa-group">Data API and connectivity</div>
+  <details class="qa"><summary>What is the Redshift Data API and why would you use it?</summary><div class="ans"><p>An HTTPS API (through the AWS SDK or CLI) for running SQL without drivers or persistent connections. It's asynchronous (ExecuteStatement → DescribeStatement → GetStatementResult) and authenticates with IAM temporary credentials, Secrets Manager or Identity Center, so there are no passwords in code. It's ideal for Lambda, Step Functions, scripts and CI/CD; less suited to BI tools or huge result sets.</p></div></details>
+  <details class="qa"><summary>Data API vs JDBC: when do you pick each?</summary><div class="ans"><p>Data API: serverless and event-driven callers, short-lived functions, no VPC networking for the caller, async long queries. JDBC/ODBC: BI tools, dbt, interactive sessions, streaming large results, and anything needing session features continuously (though the Data API now offers session reuse).</p></div></details>
+  <details class="qa"><summary>How do you run several statements atomically via the Data API?</summary><div class="ans"><p><code>BatchExecuteStatement</code>. Statements run in order, and the default <code>ExecutionMode=TRANSACTION</code> commits all or rolls back all. <code>AUTO_COMMIT</code> commits each one individually.</p></div></details>
+  <details class="qa"><summary>Name the Data API limits.</summary><div class="ans"><p>Query up to 24 hours; results retained 24 hours; result size up to 500 MB (gzipped); statement up to 200 KB; 500 active queries per cluster or workgroup; sessions kept alive up to 24 hours, one query at a time per session; client token valid 8 hours.</p></div></details>
+  <details class="qa"><summary>How do you avoid a Lambda waiting on a long Redshift query?</summary><div class="ans"><p>Submit with the Data API and return immediately. Then either let Step Functions poll DescribeStatement in a Wait/Choice loop, or set <code>WithEvent=true</code> so EventBridge fires on completion and triggers the next step.</p></div></details>
+  <details class="qa"><summary>Can you parameterize a table name in a Data API call?</summary><div class="ans"><p>No. Named parameters (<code>:name</code>) replace values only, never identifiers such as table or column names, which also protects against SQL injection. For dynamic identifiers, validate against an allow-list in code, or use a stored procedure with <code>EXECUTE</code> and <code>QUOTE_IDENT</code>.</p></div></details>
+
+  <div class="qa-group">SQL, objects and admin</div>
+  <details class="qa"><summary>CTAS vs CREATE TABLE LIKE vs SELECT INTO?</summary><div class="ans"><p>CTAS creates and fills a table from a query, but doesn't copy constraints, IDENTITY, defaults or the PK, so state your dist and sort keys. LIKE copies the structure (columns, NOT NULL, dist and sort keys) with no data, which is perfect for staging tables. SELECT INTO is CTAS in different syntax.</p></div></details>
+  <details class="qa"><summary>Why does TRUNCATE inside my transaction break the rollback?</summary><div class="ans"><p>TRUNCATE commits the current transaction implicitly. If you need all-or-nothing behavior (readers must never see an empty table), use <code>DELETE FROM</code> inside BEGIN…COMMIT instead. It's slower but transactional, and VACUUM reclaims the space later.</p></div></details>
+  <details class="qa"><summary>A new table was created and analysts can't see it. Why?</summary><div class="ans"><p>Grants apply to existing objects. A new table needs its own grant, or set <code>ALTER DEFAULT PRIVILEGES IN SCHEMA … GRANT SELECT ON TABLES TO ROLE analyst</code> so future tables inherit access. Also check USAGE on the schema.</p></div></details>
+  <details class="qa"><summary>Redshift has no indexes. How does it find rows fast?</summary><div class="ans"><p>Zone maps (min/max per 1 MB block) plus sort keys let it skip blocks, and MPP scans the rest in parallel. Distribution keys colocate joins. Materialized views and the result cache avoid recomputation.</p></div></details>
+  <details class="qa"><summary>Stored procedure vs UDF vs materialized view?</summary><div class="ans"><p>A procedure runs multi-step logic and DML (ETL, MERGE, audit), called with CALL. A UDF is a scalar function used inside queries (SQL or Lambda; Python UDFs are past end of support). A materialized view stores a query's result for fast reads, with refresh.</p></div></details>
+  <details class="qa"><summary>Which system views would you check first, and why SYS_?</summary><div class="ans"><p><code>sys_query_history</code> (what ran and how long), <code>svv_table_info</code> (skew, unsorted, stats), <code>sys_load_error_detail</code> (load failures), <code>svv_transactions</code>/<code>stv_locks</code> (blocking). SYS_ views work on both Serverless and provisioned; STL and STV are provisioned-era views.</p></div></details>
+
+  <div class="qa-group">Scenario and troubleshooting</div>
+  <details class="qa"><summary>A dashboard query hangs and nothing seems to run. What do you check?</summary><div class="ans"><p>Locks. Query <code>svv_transactions</code> or <code>stv_locks</code> for a session holding a lock, often an idle transaction someone never committed or a long ETL job. Decide whether to wait or <code>PG_TERMINATE_BACKEND(pid)</code>. Prevent it with statement timeouts, short transactions, and splitting ETL and BI onto separate workgroups.</p></div></details>
+  <details class="qa"><summary>Duplicates appeared in the fact table even though order_id is the PRIMARY KEY. How?</summary><div class="ans"><p>PKs aren't enforced. Likely causes: a replayed file with plain INSERT, two overlapping runs, or a source batch that contained duplicates. Fix the data with ROW_NUMBER dedup into a new table and swap. Prevent it with stage dedup, MERGE or DELETE+INSERT, single-run orchestration, and a uniqueness check in data quality.</p></div></details>
+  <details class="qa"><summary>Glue can't connect to Redshift: "Communications link failure". What's wrong?</summary><div class="ans"><p>Networking. Glue runs ENIs in the connection's subnet and needs a security group with a self-referencing inbound rule, a route to S3 (gateway endpoint or NAT) for its temp dir, and the right port or endpoint. The lab's setup step 6 did exactly this.</p></div></details>
+  <details class="qa"><summary>Your Serverless bill doubled last week. How do you investigate?</summary><div class="ans"><p><code>sys_serverless_usage</code> for when RPUs spiked, joined to <code>sys_query_history</code> for which queries and users ran then. Look for runaway ad-hoc scans, a new job, a raised base RPU, or MVs refreshing too often. Then set max RPU-hours usage limits, max capacity and query limits.</p></div></details>
+  <details class="qa"><summary>You must backfill 3 years of data without hurting daytime dashboards. Plan?</summary><div class="ans"><p>Generate partitioned Parquet in S3 and COPY in chunks (per month) into staging, then MERGE or APPEND into the target. Run it off-hours or on a separate ETL workgroup over a data share. Run VACUUM and ANALYZE after, monitor queue time, and make each chunk idempotent so failures can be retried.</p></div></details>
+  <details class="qa"><summary>How do you migrate an on-prem Teradata warehouse to Redshift?</summary><div class="ans"><p>Assess with AWS SCT (or DMS Schema Conversion), convert DDL and procedures, and map PI → DISTKEY and PPI → SORTKEY. Export history to S3 and COPY it, then run DMS CDC (or extracts) in parallel. Validate counts and checksums, run both systems side by side, then cut over BI tools. Retire BTEQ scripts in favor of procedures or dbt.</p></div></details>
+  <div class="done-row"><label><input type="checkbox" data-done="interview"> Mark section done</label></div>
+</section>
+
+<!-- ============ CHEAT ============ -->
+<section class="ch" id="cheat" style="--c:var(--ink)">
+  <div class="ch-head"><div class="ch-num">≡</div><div><div class="eyebrow">Revise in 5 minutes</div><h2>Cheat sheet</h2></div></div>
+  <div class="cards">
+    <div class="card"><span class="tag">Numbers</span><h4>Remember these</h4><ul><li>Block size: 1 MB</li><li>1 RPU = 16 GB memory</li><li>Base RPU: 4 → 1024 (default 128)</li><li>Port 5439</li><li>Max columns per table: 1,600</li><li>Spectrum: about $5/TB scanned (provisioned)</li><li>Serverless recovery points: every 30 minutes, kept 24 hours</li><li>Snapshot retention: 1–35 days</li></ul></div>
+    <div class="card"><span class="tag">Defaults</span><h4>What AUTO means</h4><ul><li>DISTSTYLE AUTO</li><li>SORTKEY AUTO</li><li>ENCODE AUTO (AZ64 for numbers and dates)</li><li>Auto vacuum delete, auto analyze</li><li>Auto WLM, SQA on</li><li>Price-performance: Balanced</li></ul></div>
+    <div class="card"><span class="tag">Gotchas</span><h4>Interview traps</h4><ul><li>PK/FK/UNIQUE not enforced</li><li>TRUNCATE auto-commits</li><li>VARCHAR length is in bytes</li><li>Leader-only functions</li><li>Python UDFs: end of support after June 2026</li><li>DC2 deprecated, so migrate</li></ul></div>
+  </div>
+  <pre><code><span class="c">-- Health check for a table</span>
+<span class="k">SELECT</span> "table", size <span class="k">AS</span> mb, tbl_rows, diststyle, sortkey1, skew_rows, unsorted, stats_off
+<span class="k">FROM</span> svv_table_info <span class="k">WHERE</span> "schema" = 'public';
+
+<span class="c">-- Recent load errors</span>
+<span class="k">SELECT</span> * <span class="k">FROM</span> sys_load_error_detail <span class="k">ORDER BY</span> start_time <span class="k">DESC LIMIT</span> 20;
+
+<span class="c">-- Who is running what right now</span>
+<span class="k">SELECT</span> query_id, user_id, status, elapsed_time/1e6 secs, <span class="k">LEFT</span>(query_text,60)
+<span class="k">FROM</span> sys_query_history <span class="k">WHERE</span> status = 'running';
+
+<span class="c">-- Kill a runaway query (provisioned: use the pid from stv_recents)</span>
+<span class="k">SELECT</span> PG_CANCEL_BACKEND(&lt;pid&gt;);
+
+<span class="c">-- Maintenance after a big backfill</span>
+<span class="k">VACUUM FULL</span> public.fact_sales <span class="k">TO</span> 99 <span class="k">PERCENT</span>;
+<span class="k">ANALYZE</span> public.fact_sales;
+
+<span class="c">-- Lab verification queries</span>
+<span class="k">SELECT COUNT</span>(*) <span class="k">FROM</span> public.target_sales;                  <span class="c">-- 899, then 909 after sales2.csv</span>
+<span class="k">SELECT</span> * <span class="k">FROM</span> public.target_sales_by_region <span class="k">ORDER BY</span> total_revenue <span class="k">DESC</span>;  <span class="c">-- 7 rows</span>
+<span class="k">SELECT COUNT</span>(*) <span class="k">FROM</span> public.target_sales_by_country_item;   <span class="c">-- 736</span></code></pre>
+  <div class="done-row"><label><input type="checkbox" data-done="cheat"> Mark section done</label></div>
+</section>
+
+<!-- ============ NEW ============ -->
+<section class="ch" id="new" style="--c:var(--s8)">
+  <div class="ch-head"><div class="ch-num">26</div><div><div class="eyebrow">Stay current · researched October 2026</div><h2>What's new in Redshift, 2025–2026</h2></div></div>
+  <div class="tbl"><table>
+    <tr><th>When</th><th>Change</th><th>Why you care</th></tr>
+    <tr><td class="num">Apr 2025</td><td>DC2 instances deprecated; migrate to RA3 or Serverless</td><td>Legacy-cluster migration is a common project and interview topic</td></tr>
+    <tr><td class="num">2025</td><td>AI-driven scaling and price-performance targets for Serverless, on by default (Balanced); 4-RPU minimum base</td><td>Cost and performance tuning answers for Serverless</td></tr>
+    <tr><td class="num">May 2026</td><td>Graviton-based <b>RG</b> instances (rg.xlarge, rg.4xlarge), with a built-in data-lake query engine</td><td>New default node family for provisioned clusters</td></tr>
+    <tr><td class="num">May 2026</td><td>Iceberg writes through the Glue Data Catalog mount, plus ALTER TABLE for Iceberg</td><td>Redshift is now a lakehouse write engine</td></tr>
+    <tr><td class="num">Jun 2026</td><td>Python UDF end of support (after June 30, 2026)</td><td>Move to Lambda UDFs or SQL UDFs</td></tr>
+    <tr><td class="num">Jul 2026</td><td>rg.large and rg.12xlarge sizes</td><td>RG covers small to large clusters</td></tr>
+    <tr><td class="num">Aug 2026</td><td>Apache Iceberg v3 tables (deletion vectors, row lineage, default values)</td><td>Faster row-level deletes on lake tables</td></tr>
+    <tr><td class="num">Aug 2026</td><td>Long-term system-table retention to S3 Tables</td><td>Audit and performance history beyond 7 days</td></tr>
+    <tr><td class="num">Sep 2026</td><td>Automatic resolution of non-conflicting concurrent Iceberg writes; ODBC 1.x driver end of support</td><td>Multi-writer lakehouse pipelines; driver upgrades</td></tr>
+    <tr><td class="num">Oct 2026</td><td>Create and refresh Iceberg materialized views in S3 or S3 table buckets</td><td>Precomputed results shared with other engines</td></tr>
+  </table></div>
+  <h3>Sources</h3>
+  <ul class="src">
+    <li><a href="https://docs.aws.amazon.com/redshift/latest/mgmt/serverless-capacity.html" target="_blank" rel="noopener">Compute capacity for Amazon Redshift Serverless (AWS docs)</a></li>
+    <li><a href="https://aws.amazon.com/blogs/aws/amazon-redshift-introduces-aws-graviton-based-rg-instances-with-an-integrated-data-lake-query-engine" target="_blank" rel="noopener">Redshift introduces Graviton-based RG instances (AWS News Blog)</a></li>
+    <li><a href="https://aws.amazon.com/about-aws/whats-new/2026/07/amazon-redshift-adds-rg-large-12xlarge-instance-sizes" target="_blank" rel="noopener">Redshift adds rg.large and rg.12xlarge (What's New)</a></li>
+    <li><a href="https://aws.amazon.com/about-aws/whats-new/2026/05/amazon-redshift-alter-table-iceberg/" target="_blank" rel="noopener">ALTER TABLE for Iceberg and writes via the Glue Data Catalog mount (What's New)</a></li>
+    <li><a href="https://aws.amazon.com/about-aws/whats-new/2026/08/amazon-redshift-supports-apache-iceberg-v3/" target="_blank" rel="noopener">Redshift supports Apache Iceberg v3 (What's New)</a></li>
+    <li><a href="https://aws.amazon.com/about-aws/whats-new/2026/10/redshift-iceberg-materialized-views/" target="_blank" rel="noopener">Iceberg materialized views (What's New)</a></li>
+    <li><a href="https://aws.amazon.com/about-aws/whats-new/2026/08/redshift-long-term-system-table-retention/" target="_blank" rel="noopener">Long-term system table retention (What's New)</a></li>
+    <li><a href="https://docs.aws.amazon.com/redshift/latest/mgmt/behavior-changes.html" target="_blank" rel="noopener">Behavior changes in Amazon Redshift (AWS docs)</a></li>
+    <li><a href="https://aws.amazon.com/blogs/big-data/amazon-redshift-dc2-migration-approach-with-a-customer-case-study" target="_blank" rel="noopener">DC2 migration approach (AWS Big Data Blog)</a></li>
+    <li><a href="https://aws.amazon.com/about-aws/whats-new/2024/11/amazon-redshift-multi-data-warehouse-through-data-sharing" target="_blank" rel="noopener">Multi-warehouse writes through data sharing GA (What's New)</a></li>
+  </ul>
+  <div class="done-row"><label><input type="checkbox" data-done="new"> Mark section done</label></div>
+  <p class="foot">Built from the Glue + Redshift class transcript, the lab files (setup script, Glue jobs, lab guide) and AWS documentation. Prices and limits change, so check the AWS pricing page before quoting exact numbers.</p>
+</section>
+</main>
+</div>
+
+<script>
+(function(){
+  var KEY='rs-guide-done';
+  var store={};
+  try{store=JSON.parse(localStorage.getItem(KEY)||'{}')||{};}catch(e){store={};}
+  var boxes=document.querySelectorAll('input[data-done]');
+  var links=document.querySelectorAll('#toc a');
+  function paint(){
+    var n=0;
+    boxes.forEach(function(b){var id=b.getAttribute('data-done');b.checked=!!store[id];if(store[id])n++;});
+    links.forEach(function(a){var id=a.getAttribute('href').slice(1);a.classList.toggle('done',!!store[id]);});
+    document.getElementById('prog').textContent=n;
+  }
+  boxes.forEach(function(b){b.addEventListener('change',function(){
+    store[b.getAttribute('data-done')]=b.checked;
+    try{localStorage.setItem(KEY,JSON.stringify(store));}catch(e){}
+    paint();
+  });});
+  paint();
+  var secs=[].slice.call(document.querySelectorAll('section.ch'));
+  if('IntersectionObserver' in window){
+    var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){
+      links.forEach(function(a){a.classList.toggle('on',a.getAttribute('href')==='#'+e.target.id);});
+      var on=document.querySelector('#toc a.on');
+      if(on&&window.innerWidth<=920){on.scrollIntoView({block:'nearest',inline:'center'});}
+    }});},{rootMargin:'-30% 0px -60% 0px'});
+    secs.forEach(function(s){io.observe(s);});
+  }
+  document.getElementById('openAll').addEventListener('click',function(){document.querySelectorAll('#interview details.qa').forEach(function(d){d.open=true;});});
+  document.getElementById('closeAll').addEventListener('click',function(){document.querySelectorAll('#interview details.qa').forEach(function(d){d.open=false;});});
+  if(location.hash){var t=document.getElementById(location.hash.slice(1));if(t)t.scrollIntoView();}
+})();
+</script>
+
+
+<a href="../" aria-label="All courses" style="position:fixed;z-index:60;right:max(14px,env(safe-area-inset-right,0px));bottom:calc(14px + env(safe-area-inset-bottom,0px));background:#0a7560;color:#fff;font:700 13px system-ui,sans-serif;text-decoration:none;padding:9px 13px;border-radius:999px;box-shadow:0 2px 10px rgba(0,0,0,.25)">&#8962; All courses</a>
+</body></html>
