@@ -12,7 +12,7 @@ Self-study guides for AWS data engineering, APIs, FastAPI and agentic AI. Each o
 | AgentCore Runtime Handbook | Deploying a FastAPI + LangGraph agent to Amazon Bedrock AgentCore Runtime | [open](https://sai-kumar-reddy-korsapati.github.io/aws-de/agentcore/) |
 | Lakehouse Interview Roadmap | Build-order route through the AWS lakehouse stack with interview priorities | [open](https://sai-kumar-reddy-korsapati.github.io/aws-de/lakehouse-roadmap/) |
 | PyDSA Interview Workbook | Python data structures and algorithms for data-engineering interviews | [open](https://sai-kumar-reddy-korsapati.github.io/aws-de/pydsa/) |
-| SQL for Data Engineers | SQL from basics to window functions, CTEs, indexes, partitioning and data-warehouse design, with a live SQL editor and interview Q&A | [open](https://sai-kumar-reddy-korsapati.github.io/aws-de/sql-de/) |
+| SQL for AWS Data Engineers | PostgreSQL from basics to window functions, CTEs, PL/pgSQL, indexes and partitioning, plus Redshift, Athena and RDS/Aurora SQL, with a live in-browser Postgres editor and interview kit | [open](https://sai-kumar-reddy-korsapati.github.io/aws-de/sql-de/) |
 
 ## Use it on your phone
 Open the live site, then **Add to Home Screen** (Safari share menu, or Chrome's ⋮ menu).
