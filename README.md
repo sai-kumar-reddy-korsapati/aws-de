@@ -13,7 +13,7 @@ Self-study guides for AWS data engineering, APIs, FastAPI and agentic AI. Each o
 | Lakehouse Interview Roadmap | Build-order route through the AWS lakehouse stack with interview priorities | [open](https://sai-kumar-reddy-korsapati.github.io/aws-de/lakehouse-roadmap/) |
 | PyDSA Interview Workbook | Python data structures and algorithms for data-engineering interviews | [open](https://sai-kumar-reddy-korsapati.github.io/aws-de/pydsa/) |
 | SQL for AWS Data Engineers | PostgreSQL from basics to window functions, CTEs, PL/pgSQL, indexes and partitioning, plus Redshift, Athena and RDS/Aurora SQL, with a live in-browser Postgres editor and interview kit | [open](https://sai-kumar-reddy-korsapati.github.io/aws-de/sql-de/) |
-| PySpark for AWS Data Engineers | PySpark basics to advanced: internals, explain plans, Spark UI and logs, optimization, debugging failures and slow jobs, Glue/EMR/Iceberg, coding round and scenario questions | [open](https://sai-kumar-reddy-korsapati.github.io/aws-de/pyspark-de/) |
+| PySpark for AWS Data Engineers | 88-lesson course on Spark 3.5.6+ (Glue 5.1, EMR 7.x) with animated diagrams and real output: internals, explain plans, Spark UI and logs, tuning, debugging, Glue/EMR, Iceberg maintenance, streaming, Spark 4 (labelled), coding round and interview prep | [open](https://sai-kumar-reddy-korsapati.github.io/aws-de/pyspark-de/) |
 
 ## Use it on your phone
 Open the live site, then **Add to Home Screen** (Safari share menu, or Chrome's ⋮ menu).
