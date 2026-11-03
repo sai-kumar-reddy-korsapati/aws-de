@@ -9,7 +9,7 @@ Self-study guides for AWS data engineering, APIs, FastAPI and agentic AI. Each o
 | API Mastery Track | 45 plain-language lessons: API basics, errors, auth, data pipelines that call APIs, FastAPI, tool calling and MCP | [open](https://sai-kumar-reddy-korsapati.github.io/aws-de/api-mastery-track/) |
 | DEA-C01 Study Hub | AWS Certified Data Engineer – Associate exam prep | [open](https://sai-kumar-reddy-korsapati.github.io/aws-de/dea-c01/) |
 | Redshift Field Guide | Architecture, distribution and sort keys, COPY, Spectrum, WLM, Serverless | [open](https://sai-kumar-reddy-korsapati.github.io/aws-de/redshift/) |
-| AgentCore Runtime Handbook | Deploying a FastAPI + LangGraph agent to Amazon Bedrock AgentCore Runtime | [open](https://sai-kumar-reddy-korsapati.github.io/aws-de/agentcore/) |
+| AgentCore Runtime Handbook | Building agents on Amazon Bedrock AgentCore (harness or your own LangGraph code), connecting a UI, evals | [open](https://sai-kumar-reddy-korsapati.github.io/aws-de/agentcore/) |
 | Lakehouse Interview Roadmap | Build-order route through the AWS lakehouse stack with interview priorities | [open](https://sai-kumar-reddy-korsapati.github.io/aws-de/lakehouse-roadmap/) |
 | PyDSA Interview Workbook | Python data structures and algorithms for data-engineering interviews | [open](https://sai-kumar-reddy-korsapati.github.io/aws-de/pydsa/) |
 | SQL for AWS Data Engineers | PostgreSQL from basics to window functions, CTEs, PL/pgSQL, indexes and partitioning, plus Redshift, Athena and RDS/Aurora SQL, with a live in-browser Postgres editor and interview kit | [open](https://sai-kumar-reddy-korsapati.github.io/aws-de/sql-de/) |

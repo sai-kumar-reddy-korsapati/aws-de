@@ -1,10 +1,11 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style><title>AgentCore Runtime Handbook</title>
-<meta name="description" content="Deploy a FastAPI + LangGraph agent to Amazon Bedrock AgentCore Runtime, step by step.">
+<meta name="description" content="Amazon Bedrock AgentCore for data engineers: build an agent with a harness or deploy your own LangGraph code, connect a UI, and run evals.">
 <meta name="theme-color" content="#0a7560">
 <link rel="icon" href="../icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="../icon-180.png">
 <link rel="manifest" href="../manifest.webmanifest">
 </head><body>
+<meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Source+Sans+3:ital,wght@0,400;0,600;0,700;1,400&family=JetBrains+Mono:wght@400;600&display=swap">
 <style>
@@ -410,16 +411,48 @@ tests/
 agentcore/
 </script>
 
-<script type="text/x-code" id="sh-new-project" data-name="terminal — NEW agent: let the CLI create the project">
-# see the starter templates
-agentcore create --help
+<script type="text/x-code" id="sh-new-project" data-name="terminal — NEW agent: let the CLI create the project (CLI v1.0)">
+# Just "agentcore create" opens a wizard. First question:
+#   Harness (config-based)  or  Code-based (Runtime)?
+# Passing only --name creates a HARNESS project.
+# Passing --template creates a CODE project.
+
+agentcore create --help                                  # list the templates
 
 # a LangChain/LangGraph-style starter that deploys as a zip (no Docker needed)
 agentcore create --name MyAgent --template agent-python-langchain
 cd MyAgent
-agentcore dev          # run it locally
-agentcore deploy       # put it on AWS
-agentcore invoke       # ask it something
+agentcore dev --mode browser   # run locally + open a small test page in your browser
+agentcore deploy               # put it on AWS
+agentcore invoke --runtime agent --payload '{"prompt":"Hello"}'
+</script>
+
+<script type="text/x-code" id="yaml-harness" data-name="harness.yaml — a harness is just settings (what the CLI generates, simplified)">
+# The CLI writes this file when you create a Harness project.
+# Field names can shift between versions: open the generated file and edit it.
+name: SupportHarness
+model:
+  provider: bedrock
+  modelId: us.anthropic.claude-sonnet-4-6
+instructions: |
+  You are a support agent for an online store.
+  Answer order and refund questions briefly.
+tools:
+  - agentcore_code_interpreter     # built-in: run Python safely
+  - agentcore_browser              # built-in: browse web pages
+  # - agentcore_gateway            # your own tools (Lambdas, APIs, Step Functions)
+memory: managed                     # default: remembers facts + summaries, 30-day expiry
+</script>
+
+<script type="text/x-code" id="sh-harness-cli" data-name="terminal — harness from the CLI">
+agentcore create --name SupportHarness        # wizard: Name -> Type: Harness -> Model -> Confirm
+cd SupportHarness
+# edit harness.yaml: instructions, model, tools
+agentcore deploy
+agentcore invoke --harness SupportHarness --payload '{"prompt":"What is your refund policy?"}'
+
+# outgrew it? turn it into Python code (Strands) you own and can extend
+agentcore export harness --name SupportHarness --output ./my-agent
 </script>
 
 <script type="text/x-code" id="sh-existing" data-name="terminal — EXISTING agent (what we did for support-agent)">
@@ -483,7 +516,7 @@ agentcore invoke --runtime SupportAgent --session-id $S --payload '{"prompt":"Wh
 import json, os, sys, uuid, boto3
 
 ARN = os.getenv("AGENT_ARN",
-    "arn:aws:bedrock-agentcore:us-east-1:123456789012:runtime/SupportAgent_default_SupportAgent-Sby4uN4HRH")
+    "arn:aws:bedrock-agentcore:us-east-1:969849534854:runtime/SupportAgent_default_SupportAgent-Sby4uN4HRH")
 
 client = boto3.client("bedrock-agentcore", region_name="us-east-1")
 
@@ -510,9 +543,11 @@ uv run python invoke.py "Where is order A1004?"
 </script>
 
 <script type="text/x-code" id="sh-logs" data-name="terminal — see what the agent is doing">
-agentcore logs            # the agent's print/log lines
-agentcore traces --help   # step-by-step traces (which tool, how long)
-agentcore status          # what is deployed, ARN
+agentcore logs runtime                          # the agent's print/log lines
+agentcore logs runtime --since 30m --level error  # only errors from the last 30 min
+agentcore traces runtime list --since 30m       # step-by-step timelines (which tool, how long)
+agentcore traces runtime get <trace-id>         # one timeline in detail
+agentcore status                                # what is deployed, ARN
 </script>
 
 <script type="text/x-code" id="py-lambda" data-name="lambda_function.py — the receptionist">
@@ -556,8 +591,8 @@ def lambda_handler(event, context):
     "Effect": "Allow",
     "Action": "bedrock-agentcore:InvokeAgentRuntime",
     "Resource": [
-      "arn:aws:bedrock-agentcore:us-east-1:123456789012:runtime/SupportAgent_default_SupportAgent-Sby4uN4HRH",
-      "arn:aws:bedrock-agentcore:us-east-1:123456789012:runtime/SupportAgent_default_SupportAgent-Sby4uN4HRH/*"
+      "arn:aws:bedrock-agentcore:us-east-1:969849534854:runtime/SupportAgent_default_SupportAgent-Sby4uN4HRH",
+      "arn:aws:bedrock-agentcore:us-east-1:969849534854:runtime/SupportAgent_default_SupportAgent-Sby4uN4HRH/*"
     ]
   }]
 }
@@ -650,7 +685,7 @@ usage:  uv run python eval_golden.py"""
 import json, os, uuid, boto3
 
 ARN = os.getenv("AGENT_ARN",
-    "arn:aws:bedrock-agentcore:us-east-1:123456789012:runtime/SupportAgent_default_SupportAgent-Sby4uN4HRH")
+    "arn:aws:bedrock-agentcore:us-east-1:969849534854:runtime/SupportAgent_default_SupportAgent-Sby4uN4HRH")
 client = boto3.client("bedrock-agentcore", region_name="us-east-1")
 
 #  question                                must contain        must NOT contain
@@ -679,8 +714,9 @@ print(f"\n{passed}/{len(CASES)} passed")
 # 0. make some traffic first; traces need 5–10 minutes to show up
 uv run python eval_golden.py
 
-# 1. see the evaluation commands your CLI version has
-agentcore eval --help
+# 1. grade recent chats right now (on-demand), using your runtime or harness ID
+agentcore eval --help                             # see all eval commands
+agentcore eval ondemand evaluate --agent <runtime-or-harness-id>
 
 # 2. add your own judge (an LLM that grades answers)
 agentcore add evaluator --help
@@ -696,21 +732,15 @@ agentcore add online-eval --help
 agentcore deploy          # creates the evaluators in AWS
 </script>
 
-<script type="text/x-code" id="sh-harness" data-name="terminal — managed harness (agent from settings, no code)">
-agentcore add harness --help     # model + instructions + tools, as settings
-agentcore deploy
-agentcore invoke --harness <name> --payload '{"prompt":"hello"}'
-agentcore export --help          # outgrew it? turn it into code you own
-</script>
-
 <script type="text/x-code" id="sh-clean" data-name="terminal — tear it all down">
-# see how to remove the runtime from the project
-agentcore remove --help
-# after removing it, deploy an empty project to delete the AWS stack
+# 1. remove everything from the project's settings
+agentcore remove all --yes
+# 2. deploy the now-empty project = AWS deletes the stack
 agentcore deploy --yes
 
 # or in the console: CloudFormation -> stack "AgentCore-SupportAgent-default" -> Delete
-# also delete: the Lambda + its Function URL, and old CloudWatch log groups
+# also delete: the Lambda + its Function URL, any harness you made in the console,
+# and old CloudWatch log groups
 </script>
 
 <script type="text/x-code" id="json-trust" data-name="execution role — trust policy (who may wear the badge)">
@@ -806,19 +836,25 @@ ${eli(`<p>You built a helper program (an <b>agent</b>) on your laptop. This hand
 </ul>
 <h2>The whole journey in one picture</h2>
 ${flow([["Your laptop","agent works locally"],["Lunchbox","code packed in a container"],["Amazon's building","AgentCore Runtime runs it",1],["Receptionist","Lambda lets a website in"],["Report card","evals grade the answers"]])}
+<h2>Two ways to get an agent onto AWS</h2>
+<p>The AgentCore console now opens on an <b>Agents</b> page with two buttons. This handbook teaches both:</p>
+${table(["Console option","What it means","Lesson"],[
+ ["<b>Build agent with harness</b>","Fill a form (model, instructions, tools). AWS runs the agent. No code.","Module 3, first lesson"],
+ ["<b>Deploy your code</b>","Bring your own agent code (like your LangGraph support agent). AWS runs it.","Module 3, the rest"]])}
 <h2>Where you are right now</h2>
-${you(`<ul><li>Agent tested on your laptop (both tests pass with Sonnet 4.6).</li><li>Deployed with the AgentCore CLI. Runtime name <code>SupportAgent</code> in us-east-1.</li><li>Called from <code>agentcore invoke</code> and <code>invoke.py</code>, and it remembers the conversation.</li></ul><p>Next for you: <b>Module 4 (Connect a UI)</b>, then <b>Module 6 (evals)</b>.</p>`)}
+${you(`<ul><li>Agent tested on your laptop (both tests pass with Sonnet 4.6).</li><li>Deployed with the AgentCore CLI using the <b>Deploy your code</b> path. Name <code>SupportAgent</code> in us-east-1.</li><li>Called from <code>agentcore invoke</code> and <code>invoke.py</code>, and it remembers the conversation.</li></ul><p>Next for you: try a <b>harness</b> in the console (10 minutes, Module 3), then <b>Module 4 (Connect a UI)</b> and <b>Module 6 (evals)</b>.</p>`)}
 <h2>Modules</h2>
 <div class="cards" id="modCards"></div>
 `);
 
-add("start","words","10 words you need",5,`
-${eli(`<p>Most of the confusion comes from new words. Here are the only ten you need, each in one line.</p>`)}
+add("start","words","11 words you need",5,`
+${eli(`<p>Most of the confusion comes from new words. Here are the only eleven you need, each in one line.</p>`)}
 ${table(["Word","Simple meaning","You already know it as"],[
  ["Agent","A program where an AI model decides which function to call next","A Step Functions workflow where the next step is chosen by an LLM"],
  ["Tool","A plain Python function the model is allowed to call","A Lambda the workflow can invoke"],
  ["LangGraph","Library to draw the agent's flow as boxes and arrows","Step Functions / Airflow DAG, in Python"],
- ["AgentCore Runtime","Amazon's service that runs your agent in the cloud","Glue: you give code, AWS runs it, you don't manage servers"],
+ ["AgentCore Runtime","Amazon's service that runs your agent code in the cloud","Glue: you give code, AWS runs it, you don't manage servers"],
+ ["Harness","An agent made from settings only; AWS writes and runs the loop","Glue Studio visual job: configure boxes instead of writing the script"],
  ["Container","Your code + Python + libraries sealed in one box","A Glue job's script plus all its <code>--additional-python-modules</code>, frozen together"],
  ["Deploy","Send the box to AWS and switch it on","Saving and publishing a Glue job"],
  ["ARN","The agent's unique address in AWS","Same ARN idea as for an S3 bucket or Lambda"],
@@ -834,19 +870,67 @@ add("idea","what","What AgentCore is",5,`
 ${eli(`<p>AgentCore is a building at Amazon where AI helpers live and work. You bring your helper, Amazon gives it a room, electricity, a security guard and a logbook. You never have to manage the building.</p>`)}
 ${de(`<p>Think of <b>Glue</b>. You write a PySpark script, Glue runs it and you never see a server. AgentCore Runtime does the same for agent code. The big difference: a Glue job runs once and finishes, while an agent waits for people to ask questions and holds a conversation.</p>`)}
 <h2>The building has several rooms</h2>
-<p>You only need the first one to start. The rest are add-ons.</p>
+<p>You only need one of the first two to start. The rest are add-ons you switch on when you need them.</p>
 ${table(["Room","What it does","Do you need it now?"],[
- ["<b>Runtime</b>","Runs your agent code","Yes, this is what you used"],
+ ["<b>Harness</b>","Agent built from settings; AWS runs the thinking loop","One of the two ways to start (Module 3)"],
+ ["<b>Runtime</b>","Runs your own agent code","The other way. This is what you used"],
  ["Observability","Logbook: every question, every tool call, timings","Comes switched on"],
  ["Evaluations","Grades the agent's answers","Module 6"],
  ["Memory","Remembers users across days","Module 5"],
- ["Gateway","Shares tools (APIs, Lambdas) with many agents","Module 5"],
+ ["Gateway","Shares tools (APIs, Lambdas, Step Functions) with many agents","Module 5"],
+ ["Browser · Code Interpreter","Ready-made tools: browse the web, run Python safely","Module 5"],
  ["Identity","Logins and keys for the agent, stored safely","Later"],
- ["Harness","Build an agent from settings, no code","Module 5, nice to know"]])}
+ ["Policy","Rules on what the agent may do (e.g. never refund over 100 USD)","Later"],
+ ["Optimization","Suggests better prompts and tool descriptions from real chats","Later"],
+ ["Registry · Payments","Company catalogue of agents/tools; agents paying for APIs","Not needed yet"]])}
 ${key(`<p>AgentCore works with any agent library (LangGraph, Strands, CrewAI) and any model (Bedrock, OpenAI, Gemini). You did not have to rewrite your LangGraph agent.</p>`)}
 `,[
  {q:"Which AgentCore part actually runs your agent code?",o:["Gateway","Runtime","Memory","Identity"],a:[1],e:"Runtime is the part that runs the code. Everything else is optional."}
 ]);
+
+add("idea","twoways","Two ways to build: harness or your code",6,`
+${eli(`<p>There are two ways to get an agent. <b>Harness</b> is a meal kit: you pick the dish (model), write the recipe card (instructions) and choose ingredients (tools); Amazon's chef cooks it. <b>Deploy your code</b> is your own kitchen recipe: you wrote every step (your LangGraph), and Amazon just gives you the kitchen.</p>`)}
+${de(`<p><b>Harness</b> = a Glue Studio visual job: drag and configure, no script. <b>Deploy your code</b> = a Glue job with your own PySpark script. Same engine underneath (Runtime), different amount of control. A harness can even be "exported" to code later, like Glue Studio's "view script".</p>`)}
+${table(["","Build agent with harness","Deploy your code"],[
+ ["You provide","Model, instructions, tools (a form or harness.yaml)","Your code + Dockerfile or zip"],
+ ["Who writes the thinking loop","AWS","You (LangGraph, Strands, CrewAI…)"],
+ ["Time to first answer","About 10 minutes in the console","An hour or more the first time"],
+ ["Custom steps, validation, branching","Limited (hooks for allow/deny)","Anything you can code"],
+ ["Switch model","Change one setting","Change env var, redeploy"],
+ ["Good for","Helpers, prototypes, internal Q&amp;A, research assistants","Production flows, data pipelines with checks, your support-agent"]])}
+<h2>How to choose in one line</h2>
+<p><b>Start with a harness.</b> When you need a fixed sequence of steps or your own Python logic in the middle, move to your own code. Many teams prototype in a harness and export it.</p>
+${key(`<p>Both run on the same Runtime underneath, so sessions, memory, logs, evaluations and the Lambda "receptionist" from Module 4 work the same way for both.</p>`)}
+`,[
+ {q:"Your agent must validate an order, query Athena, check a rule, then reply. Which option?",o:["Build agent with harness","Deploy your code","Either is identical","Neither"],a:[1],e:"Fixed steps with your own checks in between need your own code (like your LangGraph flow)."},
+ {q:"You want a working research assistant by this afternoon. Which option?",o:["Build agent with harness","Deploy your code"],a:[0],e:"A harness needs only a model, instructions and tools. No code, no container."}
+]);
+
+add("idea","console","Tour of the new console",6,`
+${eli(`<p>The AgentCore console was reorganised around <b>agents</b>. Instead of starting from technical pieces ("Runtime"), you start from what you want: build an agent, give it tools, give it memory, check its quality.</p>`)}
+<h2>Open it</h2>
+${steps(["Go to console.aws.amazon.com and set the region (top right) to <b>N. Virginia (us-east-1)</b>.","Search <b>Bedrock AgentCore</b>.","The left menu is your map. The table below says what each part is for."])}
+<h2>What each part of the menu is for</h2>
+${table(["Menu area","What you do there","Old name / where it was"],[
+ ["<b>Agents</b>","See all your agents. Create one with <b>Build agent with harness</b> or <b>Deploy your code</b>. Open an agent to test it, see versions and endpoints.","Used to be <i>Runtime</i> (code) and <i>Harness preview</i> (no code) as separate pages"],
+ ["Gateway / tools","Turn Lambdas, APIs, MCP servers and Step Functions into tools agents can use","Gateway"],
+ ["Built-in tools","Browser (watch the agent browse live) and Code Interpreter","Same"],
+ ["Memory","Long-term memory stores, their strategies and records","Same"],
+ ["Identity","Logins and API keys the agent uses to call other services","Same"],
+ ["Evaluations","Create evaluation configurations that grade your agent's answers","Same, now simpler"],
+ ["Policy","Rules that allow or block what the agent does","Same"],
+ ["Observability","Opens CloudWatch GenAI Observability: sessions, traces, scores","CloudWatch"]])}
+${trap(`<p>AWS keeps polishing the console, so a label may read slightly differently on your screen. Look for the closest match to the names above. Your agent built with the CLI shows up under <b>Agents</b> too: CLI and console are two windows onto the same thing.</p>`)}
+<h2>"Deploy your code" in the console, step by step</h2>
+${steps([
+ "<b>Agents → Deploy your code</b>.",
+ "<b>Name</b> it (letters, numbers, underscores).",
+ "<b>Code source</b>: pick your container image from ECR, or a zip in S3.",
+ "<b>Permissions</b>: let the console create the agent's role, or pick one.",
+ "<b>Inbound auth</b>: IAM (default) or JWT login. <b>Network</b>: Public. <b>Protocol</b>: HTTP.",
+ "Add environment variables such as <code>MODEL_ID</code>, then <b>Create</b>. Wait for <b>Ready</b> and test it from the agent's page."])}
+${tip(`<p>For repeat deploys, the CLI (<code>agentcore deploy</code>) is faster and keeps everything in your project folder. Use the console to look around, test, and check logs.</p>`)}
+`);
 
 add("idea","why","Why not just use Lambda or EC2?",5,`
 ${eli(`<p>An agent is a chat, not a single task. It must remember each user, keep users apart, wait patiently while a tool runs, and cope with 5 users at night and 5,000 in the morning. AgentCore was built for exactly that.</p>`)}
@@ -871,7 +955,8 @@ ${table(["Signal","Fact"],[
  ["Interest","2 million+ SDK downloads in its first months"],
  ["Users AWS names","Experian, Sony, Ericsson, Thomson Reuters, Cox Automotive, National Australia Bank, Box, Itaú, Innovaccer and others"],
  ["AWS direction","The older Bedrock Agents was closed to new customers on 30 July 2026, and AWS points everyone to AgentCore"],
- ["Pace","Many new features in 2026: evaluations, managed harness, new CLI, faster Runtime V2, EC2-backed instances"]])}
+ ["Pace","2026 alone: evaluations, managed harness (GA June), new CLI 1.0 (Oct), faster Runtime V2 (Sep), Step Functions as agent tools (Oct), a redesigned console built around Agents"],
+ ["Near you","Available in Asia Pacific (Hyderabad) since August 2026"]])}
 ${de(`<p>Your edge: most agent builders know prompts but not data. You know S3, Glue, Athena and Iceberg. Agents that can query a data lake safely are exactly what companies want, and you can build both halves.</p>`)}
 `);
 
@@ -939,7 +1024,35 @@ ${trap(`<p>If you see <code>Missing Dependency ... botocore[crt]</code>, your la
 `);
 
 /* ======================= 3. SHIP ======================= */
-add("ship","box","The lunchbox (container)",6,`
+add("ship","harness1","Path 1 · Build agent with harness (no code)",10,`
+${eli(`<p>Fill a short form, click create, and chat with your agent in a playground, all within about 10 minutes. No Docker, no FastAPI, no deploy commands. This is the fastest way to feel how AgentCore works.</p>`)}
+${de(`<p>Like building a Glue Studio visual job before writing PySpark: you learn the moving parts (source, transform, target) without code. Here the parts are model, instructions, tools.</p>`)}
+<h2>In the console</h2>
+${steps([
+ "<b>Bedrock AgentCore → Agents → Build agent with harness</b>.",
+ "<b>Name</b>: <code>support_harness</code>.",
+ "<b>Model</b>: Claude Sonnet 4.6 (Bedrock). Harnesses also accept OpenAI, Gemini or LiteLLM models, and you can switch later.",
+ "<b>Instructions</b> (system prompt): <i>You are a support agent for an online store. Refunds are allowed within 30 days of purchase with a valid receipt. Be brief.</i>",
+ "<b>Tools</b>: start with none, or add <b>Code Interpreter</b> so it can calculate things. Later you can add a <b>Gateway</b> to give it your own Lambdas.",
+ "Create. It is ready in under a minute and opens a <b>playground</b>: a chat box on the left, settings on the right.",
+ "Ask <i>Can I return something after 45 days?</i> Then open <b>observability</b> on the same page to see each step it took."])}
+<h2>What you get for free</h2>
+${table(["Built in","Meaning"],[
+ ["Its own private computer per chat","With a filesystem and shell, like your Runtime sessions"],
+ ["Memory","On by default: remembers facts and summaries, forgets after 30 days"],
+ ["Logs and traces","Same CloudWatch views as your code agent"],
+ ["Versions","Each change is saved as a version; you can pin a <code>PROD</code> endpoint"],
+ ["Export","Turn it into Python code (Strands) when you need more control"]])}
+<h2>The same thing from the CLI</h2>
+${code("sh-harness-cli")}
+${code("yaml-harness")}
+${trap(`<p>A harness has no access to your order data unless you give it a tool. With just instructions, it can answer the refund policy but will invent or refuse order statuses. That's exactly why your support-agent has the <code>get_order_status</code> tool, and why the next lessons deploy your own code.</p>`)}
+`,[
+ {q:"What do you need to provide to build an agent with a harness?",o:["A Dockerfile and FastAPI app","A model, instructions and (optionally) tools","An ECR repository","A CloudFormation template"],a:[1],e:"A harness is settings only. AWS runs the agent loop."}
+]);
+
+add("ship","box","Path 2 · The lunchbox (container)",6,`
+${key(`<p>From here, Module 3 follows <b>Deploy your code</b>: the path you took with your LangGraph support agent.</p>`)}
 ${eli(`<p>AWS doesn't take loose files. You pack your code, Python and every library into one sealed lunchbox, called a <b>container image</b>. Amazon opens the same box every time, so "it worked on my laptop" also means it works in the cloud. The <b>Dockerfile</b> is the packing list.</p>`)}
 ${de(`<p>You've fought Glue's <code>--additional-python-modules</code> and wheel versions. A container ends that: every library version is frozen inside the box. It's also why ECR exists, as the S3 bucket for these boxes.</p>`)}
 ${code("dockerfile")}
@@ -952,7 +1065,7 @@ ${table(["Rule","Why"],[
 ${tip(`<p>You don't need Docker running to deploy. The AgentCore CLI sends your folder to AWS and AWS builds the box in the cloud (with CodeBuild). Docker on your laptop is only for testing the box locally.</p>`)}
 `);
 
-add("ship","deploy","Deploy with the AgentCore CLI",8,`
+add("ship","deploy","Path 2 · Deploy your code with the CLI",8,`
 ${eli(`<p>One tool, the <b>AgentCore CLI</b>, does the whole delivery. You fill a small order form (<code>agentcore.json</code>) and run <code>agentcore deploy</code>. AWS builds the box, stores it, gives the agent permission to use the model, and switches it on.</p>`)}
 ${de(`<p><code>agentcore.json</code> is like a Glue job definition (script location, worker type, job parameters). <code>agentcore deploy</code> is like clicking "Save and run", except it also creates the IAM role and the storage for you.</p>`)}
 <h2>Two starting points</h2>
@@ -971,7 +1084,7 @@ ${table(["Thing in AWS","Simple meaning"],[
  ["AgentCore Runtime","The agent itself, switched on"],
  ["CloudFormation stack","A receipt listing all of the above, so it can all be deleted together"]])}
 ${you(`<p>This is exactly what you ran. Your runtime is called <code>SupportAgent</code> and its address (ARN) ends in <code>SupportAgent-Sby4uN4HRH</code>.</p>`)}
-${trap(`<p>The CLI changes quickly. Older guides show <code>agentcore configure</code> / <code>agentcore launch</code> (old Python toolkit) or <code>--build Container</code> on create. Your version (1.0.1) uses <code>--template</code> and the <code>runtimes</code> list shown here. When in doubt, run any command with <code>--help</code>.</p>`)}
+${trap(`<p>The CLI changes quickly. Older guides show <code>agentcore configure</code> / <code>agentcore launch</code> (old Python toolkit) or <code>--build Container</code> and <code>run eval</code> (CLI 0.x). CLI 1.0 (Oct 2026) uses <code>--template</code>, the <code>runtimes</code> list shown here, and groups commands by resource (<code>logs runtime</code>, <code>eval ondemand</code>). Have an old 0.x project? Run <code>agentcore migrate</code>. When in doubt, add <code>--help</code> to any command.</p>`)}
 `,[
  {q:"Do you need Docker running on your laptop for agentcore deploy?",o:["Yes, always","No, AWS CodeBuild builds the image in the cloud","Only on Windows","Only for CodeZip"],a:[1],e:"The CLI uploads your folder and CodeBuild builds the ARM64 image in AWS."}
 ]);
@@ -984,7 +1097,7 @@ ${code("sh-invoke")}
 <h2>2. Python</h2>
 ${code("py-invoke")}
 <h2>3. The console</h2>
-${steps(["Open console.aws.amazon.com and set the region (top right) to <b>N. Virginia (us-east-1)</b>.","Search <b>Bedrock AgentCore</b> → <b>Runtime</b> on the left → click <b>SupportAgent</b>.","You'll see its status, versions and a link to logs."])}
+${steps(["Open console.aws.amazon.com and set the region (top right) to <b>N. Virginia (us-east-1)</b>.","Search <b>Bedrock AgentCore</b> → <b>Agents</b> on the left → click <b>SupportAgent</b>.","You'll see its status, versions, endpoints, a test panel and a link to logs and traces."])}
 `);
 
 add("ship","cycle","Change it and redeploy",3,`
@@ -998,7 +1111,7 @@ ${eli(`<p><b>Logs</b> are the agent's diary: what it printed. <b>Traces</b> are 
 ${de(`<p>Logs = the Glue job's CloudWatch log group. Traces = Spark UI for one run: you see each step and how long it took.</p>`)}
 ${code("sh-logs")}
 ${con(`<ul><li><b>CloudWatch → Log groups → /aws/bedrock-agentcore/runtimes/...</b> — the diary.</li><li><b>CloudWatch → GenAI Observability → Bedrock AgentCore</b> — sessions and traces, with each tool call.</li></ul>`)}
-${trap(`<p>During your deploy the CLI skipped "enabling Transaction Search" because it was still pending on your account. Traces and evals need it. Check <b>CloudWatch → Application Signals → Transaction search</b> and make sure it says enabled.</p>`)}
+${trap(`<p>CLI 1.0 switches on CloudWatch <b>Transaction Search</b> for you on deploy, and traces and evals depend on it. During your first deploy it was still "pending", so check once: <b>CloudWatch → Application Signals → Transaction search</b> should say enabled.</p>`)}
 `);
 
 /* ======================= 4. CONNECT A UI ======================= */
@@ -1026,6 +1139,7 @@ ${steps([
  "<b>Configuration → Function URL → Create</b>: auth type <b>NONE</b>. Copy the URL.",
  "Test with the curl line below."])}
 ${code("json-lambda-policy")}
+${tip(`<p>Built a <b>harness</b> instead? The receptionist idea is identical. Only the call changes: <code>invoke_harness</code> on the same <code>bedrock-agentcore</code> client, with the harness ARN and a 33+ character session id. It replies as a stream of events, so collect the text pieces into one answer.</p>`)}
 ${table(["Test","Command"],[["From your terminal","<code>curl -s -X POST &lt;FUNCTION_URL&gt; -H 'content-type: application/json' -H 'x-demo-key: &lt;DEMO_KEY&gt;' -d '{\"prompt\":\"Where is order A1001?\"}'</code>"]])}
 ${trap(`<p>If the test says <code>Unknown service: 'bedrock-agentcore'</code>, Lambda's built-in boto3 is older than AgentCore. Add a fresh one as a layer:</p>`)}
 ${code("sh-layer")}
@@ -1069,22 +1183,32 @@ ${de(`<p>Think of it as a managed table keyed by user id, where AWS automaticall
 ${table(["Strategy","Keeps"],[["SEMANTIC","Facts about the user"],["USER_PREFERENCE","Likes and dislikes"],["SUMMARIZATION","A short summary of each chat"],["EPISODIC","What worked or failed in past tasks"]])}
 ${code("json-memory")}
 <p>Add it with <code>agentcore add memory</code>, then <code>agentcore deploy</code>. Your code then saves each turn and reads relevant facts before answering. The CLI's <code>agent-python-strands</code> templates show that code ready-made.</p>
-${tip(`<p>Always set an expiry (<code>eventExpiryDuration</code>). Memory that grows forever costs money and can keep personal data longer than allowed.</p>`)}
+${tip(`<p>Always set an expiry: <code>eventExpiryDuration</code> for raw chats, and (new in October 2026) a time-to-live for the extracted long-term facts too. Memory that grows forever costs money and can keep personal data longer than allowed. A harness has memory switched on by default with a 30-day expiry.</p>`)}
 `);
 
 add("smart","gateway","Gateway: tools many agents can share",4,`
 ${eli(`<p>If five agents need the same "look up customer" tool, don't copy the code five times. Put it in a <b>Gateway</b> once. Every agent can then find and use it.</p>`)}
 ${de(`<p>Like publishing a shared Glue Data Catalog database instead of each job keeping its own schema. The Gateway is a shared catalogue of tools, with access control.</p>`)}
-<p>A Gateway can turn these into tools: Lambda functions, OpenAPI/REST APIs, API Gateway stages, existing MCP servers, web search and Bedrock Knowledge Bases. Start with <code>agentcore add gateway --help</code>.</p>
+<p>A Gateway can turn these into tools: Lambda functions, OpenAPI/REST APIs, API Gateway stages, existing MCP servers, web search, Bedrock Knowledge Bases and, since October 2026, <b>Step Functions state machines</b>. Start with <code>agentcore add gateway --help</code>.</p>
+<h2>Big one for you: Step Functions as agent tools</h2>
+${eli(`<p>Your existing pipelines can become buttons the agent presses. The agent decides <i>when</i> to run a workflow and <i>what input</i> to give; the state machine still decides the steps, exactly as today.</p>`)}
+${de(`<p>Example: "Reprocess yesterday's Quantum Metric load for region EU." The agent calls your existing Step Functions workflow (Glue job → crawler → Athena check) through the Gateway's Step Functions connector. Works with Standard and Express workflows, and with task tokens for a human approval step.</p>`)}
+${tip(`<p>Expose only safe, idempotent workflows at first (re-runs, reports, data-quality checks). Keep destructive ones (deletes, overwrites) behind a human approval step.</p>`)}
 `);
 
-add("smart","harness","Harness: an agent with no code",4,`
-${eli(`<p>The <b>harness</b> lets you make a simple agent from settings only: pick a model, write instructions, choose tools. AWS runs the thinking loop. Great for a quick prototype; when you need custom steps (like your LangGraph flow), you write code and use Runtime as you did.</p>`)}
-${table(["Use the harness when","Use your own code (Runtime) when"],[
- ["Simple Q&amp;A helper, fast","You need fixed steps, checks or branches"],
- ["Trying an idea this week","Production logic, data validation"],
- ["Non-developers configure it","You want LangGraph"]])}
-${code("sh-harness")}
+add("smart","harness","Harness: power features",5,`
+${eli(`<p>A harness started as a quick prototype tool. Since it became generally available (June 2026) it has grown up: it can load skills, pause for approval through hooks, keep files, and open terminals. You can go surprisingly far without code.</p>`)}
+${table(["Feature","Simple meaning"],[
+ ["Tools","Code Interpreter, Browser, your Gateway tools, any remote MCP server, or a small inline function"],
+ ["Skills","Folders of instructions the agent can load (from git, S3 or AWS's own skills)"],
+ ["Hooks (Sep 2026)","Run a Lambda before/after a tool call to allow or block it, or notify SNS/EventBridge"],
+ ["Files","Session storage that survives pause/resume; or mount EFS / S3 Files"],
+ ["Interactive shells (Sep 2026)","Open up to 10 terminals inside the agent's computer"],
+ ["Many models","Bedrock, OpenAI, Gemini, LiteLLM; switch even mid-chat"],
+ ["Step Functions","Call a harness from a Step Functions task state"],
+ ["Export","Generate Python (Strands) code to continue in your own repo"]])}
+${de(`<p>Hooks are like a Lambda authorizer for tool calls. A <code>before_tool_call</code> hook that blocks "delete" style tools is a cheap safety net, the same way you'd guard a destructive Glue job with an approval step.</p>`)}
+${key(`<p>Still use your own code when the flow is a fixed sequence with Python logic between steps, or when you want LangGraph specifically. Harness export targets Strands, not LangGraph.</p>`)}
 `);
 
 /* ======================= 6. EVALS ======================= */
@@ -1111,6 +1235,10 @@ ${de(`<p>Like Glue Data Quality rulesets: built-in rules plus your own, run on d
 <h2>Ready-made judges (examples)</h2>
 ${table(["Name","Checks"],[["Builtin.GoalSuccessRate","Did the user's goal get done in the chat?"],["Builtin.Helpfulness","Was the reply useful?"],["Builtin.Correctness","Was it factually right?"],["Builtin.Faithfulness","Did it stick to what the tools returned (no made-up facts)?"]])}
 ${code("sh-evals")}
+<h2>New: find out <i>why</i> answers fail</h2>
+<p><code>Builtin.FailureAnalysis</code> (October 2026) reads many chats, finds the ones that went wrong, groups them by root cause and suggests a fix (for example "the tool description for get_order_status is unclear"). Run it as part of a batch evaluation.</p>
+<h2>In the console</h2>
+${steps(["<b>Bedrock AgentCore → Evaluations → Create evaluation configuration</b>.","Pick your agent (harness or code) and its endpoint.","Pick evaluators: built-in ones and any you created.","Set the sampling percentage and tick <b>enable after creation</b>.","Chat with the agent, wait 5–10 minutes, then look at the scores in Observability."])}
 ${trap(`<p>Evaluations read <b>traces</b>. If Transaction Search isn't enabled (see "See what it's doing"), there's nothing to grade. Also wait 5–10 minutes after chatting before running an eval.</p>`)}
 ${tip(`<p>Grade 100% of chats while testing, but only 1–5% in production. Every judge call is a model call and costs money.</p>`)}
 `);
@@ -1137,6 +1265,7 @@ ${code("sh-clean")}
 add("career","interview","Explain it in an interview",4,`
 ${table(["Question","Your short answer"],[
  ["What is AgentCore Runtime?","AWS's serverless service for running agents. Any framework, any model, a private room per chat, up to 8-hour sessions."],
+ ["Harness or your own code?","Harness when a model + instructions + tools is enough: fastest, config only, exportable. Own code on Runtime when I need fixed steps, custom checks or LangGraph."],
  ["How did you deploy your LangGraph agent?","Added /ping and /invocations to FastAPI, wrote an ARM64 Dockerfile, described it in agentcore.json, ran agentcore deploy. CodeBuild built the image; the CLI created ECR, IAM role and the runtime."],
  ["How does the agent remember a conversation?","The session id from AgentCore becomes LangGraph's thread_id. For long-term memory I'd add AgentCore Memory."],
  ["How does a web UI reach it?","Through a Lambda backend that holds the IAM permission, or directly with JWT once users log in. Never AWS keys in the browser."],
