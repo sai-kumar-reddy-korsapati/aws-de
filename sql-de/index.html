@@ -1,5 +1,5 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style>
-<meta name="description" content="Interactive SQL guide for AWS data engineering interviews in PostgreSQL, with real in-browser Postgres, exercises, quizzes, and Redshift, Athena and RDS/Aurora chapters.">
+<meta name="description" content="Interactive SQL guide for AWS data engineering interviews in PostgreSQL: real in-browser Postgres, step-through animations, exercises, and Redshift, Athena and RDS/Aurora chapters.">
 <meta name="theme-color" content="#0a7560">
 <link rel="icon" href="../icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="../icon-180.png">
@@ -187,6 +187,140 @@ table.t th{background:var(--code-bg);font-weight:600}
   .pg .pl{border-right:0;border-bottom:1px solid var(--line)}
 }
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+
+/* ---- lesson summary card ---- */
+.tldr{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:0;border:1px solid var(--line);border-radius:8px;background:var(--surface);margin:0 0 1.4em;overflow:hidden}
+.tldr>div{padding:12px 16px}
+.tldr>div+div{border-left:1px solid var(--line);background:var(--iq-soft)}
+.tldr .k{display:block;font:600 .72rem var(--body);text-transform:uppercase;letter-spacing:.09em;color:var(--teal);margin-bottom:2px}
+.tldr>div+div .k{color:var(--iq)}
+.tldr p{margin:0;font-size:.95rem}
+@media (max-width:700px){.tldr{grid-template-columns:minmax(0,1fr)}.tldr>div+div{border-left:0;border-top:1px solid var(--line)}}
+
+/* ---- animated walkthroughs ---- */
+:root{--c1:#2563EB;--c2:#D97706;--c3:#0D9488;--c4:#9333EA;--c5:#DB2777}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--c1:#7AA7FF;--c2:#F5B04B;--c3:#3FD0BF;--c4:#C79BFF;--c5:#F48FC1}}
+:root[data-theme="dark"]{--c1:#7AA7FF;--c2:#F5B04B;--c3:#3FD0BF;--c4:#C79BFF;--c5:#F48FC1}
+figure.anim{margin:1.5em 0;border:1px solid var(--line);border-radius:10px;background:var(--surface);overflow:hidden}
+.anim-h{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--line)}
+.anim-h b{font-family:var(--display);font-weight:600;font-size:1.02rem;line-height:1.3}
+.atag{font:600 .66rem var(--body);text-transform:uppercase;letter-spacing:.08em;color:var(--teal);background:var(--teal-soft);padding:3px 8px;border-radius:999px;white-space:nowrap}
+.anim-stage{display:grid;padding:16px;background:var(--bg);overflow-x:auto;
+  background-image:radial-gradient(color-mix(in srgb,var(--line) 70%,transparent) 1px,transparent 1px);background-size:16px 16px}
+.anim-stage>.st{grid-area:1/1;opacity:0;visibility:hidden;transition:opacity .35s ease,visibility 0s .35s;min-width:0}
+.anim-stage>.st.on{opacity:1;visibility:visible;transition:opacity .35s ease}
+.anim-cap{padding:12px 16px;border-top:1px solid var(--line);font-size:.95rem;min-height:3.4em}
+.anim-cap .snum{display:inline-block;font:600 .7rem var(--mono);color:var(--accent-ink);background:var(--accent);border-radius:4px;padding:1px 6px;margin-right:4px;vertical-align:1px}
+.anim-ctl{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:8px 14px 12px}
+.abtn{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:6px;padding:5px 12px;font:600 .85rem var(--body);cursor:pointer}
+.abtn:hover:not(:disabled){background:var(--code-bg)}
+.abtn:disabled{opacity:.4;cursor:default}
+.abtn.pri{background:var(--accent);color:var(--accent-ink);border-color:transparent;min-width:6.5em}
+.abtn:focus-visible,.dot:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.dots{display:flex;gap:5px;flex-wrap:wrap;margin-left:4px}
+.dot{width:10px;height:10px;border-radius:50%;border:0;padding:0;background:var(--line);cursor:pointer}
+.dot.seen{background:color-mix(in srgb,var(--accent) 45%,var(--line))}
+.dot.on{background:var(--accent);transform:scale(1.25)}
+.acount{margin-left:auto;font-size:.78rem;color:var(--muted);font-variant-numeric:tabular-nums}
+
+/* stage building blocks */
+.lane{display:flex;align-items:center;justify-content:center;justify-content:safe center;gap:10px;flex-wrap:wrap}
+.lane.top{align-items:flex-start}
+.colm{display:flex;flex-direction:column;align-items:center;align-items:safe center;gap:8px}
+.st>.tblk{width:max-content;max-width:none;margin:0 auto}
+.tblk{display:flex;flex-direction:column;gap:4px;min-width:0}
+.tcap{font:600 .7rem var(--body);text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+table.at{border-collapse:separate;border-spacing:0;font:.78rem/1.35 var(--mono);font-variant-numeric:tabular-nums;background:var(--surface);border:1px solid var(--line);border-radius:6px;overflow:hidden}
+table.at th,table.at td{padding:4px 9px;text-align:left;white-space:nowrap;border-bottom:1px solid var(--line)}
+table.at tr:last-child td{border-bottom:0}
+table.at th{background:var(--code-bg);font-weight:600;color:var(--ink)}
+table.at .nul{color:var(--muted);font-style:italic}
+table.at td.hc{color:var(--accent);font-weight:600}
+table.at td.add{background:color-mix(in srgb,var(--teal) 14%,transparent);color:var(--ink);font-weight:600}
+table.at tr.out td{opacity:.35;text-decoration:line-through}
+table.at tr.hot td{background:var(--accent-soft)}
+table.at tr.fr td{background:color-mix(in srgb,var(--c2) 16%,transparent)}
+table.at tr.cur td{background:color-mix(in srgb,var(--c2) 34%,transparent);font-weight:600}
+table.at tr.run td:first-child{box-shadow:inset 3px 0 0 var(--c1)}
+table.at tr.g1 td{background:color-mix(in srgb,var(--c1) 15%,transparent)}
+table.at tr.g2 td{background:color-mix(in srgb,var(--c2) 17%,transparent)}
+table.at tr.g3 td{background:color-mix(in srgb,var(--c3) 16%,transparent)}
+table.at tr.g4 td{background:color-mix(in srgb,var(--c4) 15%,transparent)}
+table.at tr.g5 td{background:color-mix(in srgb,var(--c5) 15%,transparent)}
+table.at tr.ok td{background:var(--teal-soft)}
+table.at tr.bad td{background:var(--bad-soft)}
+.st.on table.at tr.new td{animation:rowIn .55s ease both;animation-delay:calc(var(--i,0) * 70ms)}
+.st.on table.at tr.out td{animation:rowOut .6s ease both;animation-delay:calc(var(--i,0) * 70ms)}
+.st.on table.at td.add,.st.on table.at td.hc{animation:cellPop .5s ease both;animation-delay:calc(var(--i,0) * 70ms)}
+@keyframes rowIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+@keyframes rowOut{from{opacity:1;text-decoration-color:transparent}to{opacity:.35}}
+@keyframes cellPop{0%{box-shadow:inset 0 0 0 2px var(--accent)}100%{box-shadow:inset 0 0 0 0 transparent}}
+
+/* code panel */
+.acode{background:var(--code-bg);border:1px solid var(--line);border-radius:6px;font:.78rem/1.5 var(--mono);padding:6px 0;min-width:0;max-width:100%;overflow-x:auto}
+.acode div{padding:1px 12px;white-space:pre;color:var(--code-ink)}
+.acode div.hl{background:var(--accent-soft);box-shadow:inset 3px 0 0 var(--accent);font-weight:600}
+.acode div.dim{opacity:.45}
+.acode .ord{display:inline-block;min-width:1.6em;text-align:center;font:600 .66rem var(--body);color:var(--accent-ink);background:var(--accent);border-radius:999px;margin-right:6px}
+.acode div:not(.hl) .ord{background:var(--line);color:var(--muted)}
+
+/* diagram boxes & arrows */
+.bx{border:1.5px solid var(--line);border-radius:8px;background:var(--surface);padding:8px 12px;text-align:center;min-width:92px;max-width:220px;transition:opacity .3s}
+.bx b{display:block;font:600 .84rem/1.3 var(--body)}
+.bx small{display:block;font-size:.72rem;color:var(--muted);line-height:1.35;margin-top:2px}
+.bx.on{border-color:var(--accent);background:var(--accent-soft)}
+.st.on .bx.on{animation:boxPop .5s ease both}
+.bx.dim{opacity:.35}
+.bx.ok{border-color:var(--teal);background:var(--teal-soft)}
+.bx.bad{border-color:var(--bad);background:var(--bad-soft)}
+.bx.k1{border-color:var(--c1)}.bx.k2{border-color:var(--c2)}.bx.k3{border-color:var(--c3)}.bx.k4{border-color:var(--c4)}.bx.k5{border-color:var(--c5)}
+.bx.dash{border-style:dashed}
+.bx.wide{max-width:none}
+.grp{border:1.5px dashed var(--line);border-radius:10px;padding:8px;display:flex;flex-direction:column;gap:6px;align-items:center}
+.grp>.gl{font:600 .66rem var(--body);text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.grp.on{border-color:var(--accent)}
+@keyframes boxPop{0%{transform:scale(.94)}60%{transform:scale(1.03)}100%{transform:none}}
+.ar{position:relative;flex:0 0 34px;width:34px;height:2px;background:var(--line);align-self:center}
+.ar::after{content:"";position:absolute;right:-1px;top:-4px;border:5px solid transparent;border-left:7px solid var(--line);border-right:0}
+.ar.on{background:var(--accent)} .ar.on::after{border-left-color:var(--accent)}
+.st.on .ar.on::before{content:"";position:absolute;top:-3px;left:0;width:8px;height:8px;border-radius:50%;background:var(--accent);animation:pkt 1.2s linear infinite}
+@keyframes pkt{from{left:0;opacity:0}15%{opacity:1}85%{opacity:1}to{left:calc(100% - 8px);opacity:0}}
+.ar.v{flex:0 0 22px;width:2px;height:22px}
+.ar.v::after{right:auto;left:-4px;top:auto;bottom:-1px;border:5px solid transparent;border-top:7px solid var(--line);border-bottom:0}
+.ar.v.on::after{border-top-color:var(--accent)}
+.st.on .ar.v.on::before{left:-3px;animation:pktv 1.2s linear infinite}
+@keyframes pktv{from{top:0;opacity:0}15%{opacity:1}85%{opacity:1}to{top:calc(100% - 8px);opacity:0}}
+.chip{display:inline-block;font:600 .72rem var(--body);padding:3px 9px;border-radius:999px;background:var(--code-bg);color:var(--muted);border:1px solid var(--line)}
+.chip.on{background:var(--accent-soft);color:var(--accent);border-color:var(--accent)}
+.chip.ok{background:var(--teal-soft);color:var(--teal);border-color:var(--teal)}
+.chip.bad{background:var(--bad-soft);color:var(--bad);border-color:var(--bad)}
+.st.on .chip.on,.st.on .chip.ok,.st.on .chip.bad{animation:boxPop .5s ease both}
+.meter{display:flex;align-items:center;gap:8px;font:.78rem var(--mono);width:100%;max-width:420px}
+.meter i{flex:1;height:10px;border-radius:5px;background:var(--line);overflow:hidden;position:relative}
+.meter i b{position:absolute;inset:0 auto 0 0;background:var(--accent);border-radius:5px;width:var(--w)}
+.st.on .meter i b{animation:grow .8s ease both}
+@keyframes grow{from{width:0}}
+.note-s{font-size:.78rem;color:var(--muted);text-align:center;max-width:520px}
+.lane .vs{font:700 .8rem var(--body);color:var(--muted)}
+.slot{display:flex;flex-direction:column;gap:3px;align-items:stretch}
+.cell{font:.72rem/1.2 var(--mono);padding:3px 6px;border-radius:4px;background:var(--code-bg);border:1px solid var(--line);text-align:center}
+.cell.k1{background:color-mix(in srgb,var(--c1) 18%,var(--surface));border-color:var(--c1)}
+.cell.k2{background:color-mix(in srgb,var(--c2) 20%,var(--surface));border-color:var(--c2)}
+.cell.k3{background:color-mix(in srgb,var(--c3) 18%,var(--surface));border-color:var(--c3)}
+.cell.k4{background:color-mix(in srgb,var(--c4) 18%,var(--surface));border-color:var(--c4)}
+.cell.dim{opacity:.3}
+.st.on .cell.new{animation:rowIn .5s ease both;animation-delay:calc(var(--i,0) * 90ms)}
+.lane.nw{flex-wrap:nowrap}
+.bx b{color:var(--ink)}
+.bx.w{min-width:min(300px,100%);max-width:340px}
+.ar.l{transform:scaleX(-1)}
+.ar.v.u{transform:scaleY(-1)}
+.grp>.lane{width:100%}
+@media (prefers-reduced-motion:reduce){
+  .st.on *{animation:none!important}
+  .anim-stage>.st{transition:none}
+}
+@media (max-width:600px){table.at{font-size:.7rem}table.at th,table.at td{padding:3px 6px}.acode{font-size:.7rem}.anim-stage{padding:12px}.ar{flex-basis:22px;width:22px}.bx{min-width:0;padding:6px 8px}.lane.nw{gap:4px}.ar{flex-basis:18px;width:18px}.bx b{font-size:.78rem}.bx small{font-size:.66rem}}
 </style>
 
 <header class="top">
@@ -258,6 +392,534 @@ function L(id,title,body){CH[CH.length-1].lessons.push({id,title,body,ch:CH[CH.l
 function QZ(id,title,qs){CH[CH.length-1].lessons.push({id,title,quiz:qs,ch:CH[CH.length-1]});}
 </script>
 <script>
+/* Step-through animations. Data matches the sample database. */
+const AN=(()=>{
+const AN={};
+const A=(id,title,steps,ms)=>{AN[id]={title,steps,ms};};
+const S=(v,c)=>({v,c});
+const e=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+const cv=x=>x===null?'<span class="nul">NULL</span>':x===''?'':e(x);
+function T(cols,rows){
+  return '<table class="at">'+(cols?'<thead><tr>'+cols.map(c=>'<th>'+e(c)+'</th>').join('')+'</tr></thead>':'')+'<tbody>'+
+    rows.map((r,i)=>{const o=Array.isArray(r)?{r}:r;return '<tr class="'+(o.c||'')+'" style="--i:'+i+'">'+o.r.map((v,j)=>'<td class="'+((o.a||[]).includes(j)?'add':(o.h||[]).includes(j)?'hc':'')+'">'+cv(v)+'</td>').join('')+'</tr>';}).join('')+'</tbody></table>';
+}
+const TB=(cap,cols,rows)=>'<div class="tblk"><div class="tcap">'+cap+'</div>'+T(cols,rows)+'</div>';
+const H=(...x)=>'<div class="lane">'+x.join('')+'</div>';
+const HT=(...x)=>'<div class="lane top">'+x.join('')+'</div>';
+const V=(...x)=>'<div class="colm">'+x.join('')+'</div>';
+const B=(t,s,c)=>'<div class="bx '+(c||'')+'"><b>'+t+'</b>'+(s?'<small>'+s+'</small>':'')+'</div>';
+const G=(label,inner,c)=>'<div class="grp '+(c||'')+'"><span class="gl">'+label+'</span>'+inner+'</div>';
+const R=(on,d)=>'<span class="ar'+(on?' on':'')+(d?' '+d:'')+'"></span>';
+const RV=(on,d)=>'<span class="ar v'+(on?' on':'')+(d?' '+d:'')+'"></span>';
+const HN=(...x)=>'<div class="lane nw">'+x.join('')+'</div>';
+const CP=(t,c)=>'<span class="chip '+(c||'')+'">'+t+'</span>';
+const Q=(lines,hl,ord)=>'<div class="acode">'+lines.map((l,i)=>'<div class="'+((Array.isArray(hl)?hl.includes(i):hl===i)?'hl':'')+'">'+(ord&&ord[i]?'<span class="ord">'+ord[i]+'</span>':'')+e(l)+'</div>').join('')+'</div>';
+const M=(label,w,val)=>'<div class="meter"><span style="min-width:9em">'+label+'</span><i><b style="--w:'+w+'%"></b></i><span>'+val+'</span></div>';
+const NS=t=>'<div class="note-s">'+t+'</div>';
+const CL=(t,k,c,i)=>'<div class="cell '+(k||'')+' '+(c||'')+'" style="--i:'+(i||0)+'">'+t+'</div>';
+const SL=(label,cells)=>'<div class="slot"><div class="tcap" style="text-align:center">'+label+'</div>'+cells.join('')+'</div>';
+
+/* ---------- 1. execution order ---------- */
+{
+const code=["SELECT customer_id, SUM(sales) AS total","FROM orders","WHERE order_status = 'Delivered'","GROUP BY customer_id","HAVING SUM(sales) > 40","ORDER BY total DESC, customer_id","LIMIT 1;"];
+const ord=[5,1,2,3,4,6,7];
+const raw=[[1,2,'Delivered',10],[2,3,'Shipped',15],[3,1,'Delivered',20],[4,1,'Shipped',60],[5,2,'Delivered',25],[6,3,'Delivered',50],[7,1,'Delivered',30],[8,4,'Shipped',90],[9,2,'Shipped',20],[10,3,'Shipped',60]];
+const cols=['order_id','customer_id','order_status','sales'];
+A('exec-order','How PostgreSQL actually runs a SELECT',[
+ S(H(Q(code,1,ord),TB('FROM orders · 10 rows',cols,raw.map(r=>({r,c:'new'}))) ),'<b>FROM runs first.</b> The engine loads the source rows. Notice the clause you <i>write</i> first (SELECT) is not the one that runs first.'),
+ S(H(Q(code,2,ord),TB('after WHERE · 5 rows',cols,raw.map(r=>({r,c:r[2]==='Shipped'?'out':''})))),'<b>WHERE filters individual rows</b> before any grouping. The 5 shipped orders are dropped. Column aliases from SELECT don\'t exist yet, which is why you can\'t use them here.'),
+ S(H(Q(code,3,ord),TB('GROUP BY customer_id',cols,[{r:[3,1,'Delivered',20],c:'g1'},{r:[7,1,'Delivered',30],c:'g1'},{r:[1,2,'Delivered',10],c:'g2'},{r:[5,2,'Delivered',25],c:'g2'},{r:[6,3,'Delivered',50],c:'g3'}])),'<b>GROUP BY</b> puts rows with the same customer_id into one bucket (one colour per group).'),
+ S(H(Q(code,4,ord),TB('aggregate, then HAVING',['customer_id','SUM(sales)'],[{r:[1,50],c:'g1',h:[1]},{r:[2,35],c:'out'},{r:[3,50],c:'g3',h:[1]}])),'Each bucket collapses to one row and the aggregates are computed. <b>HAVING filters groups</b>: customer 2 (35) fails <code>&gt; 40</code>.'),
+ S(H(Q(code,0,ord),TB('SELECT',['customer_id','total'],[{r:[1,50],a:[1]},{r:[3,50],a:[1]}])),'<b>SELECT</b> now picks the output columns and creates the alias <code>total</code>. Window functions would be calculated here too.'),
+ S(H(Q(code,5,ord),TB('ORDER BY total DESC, customer_id',['customer_id','total'],[{r:[1,50],h:[0]},{r:[3,50],h:[0]}])),'<b>ORDER BY</b> runs after SELECT, so it <i>can</i> use the alias. The tie at 50 is broken by customer_id — always add a tie-breaker when order matters.'),
+ S(H(Q(code,6,ord),TB('LIMIT 1 → final result',['customer_id','total'],[{r:[1,50],c:'ok'},{r:[3,50],c:'out'}])),'<b>LIMIT</b> is last. Interview line: <i>FROM → WHERE → GROUP BY → HAVING → SELECT → DISTINCT → ORDER BY → LIMIT</i>.')
+]);
+}
+
+/* ---------- 2. three-valued logic ---------- */
+{
+const cols=['customer_id','first_name','score','score > 400'];
+A('null-logic','Why NULL rows vanish from WHERE',[
+ S(TB('customers',cols,[[1,'Jossef',350,'FALSE'],[2,'Kevin',900,'TRUE'],[3,'Mary',750,'TRUE'],[4,'Mark',500,'TRUE'],{r:[5,'Anna',null,'UNKNOWN'],h:[3]}]),'SQL has three truth values. Comparing anything with NULL gives <b>UNKNOWN</b>, not TRUE or FALSE.'),
+ S(V(Q(['WHERE score > 400'],0),TB('result',cols,[{r:[1,'Jossef',350,'FALSE'],c:'out'},[2,'Kevin',900,'TRUE'],[3,'Mary',750,'TRUE'],[4,'Mark',500,'TRUE'],{r:[5,'Anna',null,'UNKNOWN'],c:'out'}])),'WHERE keeps only rows that are <b>TRUE</b>. FALSE and UNKNOWN are both dropped.'),
+ S(V(Q(['WHERE NOT (score > 400)'],0),TB('result',['customer_id','first_name','score','NOT (score > 400)'],[[1,'Jossef',350,'TRUE'],{r:[2,'Kevin',900,'FALSE'],c:'out'},{r:[3,'Mary',750,'FALSE'],c:'out'},{r:[4,'Mark',500,'FALSE'],c:'out'},{r:[5,'Anna',null,'UNKNOWN'],c:'out'}])),'Surprise: the opposite filter <i>also</i> drops Anna. NOT UNKNOWN is still UNKNOWN, so a NULL row disappears from <b>both</b> sides.'),
+ S(V(Q(['WHERE score <= 400 OR score IS NULL'],0),TB('result',['customer_id','first_name','score'],[{r:[1,'Jossef',350],c:'ok'},{r:[5,'Anna',null],c:'ok new'}])),'Handle NULL explicitly with <code>IS NULL</code> or <code>COALESCE(score, 0)</code>. Same trap: <code>NOT IN (…, NULL)</code> returns nothing; use NOT EXISTS.')
+]);
+}
+
+/* ---------- 3. GROUP BY ---------- */
+A('group-by','GROUP BY collapses rows into one row per group',[
+ S(TB('my_customers',['id','first_name','country','score'],[[1,'Maria','Germany',350],[2,' John','USA',900],[3,'Georg','UK',750],[4,'Martin','Germany',500],[5,'Peter','USA',0]]),'Five detail rows.'),
+ S(TB('GROUP BY country — rows sorted into buckets',['id','first_name','country','score'],[{r:[1,'Maria','Germany',350],c:'g1'},{r:[4,'Martin','Germany',500],c:'g1'},{r:[3,'Georg','UK',750],c:'g3'},{r:[2,' John','USA',900],c:'g2'},{r:[5,'Peter','USA',0],c:'g2'}]),'Rows that share a country go into the same bucket.'),
+ S(TB('SUM(score), COUNT(id)',['country','total_score','total_customers'],[{r:['Germany',850,2],c:'g1',a:[1,2]},{r:['UK',750,1],c:'g3',a:[1,2]},{r:['USA',900,2],c:'g2',a:[1,2]}]),'Each bucket becomes <b>one row</b>. That\'s why every SELECT column must be grouped or aggregated: first_name has two different values per bucket, so PostgreSQL can\'t choose one.')
+]);
+
+/* ---------- 4. joins ---------- */
+{
+const L=[[1,'Maria'],[2,' John'],[3,'Georg'],[4,'Martin'],[5,'Peter']];
+const Rr=[[1001,1],[1002,2],[1003,3],[1004,6]];
+const lt=(f)=>TB('my_customers (left)',['id','first_name'],L.map(r=>({r,c:f(r)})));
+const rt=(f)=>TB('my_orders (right)',['order_id','customer_id'],Rr.map(r=>({r,c:f(r)})));
+const rc=['id','first_name','order_id'];
+const m=[[1,'Maria',1001],[2,' John',1002],[3,'Georg',1003]];
+A('join-types','One pair of tables, every join type',[
+ S(H(lt(r=>r[0]<=3?'hot':''),R(true),rt(r=>r[1]<=3?'hot':'')),'Join on <code>c.id = o.customer_id</code>. Ids 1–3 match. Customers 4 and 5 have no orders; order 1004 points to customer 6, who doesn\'t exist.'),
+ S(H(CP('INNER JOIN','on'),TB('3 rows',rc,m.map(r=>({r,c:'new'})))),'<b>INNER</b>: only matching pairs. Unmatched rows from both sides disappear.'),
+ S(H(CP('LEFT JOIN','on'),TB('5 rows',rc,[...m,{r:[4,'Martin',null],c:'new hot'},{r:[5,'Peter',null],c:'new hot'}])),'<b>LEFT</b>: every left row is kept; no match → NULLs on the right side.'),
+ S(H(CP('RIGHT JOIN','on'),TB('4 rows',rc,[...m,{r:[null,null,1004],c:'new hot'}])),'<b>RIGHT</b>: every right row is kept. Most teams write it as a LEFT JOIN with the tables swapped.'),
+ S(H(CP('FULL JOIN','on'),TB('6 rows',rc,[...m,{r:[4,'Martin',null],c:'hot'},{r:[5,'Peter',null],c:'hot'},{r:[null,null,1004],c:'hot'}])),'<b>FULL</b>: everything from both sides, NULLs wherever there is no partner.'),
+ S(H(CP('LEFT JOIN … WHERE o.customer_id IS NULL','on'),TB('2 rows',rc,[{r:[4,'Martin',null],c:'ok new'},{r:[5,'Peter',null],c:'ok new'}])),'<b>Left anti join</b>: keep only the NULL-extended rows → customers who never ordered. <code>NOT EXISTS</code> gives the same result.'),
+ S(H(CP('CROSS JOIN','on'),B('5 × 4 = 20 rows','every customer with every order','on')),'<b>CROSS</b>: no condition, every combination. Useful for building grids (products × months) before a LEFT JOIN.')
+]);
+}
+
+/* ---------- 5. set operators ---------- */
+{
+const E=[['Frank','Lee'],['Kevin','Brown'],['Mary',null],['Michael','Ray'],['Carol','Baker']];
+const Cu=[['Jossef','Goldberg'],['Kevin','Brown'],['Mary',null],['Mark','Schwarz'],['Anna','Adams']];
+const both=r=>(r[0]==='Kevin'||r[0]==='Mary');
+const cols=['first_name','last_name'];
+A('set-ops','UNION, UNION ALL, INTERSECT, EXCEPT',[
+ S(H(TB('employees',cols,E.map(r=>({r,c:both(r)?'hot':''}))),TB('customers',cols,Cu.map(r=>({r,c:both(r)?'hot':''})))),'Two queries with the same shape. Kevin Brown and Mary (NULL last name) appear in both.'),
+ S(TB('UNION ALL · 10 rows',cols,[...E.map(r=>({r,c:'g1'})),...Cu.map(r=>({r,c:'g2 new'}))]),'<b>UNION ALL</b> stacks every row. No duplicate check, so it\'s the fastest.'),
+ S(TB('UNION · 8 rows',cols,[...E.map(r=>({r,c:'g1'})),...Cu.map(r=>({r,c:both(r)?'out':'g2'}))]),'<b>UNION</b> removes duplicates. For set operators NULLs count as equal, so Mary/NULL is a duplicate too.'),
+ S(TB('INTERSECT · 2 rows',cols,[{r:['Kevin','Brown'],c:'ok new'},{r:['Mary',null],c:'ok new'}]),'<b>INTERSECT</b>: rows present in both results.'),
+ S(H(TB('employees EXCEPT customers',cols,[{r:['Frank','Lee'],c:'g1 new'},{r:['Michael','Ray'],c:'g1 new'},{r:['Carol','Baker'],c:'g1 new'}]),TB('customers EXCEPT employees',cols,[{r:['Jossef','Goldberg'],c:'g2 new'},{r:['Mark','Schwarz'],c:'g2 new'},{r:['Anna','Adams'],c:'g2 new'}])),'<b>EXCEPT</b>: rows in the first query but not the second. Swapping the queries changes the answer. Run it both ways to prove two tables are identical.')
+]);
+}
+
+/* ---------- 6. window vs group by ---------- */
+{
+const rows=[[1,101,10],[3,101,20],[8,101,90],[9,101,20],[2,102,15],[7,102,30],[10,102,60],[5,104,25],[6,104,50],[4,105,60]];
+const g={101:'g1',102:'g2',104:'g3',105:'g4'}, tot={101:140,102:105,104:75,105:60};
+A('window-vs-group','GROUP BY vs a window function',[
+ S(TB('orders',['order_id','product_id','sales'],rows.map(r=>({r,c:g[r[1]]}))),'Ten orders, coloured by product.'),
+ S(H(Q(['SELECT product_id, SUM(sales)','FROM orders GROUP BY product_id'],[0,1]),TB('GROUP BY · 4 rows',['product_id','total_sales'],[[101,140],[102,105],[104,75],[105,60]].map(r=>({r,c:g[r[0]]+' new',a:[1]})))),'<b>GROUP BY</b> collapses to one row per product. The order details are gone.'),
+ S(H(Q(['SELECT order_id, product_id, sales,','  SUM(sales) OVER (PARTITION BY product_id)','FROM orders'],1),TB('window · still 10 rows',['order_id','product_id','sales','total_by_product'],rows.map(r=>({r:[...r,tot[r[1]]],c:g[r[1]],a:[3]})))),'<b>Window function</b>: same total, but every row survives with the group value beside it. Now <code>sales / total_by_product</code> gives each order\'s share in one pass.')
+]);
+}
+
+/* ---------- 7. frames: running vs rolling ---------- */
+{
+const d=[['01-01',10],['01-05',15],['01-10',20],['01-20',60],['02-01',25],['02-05',50],['02-15',30],['02-18',90],['03-10',20],['03-15',60]];
+const run=[10,25,45,105,130,180,210,300,320,380], rol=[10,25,45,95,105,135,105,170,140,170];
+const step=k=>TB('ORDER BY order_date · current row '+(k+1),['order_date','sales','running_total','rolling_3'],d.map((r,i)=>{
+  const cls=[]; if(i<=k) cls.push('run'); if(i===k) cls.push('cur'); else if(i>=k-2&&i<k) cls.push('fr');
+  return {r:[r[0],r[1],i<=k?run[i]:'',i<=k?rol[i]:''],c:cls.join(' '),a:i===k?[2,3]:[]};}));
+const code=Q(['SUM(sales) OVER (ORDER BY order_date','  ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS running_total,','SUM(sales) OVER (ORDER BY order_date','  ROWS BETWEEN 2 PRECEDING AND CURRENT ROW) AS rolling_3'],[1,3]);
+A('frame','Window frames: running total vs rolling total',[
+ S(HT(code,step(0)),'The <b>frame</b> is the set of rows the function sees for the current row (dark orange). Row 1: both frames contain just itself → 10.'),
+ S(HT(code,step(2)),'Row 3: the running frame (blue bar) is rows 1–3 = 45. The rolling frame (orange) is also rows 1–3 = 45.'),
+ S(HT(code,step(3)),'Row 4: running keeps growing (1–4 = 105). Rolling <b>slides</b>: rows 2–4 = 15 + 20 + 60 = 95. Row 1 dropped out.'),
+ S(HT(code,step(5)),'Row 6: running = 180, rolling = rows 4–6 = 60 + 25 + 50 = 135.'),
+ S(HT(code,step(9)),'Done. Running total = progress to date; rolling = recent trend. Always write <code>ROWS BETWEEN …</code> explicitly: the default is RANGE, and Redshift requires a frame clause.')
+]);
+}
+
+/* ---------- 8. ranking ---------- */
+{
+const s=[[8,90],[4,60],[10,60],[6,50],[7,30],[5,25],[3,20],[9,20],[2,15],[1,10]];
+const rn=[1,2,3,4,5,6,7,8,9,10], rk=[1,2,2,4,5,6,7,7,9,10], dr=[1,2,2,3,4,5,6,6,7,8];
+const tie=i=>(i===1||i===2)?'g2':(i===6||i===7)?'g3':'';
+A('rank-ties','ROW_NUMBER vs RANK vs DENSE_RANK on ties',[
+ S(TB('ORDER BY sales DESC',['order_id','sales'],s.map((r,i)=>({r,c:tie(i)}))),'Two ties: 60/60 and 20/20 (highlighted).'),
+ S(TB('ROW_NUMBER()',['order_id','sales','row_number'],s.map((r,i)=>({r:[...r,rn[i]],c:tie(i),a:[2]}))),'<b>ROW_NUMBER</b> never repeats. Ties get different numbers in an arbitrary order, so add a tie-breaker (<code>ORDER BY sales DESC, order_id</code>).'),
+ S(TB('RANK()',['order_id','sales','row_number','rank'],s.map((r,i)=>({r:[...r,rn[i],rk[i]],c:tie(i),a:[3]}))),'<b>RANK</b>: ties share a rank, then it <b>skips</b> (2, 2, <b>4</b>), like an Olympic podium.'),
+ S(TB('DENSE_RANK()',['order_id','sales','row_number','rank','dense_rank'],s.map((r,i)=>({r:[...r,rn[i],rk[i],dr[i]],c:tie(i),a:[4]}))),'<b>DENSE_RANK</b>: ties share, no gaps (2, 2, <b>3</b>). Use it for "Nth highest salary".')
+]);
+}
+
+/* ---------- 9. dedup with ROW_NUMBER ---------- */
+{
+const raw=[[1,'Shipped','04-01 12:34'],[2,'Shipped','04-05 23:22'],[3,'Shipped','04-10 18:24'],[4,'Shipped','04-20 05:50'],[4,'Delivered','04-20 14:50'],[5,'Shipped','05-01 14:02'],[6,'Delivered','05-06 15:34'],[6,'Delivered','05-07 13:22'],[6,'Delivered','05-12 20:36'],[7,'Shipped','06-16 23:25']];
+const part=[[1,'Shipped','04-01 12:34',1,''],[2,'Shipped','04-05 23:22',1,''],[3,'Shipped','04-10 18:24',1,''],[4,'Delivered','04-20 14:50',1,'g2'],[4,'Shipped','04-20 05:50',2,'g2'],[5,'Shipped','05-01 14:02',1,''],[6,'Delivered','05-12 20:36',1,'g3'],[6,'Delivered','05-07 13:22',2,'g3'],[6,'Delivered','05-06 15:34',3,'g3'],[7,'Shipped','06-16 23:25',1,'']];
+const c3=['order_id','order_status','creation_time'];
+A('dedup','Deduplicate: keep the latest row per key',[
+ S(TB('orders_archive (10 rows)',c3,raw.map(r=>({r,c:(r[0]===4?'g2':r[0]===6?'g3':'')}))),'Order 4 appears twice, order 6 three times. A typical CDC or re-delivered-file problem.'),
+ S(TB('PARTITION BY order_id ORDER BY creation_time DESC',c3,part.map(p=>({r:p.slice(0,3),c:p[4]}))),'Each order_id is its own window, newest version first.'),
+ S(TB('ROW_NUMBER() … AS rn',[...c3,'rn'],part.map(p=>({r:p.slice(0,4),c:p[4],a:[3]}))),'Number the rows inside each window. rn = 1 is the latest version.'),
+ S(TB('WHERE rn = 1 → 7 clean rows',[...c3,'rn'],part.map(p=>({r:p.slice(0,4),c:p[3]>1?'out':'ok'}))),'Keep rn = 1. To delete the duplicates instead, target rn &gt; 1 (in PostgreSQL via <code>ctid</code>; in Redshift rebuild with CTAS).')
+]);
+}
+
+/* ---------- 10. LAG month over month ---------- */
+A('lag-mom','LAG: compare each month with the previous one',[
+ S(TB('monthly sales',['month','sales'],[['2025-01',105],['2025-02',195],['2025-03',80]]),'Monthly totals from <code>date_trunc(\'month\', order_date)</code>.'),
+ S(TB('LAG(sales) OVER (ORDER BY month)',['month','sales','prev_sales'],[{r:['2025-01',105,null],a:[2]},{r:['2025-02',195,105],a:[2]},{r:['2025-03',80,195],a:[2]}]),'<b>LAG</b> pulls the value from the previous row into the current row. The first month has no previous row, so it gets NULL (or a default: <code>LAG(sales, 1, 0)</code>).'),
+ S(TB('change & %',['month','sales','prev_sales','mom_change','mom_pct'],[{r:['2025-01',105,null,null,null]},{r:['2025-02',195,105,'+90','+85.7%'],a:[3,4]},{r:['2025-03',80,195,'-115','-59.0%'],a:[3,4]}]),'Now it\'s simple arithmetic on one row. <b>LEAD</b> looks forward instead. Classic uses: MoM/YoY growth, days between orders, churn detection.')
+]);
+
+/* ---------- 11. recursive CTE ---------- */
+{
+const tree=(on)=>V(H(B('Frank','id 1 · boss',on[0])),H(B('Kevin','id 2 · mgr 1',on[1]),B('Mary','id 3 · mgr 1',on[1])),H(B('Michael','id 4 · mgr 2',on[2]),B('Carol','id 5 · mgr 3',on[2])));
+const res=(n,newFrom)=>TB('cte_emp (growing result)',['employee_id','first_name','level'],[[1,'Frank',1],[2,'Kevin',2],[3,'Mary',2],[4,'Michael',3],[5,'Carol',3]].slice(0,n).map((r,i)=>({r,c:i>=newFrom?'new hot':''})));
+A('recursive','Recursive CTE, one iteration at a time',[
+ S(HT(tree(['on','dim','dim']),res(1,0)),'<b>Anchor</b> runs once: <code>WHERE manager_id IS NULL</code> → Frank, level 1.'),
+ S(HT(tree(['','on','dim']),res(3,1)),'<b>Iteration 1</b>: join employees to the rows found last time (Frank) → Kevin and Mary, level 2.'),
+ S(HT(tree(['','','on']),res(5,3)),'<b>Iteration 2</b>: join to Kevin and Mary → Michael and Carol, level 3.'),
+ S(HT(tree(['ok','ok','ok']),V(res(5,9),CP('Iteration 3 returns 0 rows → stop','ok'))),'<b>Iteration 3</b> finds nobody managed by Michael or Carol, so recursion stops. A missing stop condition (or a cycle) loops forever.')
+]);
+}
+
+/* ---------- 12. B-tree index ---------- */
+{
+const pages=(lit,all)=>H(...Array.from({length:12},(_,i)=>CL('p'+(i+1),all?'k2':(i===lit?'k1':''),all?'new':(i===lit?'new':'dim'),i)));
+A('btree','Sequential scan vs B-tree index lookup',[
+ S(V(Q(['SELECT * FROM orders WHERE order_id = 520;'],0),B('Seq Scan','no usable index: read every page','bad'),pages(-1,true),M('pages read',100,'12 of 12')),'Without an index PostgreSQL reads <b>every page</b> of the table and checks each row. Fine for small tables, slow for large ones.'),
+ S(V(B('root','&lt; 400 | 400–799 | ≥ 800','on'),RV(true),H(B('&lt; 400','','dim'),B('400–799','branch','on'),B('≥ 800','','dim'))),'With <code>CREATE INDEX … (order_id)</code>: start at the root and follow the range that contains 520.'),
+ S(V(B('root','&lt; 400 | 400–799 | ≥ 800'),RV(true),B('400–799','400–599 | 600–799','on'),RV(true),H(B('leaf 400–599','520 → page 7','on'),B('leaf 600–799','','dim'))),'Each level narrows the range. Even a billion-row B-tree is only about 4–5 levels deep.'),
+ S(V(B('leaf 400–599','520 → page 7'),RV(true),pages(6,false),M('pages read',33,'~4 (3 index + 1 heap)')),'The leaf points to the exact heap page. A handful of reads instead of the whole table. Costs: extra storage and slower INSERT/UPDATE, because every index must be maintained.')
+]);
+}
+
+/* ---------- 13. EXPLAIN plan ---------- */
+{
+const plan=['HashAggregate  (group by c.first_name)','  ->  Hash Join  (o.customer_id = c.customer_id)','        ->  Seq Scan on orders o','              Filter: (order_status = \'Delivered\')','        ->  Hash','              ->  Seq Scan on customers c'];
+const flow=(a)=>V(HN(G('build side',HN(B('Seq Scan customers','5 rows',a[0]),R(a[0]==='on'),B('Hash','in-memory hash table',a[1])),a[0]==='on'?'on':''),G('probe side',B('Seq Scan orders','filter → 5 of 10 rows',a[2]),a[2]==='on'?'on':'')),RV(a[3]==='on'),B('Hash Join','probe the hash for each order',a[3]),RV(a[4]==='on'),HN(B('HashAggregate','group &amp; sum',a[4]),R(a[4]==='on'),B('Result','',a[4]==='on'?'ok':'')));
+A('explain-plan','Reading an EXPLAIN plan (inside-out)',[
+ S(HT(Q(plan,[4,5]),flow(['on','on','','',''])),'Read plans from the <b>most indented</b> node outward. First the small table (customers) is scanned and loaded into an in-memory <b>hash table</b>.'),
+ S(HT(Q(plan,[2,3]),flow(['','','on','',''])),'Then the bigger table is scanned. The Filter line shows WHERE was applied during the scan.'),
+ S(HT(Q(plan,1),flow(['','','','on',''])),'<b>Hash Join</b>: each orders row probes the hash table for its customer. Good for large, unsorted equi-joins.'),
+ S(HT(Q(plan,0),flow(['','','','','on'])),'<b>HashAggregate</b> does the GROUP BY. With <code>EXPLAIN ANALYZE</code>, compare estimated vs actual rows at each node. A big mismatch means stale statistics, so run <code>ANALYZE</code>.')
+]);
+}
+
+/* ---------- 14. MVCC ---------- */
+{
+const cols=['tuple','xmin','xmax','customer_id','score','status'];
+A('mvcc','MVCC: updates create new row versions',[
+ S(TB('heap page',cols,[{r:['v1',100,'—',1,350,'live'],c:'new'}]),'Transaction 100 INSERTs a row. <code>xmin</code> = the transaction that created this version.'),
+ S(TB('heap page',cols,[{r:['v1',100,101,1,350,'dead after commit'],c:'out',a:[2]},{r:['v2',101,'—',1,400,'live'],c:'new hot'}]),'Transaction 101 UPDATEs the score. PostgreSQL does <b>not</b> overwrite: it stamps <code>xmax</code> on v1 and writes a new version v2.'),
+ S(H(TB('heap page',cols,[{r:['v1',100,101,1,350,'old snapshots'],c:'g2'},{r:['v2',101,'—',1,400,'new snapshots'],c:'g1'}]),V(CP('reader started before 101 → sees 350'),CP('reader started after 101 → sees 400','on'))),'Each query sees the version that matches its <b>snapshot</b>, so readers never block writers and writers never block readers.'),
+ S(TB('heap page',cols,[{r:['v1',100,101,1,350,'dead'],c:'out'},{r:['v2',101,102,1,400,'dead'],c:'out',a:[2]}]),'A DELETE (transaction 102) just sets <code>xmax</code>. Both versions are now <b>dead tuples</b>: space is still used, and that\'s bloat.'),
+ S(V(TB('heap page after VACUUM',cols,[{r:['—','','','','','free space'],c:'ok new'}]),H(CP('VACUUM: reclaim dead tuples','ok'),CP('ANALYZE: refresh statistics','ok'),CP('freezing prevents XID wraparound','on'))),'<b>VACUUM</b> (autovacuum) marks dead space reusable. Redshift has the same idea: DELETE marks rows, and VACUUM reclaims and re-sorts.')
+]);
+}
+
+/* ---------- 15. partition pruning ---------- */
+{
+const P=(st)=>H(B('orders_2025_01','Jan',st[0]),B('orders_2025_02','Feb',st[1]),B('orders_2025_03','Mar',st[2]),B('orders_default','other',st[3]));
+A('partition-prune','Partition pruning',[
+ S(V(Q(['SELECT * FROM orders_part;'],0),P(['on','on','on','on']),M('partitions scanned',100,'4 of 4')),'One logical table, four physical partitions by month. No filter, so every partition is read.'),
+ S(V(Q(["WHERE order_date >= '2025-02-01' AND order_date < '2025-03-01'"],0),P(['dim','on','dim','dim']),M('partitions scanned',25,'1 of 4')),'Filter on the <b>partition key</b> with a plain range, and the planner skips the other partitions. EXPLAIN shows only <code>orders_2025_02</code>.'),
+ S(V(Q(['WHERE EXTRACT(MONTH FROM order_date) = 2'],0),P(['bad','bad','bad','bad']),M('partitions scanned',100,'4 of 4')),'Wrap the key in a function and pruning is lost: all partitions are scanned. The same rule applies to Redshift sort keys and Athena partitions.'),
+ S(V(Q(['ALTER TABLE orders_part DETACH PARTITION orders_2025_01;','DROP TABLE orders_2025_01;'],[0,1]),P(['bad dash','','','']),CP('instant, no DELETE, no VACUUM','ok')),'Retention becomes a metadata operation: detach and drop a month instead of deleting millions of rows.')
+]);
+}
+
+/* ---------- 16. isolation ---------- */
+{
+const cols=['time','Session A','Session B'];
+const r1=['t1','BEGIN; SELECT → 350',''], r2=['t2','','UPDATE score=900; COMMIT'];
+A('isolation','Non-repeatable read: READ COMMITTED vs REPEATABLE READ',[
+ S(TB('customer 1',cols,[{r:r1,c:'new'}]),'Session A starts a transaction and reads customer 1\'s score: 350.'),
+ S(TB('customer 1',cols,[r1,{r:r2,c:'new g2'}]),'Session B updates the same row to 900 and commits. A is still open.'),
+ S(TB('READ COMMITTED (PostgreSQL default)',cols,[r1,r2,{r:['t3','SELECT → 900',''],c:'bad new',h:[1]}]),'In <b>READ COMMITTED</b> each statement takes a fresh snapshot, so A now sees 900. The same query gave a different answer inside one transaction: a <b>non-repeatable read</b>.'),
+ S(TB('REPEATABLE READ',cols,[r1,r2,{r:['t3','SELECT → 350',''],c:'ok new',h:[1]}]),'In <b>REPEATABLE READ</b> the whole transaction uses one snapshot, so A still sees 350. If A tries to update that row, it gets a serialization error and must retry.'),
+ S(H(CP('PostgreSQL / RDS: READ COMMITTED'),CP('Redshift: SERIALIZABLE (default)','on'),CP('SERIALIZABLE → retry on error','ok')),'Interview summary: know the anomalies (dirty, non-repeatable, phantom), know the default level, and say "retry on serialization failure".')
+]);
+}
+
+/* ---------- 17. idempotent loads ---------- */
+A('idempotent','Why loads must be idempotent',[
+ S(H(CP('Run 1: INSERT … SELECT','on'),TB('fact_daily',['day','sales'],[{r:['2025-01-20',60],c:'new'}])),'The daily job appends the day\'s total.'),
+ S(H(CP('Retry after a timeout: INSERT again','bad'),TB('fact_daily',['day','sales'],[['2025-01-20',60],{r:['2025-01-20',60],c:'bad new'}])),'The scheduler retries and the job appends again. Now there are <b>duplicates</b>, and the report says 120 instead of 60.'),
+ S(H(Q(['BEGIN;',"DELETE FROM fact_daily WHERE day = '2025-01-20';",'INSERT INTO fact_daily SELECT …;','COMMIT;'],[1,2]),TB('fact_daily',['day','sales'],[{r:['2025-01-20',60],c:'ok new'}])),'<b>Delete-insert by partition</b> inside one transaction: the first run writes 60.'),
+ S(H(CP('Retry: same statements','ok'),TB('fact_daily',['day','sales'],[{r:['2025-01-20',60],c:'ok'}])),'Retry: delete 60, insert 60, same result. <b>Idempotent</b>. MERGE / ON CONFLICT on the business key or INSERT OVERWRITE of a lake partition achieve the same thing.')
+]);
+
+/* ---------- 18. JSON flatten ---------- */
+A('json-flatten','Flatten JSON into rows',[
+ S(H(B('raw_events.payload','{"customer":{"id":7,"city":"Berlin"},<br>"items":[{"sku":"A1","qty":2},<br>{"sku":"B2","qty":1}]}','wide')),'One API event, stored as JSONB, with a nested object and an array.'),
+ S(H(Q(["payload->'customer'->>'id'","payload #>> '{customer,city}'"],[0,1]),R(true),TB('scalar fields',['customer_id','city'],[{r:[7,'Berlin'],a:[0,1]}])),'<code>-&gt;</code> returns JSON, <code>-&gt;&gt;</code> returns text, <code>#&gt;&gt;</code> follows a path. Cast to the right type: <code>(…)::INT</code>.'),
+ S(H(Q(["CROSS JOIN LATERAL","  jsonb_array_elements(payload->'items') AS item"],[0,1]),R(true),TB('one row per item',['id','sku','qty'],[{r:[1,'A1',2],c:'new'},{r:[1,'B2',1],c:'new'}])),'Exploding the array turns 1 row into 2. Redshift: <code>FROM t, t.payload.items AS item</code> on SUPER. Athena: <code>CROSS JOIN UNNEST(items) AS t(item)</code>.')
+]);
+
+/* ---------- 19. Redshift architecture ---------- */
+{
+const node=(n,s,st)=>G('compute node '+n,H(B('slice '+s[0],'',st),B('slice '+s[1],'',st)),st==='on'?'on':'');
+const view=(a)=>V(H(B('Client','SQL / JDBC / BI',a[0]),R(a[0]==='on'||a[4]==='on'),B('Leader node','parse · plan · compile · coordinate',a[1])),RV(a[2]==='on'),H(node(1,[0,1],a[2]),node(2,[2,3],a[2])),RV(a[3]==='on'),B('Redshift Managed Storage','columnar blocks on S3 (RA3 / Serverless)',a[3]));
+A('rs-arch','Amazon Redshift: a query on an MPP cluster',[
+ S(view(['on','','','','']),'A client sends SQL to the cluster endpoint, which is the <b>leader node</b>.'),
+ S(view(['','on','','','']),'The leader parses, optimises and <b>compiles</b> the plan into code segments, then sends them to every compute node.'),
+ S(view(['','','on','on','']),'Every <b>slice</b> works in parallel on its own share of each table, reading only the needed columns. Zone maps skip blocks that can\'t match.'),
+ S(view(['ok','on','','','on']),'Slices return partial results; the leader merges them (final sort/aggregate) and replies. Data movement between slices is the main cost, which is why DISTKEY design matters.')
+]);
+}
+
+/* ---------- 20. Redshift distribution ---------- */
+{
+const f=[['f1',1],['f2',2],['f3',3],['f4',1],['f5',4],['f6',2],['f7',3],['f8',1]];
+const k={1:'k1',2:'k2',3:'k3',4:'k4'};
+const cells=list=>list.map((x,i)=>CL(x[0]+'·c'+x[1],k[x[1]],'new',i));
+const slices=(arr)=>H(G('node 1',H(SL('slice 0',cells(arr[0])),SL('slice 1',cells(arr[1])))),G('node 2',H(SL('slice 2',cells(arr[2])),SL('slice 3',cells(arr[3])))));
+A('rs-dist','DISTSTYLE: where Redshift puts each row',[
+ S(V(CP('fact_sales rows (colour = customer_key)'),H(...f.map((x,i)=>CL(x[0]+'·c'+x[1],k[x[1]],'new',i)))),'Eight fact rows with customer_key 1–4. Four slices across two nodes.'),
+ S(V(CP('DISTSTYLE EVEN — round robin','on'),slices([[f[0],f[4]],[f[1],f[5]],[f[2],f[6]],[f[3],f[7]]])),'<b>EVEN</b>: perfectly balanced, but a customer\'s rows end up on different slices, so joins on customer_key must move data.'),
+ S(V(CP('DISTKEY (customer_key) — hash of the key','on'),slices([[f[0],f[3],f[7]],[f[1],f[5]],[f[2],f[6]],[f[4]]])),'<b>KEY</b>: the same key always lands on the same slice. If dim_customer is also distributed on customer_key, the join is <b>co-located</b> (DS_DIST_NONE), with no network shuffle.'),
+ S(V(CP('Bad DISTKEY: low-cardinality column (country)','bad'),slices([[f[0],f[1],f[3],f[5],f[7]],[f[2],f[4],f[6]],[],[]])),'<b>Skew</b>: a key with few values loads a couple of slices while others sit idle. The query is as slow as the busiest slice. Check <code>skew_rows</code> in SVV_TABLE_INFO.'),
+ S(V(CP('DISTSTYLE ALL — full copy on every node','on'),H(G('node 1',H(...[1,2,3,4].map((c,i)=>CL('dim c'+c,k[c],'new',i)))),G('node 2',H(...[1,2,3,4].map((c,i)=>CL('dim c'+c,k[c],'new',i)))))),'<b>ALL</b>: small dimensions copied to every node, so any join to them is local. Costs storage and slower loads. <b>AUTO</b> lets Redshift choose and change the style.')
+]);
+}
+
+/* ---------- 21. Redshift zone maps / sort keys ---------- */
+{
+const blk=(lbl,rng,st)=>B(lbl,rng,st);
+A('rs-zonemap','Sort keys + zone maps: skipping blocks',[
+ S(V(CP('unsorted table — every block spans Jan–Mar'),H(blk('block 1','min 01-01 · max 03-15'),blk('block 2','min 01-05 · max 03-10'),blk('block 3','min 01-10 · max 02-18'),blk('block 4','min 01-20 · max 03-15'))),'Redshift keeps the <b>min and max</b> of every 1 MB block per column (the zone map).'),
+ S(V(Q(["WHERE order_date BETWEEN '2025-02-01' AND '2025-02-28'"],0),H(blk('block 1','01-01 → 03-15','on'),blk('block 2','01-05 → 03-10','on'),blk('block 3','01-10 → 02-18','on'),blk('block 4','01-20 → 03-15','on')),M('blocks read',100,'4 of 4')),'Every block\'s range overlaps February, so all of them must be read.'),
+ S(V(CP('SORTKEY (order_date)','on'),H(blk('block 1','01-01 → 01-20'),blk('block 2','02-01 → 02-15'),blk('block 3','02-18 → 03-10'),blk('block 4','03-15 → 03-31'))),'With a sort key the blocks hold neat, non-overlapping ranges.'),
+ S(V(Q(["WHERE order_date BETWEEN '2025-02-01' AND '2025-02-28'"],0),H(blk('block 1','01-01 → 01-20','dim'),blk('block 2','02-01 → 02-15','on'),blk('block 3','02-18 → 03-10','on'),blk('block 4','03-15 → 03-31','dim')),M('blocks read',50,'2 of 4')),'Blocks 1 and 4 are skipped without being read. Keep tables sorted (VACUUM SORT, or automatic), and filter on the sort key without wrapping it in functions.')
+]);
+}
+
+/* ---------- 22. COPY parallelism ---------- */
+{
+const sl=(on)=>H(...[0,1,2,3].map(i=>B('slice '+i,'',on.includes(i)?'on':'dim')));
+A('copy-parallel','COPY loads files in parallel across slices',[
+ S(V(H(B('orders.csv.gz','1 file · 8 GB','k2')),RV(true),sl([0]),M('slices busy',25,'1 of 4')),'One big file is read by one slice while the others wait.'),
+ S(V(H(B('part-0','2 GB','k1'),B('part-1','2 GB','k1'),B('part-2','2 GB','k1'),B('part-3','2 GB','k1')),RV(true),sl([0,1,2,3]),M('slices busy',100,'4 of 4')),'Split the input into a <b>multiple of the slice count</b>, similar sizes, compressed. Every slice loads in parallel.'),
+ S(V(Q(["COPY sales.orders FROM 's3://bucket/orders/'","IAM_ROLE default FORMAT AS PARQUET;"],[0,1]),H(CP('one COPY per table, not many INSERTs','ok'),CP('errors → sys_load_error_detail','on'))),'Then MERGE from staging into the target. Avoid single-row INSERTs in Redshift.')
+]);
+}
+
+/* ---------- 23. Athena query flow ---------- */
+{
+const view=(a)=>V(H(B('Your SQL','console · JDBC · Step Functions',a[0]),R(a[0]==='on'),B('Athena (Trino engine)','workgroup · engine v3',a[1]),R(a[2]==='on'),B('Glue Data Catalog','schema · S3 location · partitions',a[2])),RV(a[3]==='on'),H(G('S3 data lake',H(B('dt=2025-01-14','',a[3]==='on'?'dim':''),B('dt=2025-01-15','Parquet',a[3]),B('dt=2025-01-16','',a[3]==='on'?'dim':'')),a[3]==='on'?'on':''),R(a[4]==='on'),B('Results','S3 output location',a[4])));
+A('athena-flow','Amazon Athena: what happens when you run a query',[
+ S(view(['on','','','','']),'Athena is serverless: no cluster. You submit SQL in a <b>workgroup</b>.'),
+ S(view(['','on','on','','']),'Athena looks up the table in the <b>Glue Data Catalog</b>: columns, file format, S3 location and partitions. The table is just metadata.'),
+ S(view(['','','','on','']),'<b>Partition pruning</b>: with <code>WHERE dt = \'2025-01-15\'</code> only that folder is listed. Parquet lets workers read only the needed columns and skip row groups using min/max stats.'),
+ S(view(['','','','','on']),'Results are written to the workgroup\'s S3 output location and streamed back.'),
+ S(V(M('CSV, no partition filter',100,'100 GB → $0.49'),M('Parquet, no filter',30,'30 GB → $0.15'),M('Parquet + dt filter',8,'8 GB → $0.04'),M('+ 3 columns only',1,'0.8 GB → $0.004'),NS('Illustrative numbers at $5 per TB scanned. Less data scanned means faster and cheaper.')),'You pay for <b>data scanned</b>, so file format, partitioning and column selection are cost controls as well as speed controls.')
+]);
+}
+
+/* ---------- 24. Iceberg snapshots ---------- */
+{
+const snaps=(n,cur,extra)=>H(...['S1 insert','S2 update','S3 merge','S4 optimize'].slice(0,n).map((s,i)=>B(s,i===cur?'current':'',i===cur?'on':(extra&&extra.includes(i)?'dim':''))));
+const files=(list)=>H(...list.map((x,i)=>CL(x[0],x[1],x[2]||'new',i)));
+A('iceberg','Iceberg tables: snapshots, row-level changes, time travel',[
+ S(V(snaps(1,0),files([['data-1','k1'],['data-2','k1']])),'INSERT writes Parquet data files and commits <b>snapshot S1</b>: a manifest listing exactly which files make up the table.'),
+ S(V(snaps(2,1),files([['data-1','k1'],['data-2','k1'],['data-3','k2'],['delete-1','k4']])),'UPDATE never rewrites files in place. It adds new data plus a <b>delete file</b> marking old rows (merge-on-read), then commits S2 atomically. Readers see S1 or S2, never a half-write.'),
+ S(V(snaps(3,2),files([['data-1','k1'],['data-2','k1'],['data-3','k2'],['delete-1','k4'],['data-4','k3'],['delete-2','k4']])),'MERGE does the same: upserts and deletes become new files and snapshot S3.'),
+ S(V(Q(['SELECT * FROM t FOR VERSION AS OF <S1 id>;'],0),snaps(3,0),files([['data-1','k1'],['data-2','k1'],['data-3','k2','dim'],['delete-1','k4','dim'],['data-4','k3','dim'],['delete-2','k4','dim']])),'<b>Time travel</b>: read the table as of S1. Handy for audits, debugging and reproducing a report.'),
+ S(V(Q(['OPTIMIZE t REWRITE DATA USING BIN_PACK;','VACUUM t;'],[0,1]),snaps(4,3,[0,1,2]),files([['data-5 (compacted)','k3']])),'<b>OPTIMIZE</b> compacts many small/delete files into fewer big ones (S4). <b>VACUUM</b> expires old snapshots and deletes unreferenced files, which also ends time travel to them.')
+]);
+}
+
+/* ---------- 25. SCD Type 2 ---------- */
+{
+const dc=['sk','customer_id','country','valid_from','valid_to','is_current'];
+const stg=TB('stg_customer',['customer_id','country'],[{r:[1,'Austria'],c:'hot'},[2,'USA'],{r:[3,'UK'],c:'g3'}]);
+A('scd2','SCD Type 2: keep history with versioned rows',[
+ S(HT(TB('dim_customer',dc,[[1,1,'Germany','2024-01-01','9999-12-31','true'],[2,2,'USA','2024-01-01','9999-12-31','true']]),stg),'The dimension has one current row per customer. Today\'s staging data says customer 1 moved to Austria and customer 3 is new.'),
+ S(HT(TB('dim_customer',dc,[{r:[1,1,'Germany','2024-01-01','9999-12-31','true'],c:'hot'},[2,2,'USA','2024-01-01','9999-12-31','true']]),stg),'Compare on the business key with <code>IS DISTINCT FROM</code>: 1 changed, 2 unchanged (do nothing), 3 new.'),
+ S(TB('step 1 — expire the old version',dc,[{r:[1,1,'Germany','2024-01-01','2025-07-01','false'],c:'g2',a:[4,5]},[2,2,'USA','2024-01-01','9999-12-31','true']]),'<b>UPDATE</b> the current row: set valid_to and is_current = false. History is closed, not deleted.'),
+ S(TB('step 2 — insert new versions',dc,[{r:[1,1,'Germany','2024-01-01','2025-07-01','false'],c:'g2'},[2,2,'USA','2024-01-01','9999-12-31','true'],{r:[3,1,'Austria','2025-07-01','9999-12-31','true'],c:'new ok'},{r:[4,3,'UK','2025-07-01','9999-12-31','true'],c:'new ok'}]),'<b>INSERT</b> a new row for the changed customer (new surrogate key 3) and for the brand-new one.'),
+ S(H(TB('fact_sales',['order_date','customer_id','→ sk'],[{r:['2025-03-01',1,1],a:[2]},{r:['2025-08-01',1,3],a:[2]}]),NS('JOIN ON f.customer_id = d.customer_id<br>AND f.order_date &gt;= d.valid_from AND f.order_date &lt; d.valid_to')),'Facts join to the version that was valid at the time: the March order is reported under Germany, the August order under Austria.')
+]);
+}
+
+/* ---------- 26. MERGE / upsert ---------- */
+{
+const tc=['customer_id','first_name','country','score'];
+A('merge-upsert','Upsert with MERGE / ON CONFLICT',[
+ S(HT(TB('target: customers',tc,[[1,'Jossef','Germany',350],[2,'Kevin','USA',900],[3,'Mary','USA',750],[4,'Mark','Germany',500],[5,'Anna','USA',null]]),TB('source: stage',tc,[[1,'Jossef','Austria',350],[6,'Lena','Austria',420]])),'The target table and today\'s staging batch.'),
+ S(HT(TB('target: customers',tc,[{r:[1,'Jossef','Germany',350],c:'hot'},[2,'Kevin','USA',900],[3,'Mary','USA',750],[4,'Mark','Germany',500],[5,'Anna','USA',null]]),TB('source: stage',tc,[{r:[1,'Jossef','Austria',350],c:'hot'},{r:[6,'Lena','Austria',420],c:'g3'}])),'Match on the key: id 1 is <b>MATCHED</b>, id 6 is <b>NOT MATCHED</b>.'),
+ S(TB('WHEN MATCHED AND changed THEN UPDATE',tc,[{r:[1,'Jossef','Austria',350],c:'hot',a:[2]},[2,'Kevin','USA',900],[3,'Mary','USA',750],[4,'Mark','Germany',500],[5,'Anna','USA',null]]),'Update only when something actually changed (<code>IS DISTINCT FROM</code>), which avoids useless writes and dead tuples.'),
+ S(TB('WHEN NOT MATCHED THEN INSERT',tc,[[1,'Jossef','Austria',350],[2,'Kevin','USA',900],[3,'Mary','USA',750],[4,'Mark','Germany',500],[5,'Anna','USA',null],{r:[6,'Lena','Austria',420],c:'new ok'}]),'Insert the new key. Running the same batch again changes nothing: an <b>idempotent</b> load. Dedupe the source first, because MERGE fails if a target row matches two source rows.')
+]);
+}
+
+/* ---------- 27. Medallion ---------- */
+{
+const v=(a)=>V(G('sources',HN(B('CRM CSV','','k1'),B('ERP CSV','','k1'),B('RDS PostgreSQL','','k1')),a[0]),RV(a[1]==='on'),B('Bronze','raw, as-is · S3 raw/ · Redshift staging',a[1]+' w'),RV(a[2]==='on'),B('Silver','cleaned, standardised · Parquet / Iceberg · Glue, Athena CTAS',a[2]+' w'),RV(a[3]==='on'),B('Gold','business-ready · star schemas, aggregates · Redshift marts, views',a[3]+' w'),RV(a[4]==='on'),G('consumers',HN(B('QuickSight','','k3'),B('ML / AI','','k3'),B('APIs','','k3')),a[4]));
+A('medallion','Medallion architecture on AWS',[
+ S(v(['on','','','','']),'Data arrives from many systems: files, databases, APIs and streams.'),
+ S(v(['','on','','','']),'<b>Bronze</b>: land it unchanged (EL only). Full traceability; you can always replay from here.'),
+ S(v(['','','on','','']),'<b>Silver</b>: cleanse (trim, dedupe, NULL policy), standardise codes and types, derive columns. Still source-shaped.'),
+ S(v(['','','','on','']),'<b>Gold</b>: integrate sources into star schemas and aggregates with business rules. This is what people query.'),
+ S(v(['','','','','on']),'Dashboards, ML features and APIs read gold. Data-quality checks run at every hop; orchestrate with Step Functions, MWAA or Glue workflows.')
+]);
+}
+
+/* ---------- 28. CDC pipeline ---------- */
+{
+const v=(a)=>V(HN(B('RDS / Aurora PostgreSQL','WAL (write-ahead log)',a[0]),R(a[1]==='on'),B('Replication slot','logical decoding',a[1])),RV(a[2]==='on'),HN(B('AWS DMS','full load + ongoing CDC',a[2]),R(a[3]==='on'),B('S3 bronze','Parquet · op = I / U / D',a[3])),RV(a[4]==='on'),HN(B('Staging','latest per key',a[4]),R(a[5]==='on'),B('MERGE','into target',a[5]),R(a[5]==='on'),B('Marts','',a[5]==='on'?'ok':'')),B('Zero-ETL integration','Aurora / RDS → Redshift, no pipeline code',a[6]+' dash w'));
+A('cdc','Change data capture from RDS PostgreSQL',[
+ S(v(['on','','','','','','dim']),'Every committed change is written to PostgreSQL\'s <b>write-ahead log (WAL)</b>.'),
+ S(v(['','on','','','','','dim']),'A <b>logical replication slot</b> decodes WAL into row-level inserts, updates and deletes and keeps them until the consumer confirms.'),
+ S(v(['','','on','on','','','dim']),'<b>DMS</b> does a full load once, then streams changes to S3 (or Kinesis/Redshift) with an operation column.'),
+ S(v(['','','','','on','on','dim']),'Downstream, keep the latest change per key (ROW_NUMBER) and <b>MERGE</b> into the target. Deletes become DELETE or a soft-delete flag.'),
+ S(v(['','','','','','','on']),'Alternative: <b>zero-ETL</b> replicates Aurora/RDS tables into Redshift in near real time. Watch out: an unused slot keeps WAL and can fill the disk.')
+]);
+}
+
+/* ---------- 29. star schema ---------- */
+{
+const v=(a)=>V(HN(B('dim_date','date_key · month<br>quarter · is_weekend',a[1]),a[2]?B('dim_category','category_key · name<br>(snowflaked out of dim_product)',a[2]):''),RV(a[3]==='on','u'),HN(B('dim_customer','customer_key<br>name · country',a[1]),R(a[3]==='on','l'),B('fact_sales','order_number · date_key<br>customer_key · product_key<br>employee_key<br>sales_amount · quantity',a[0]),R(a[3]==='on'),B('dim_product',a[2]?'product_key · name<br>category_key':'product_key · name<br>category · cost',a[1])),RV(a[3]==='on'),B('dim_employee','employee_key<br>name · department',a[1]));
+A('star','Star schema: one fact, many dimensions',[
+ S(v(['on','dim','','']),'Start with the <b>grain</b>: one fact row per order line. Facts hold foreign keys and numeric measures; they are long and narrow.'),
+ S(v(['','on','','']),'<b>Dimensions</b> hold descriptive context: who, what, when. Wide, short and denormalised, with surrogate keys.'),
+ S(v(['on','on','','on']),'A typical query joins the fact to a few dimensions and groups by their attributes: <code>revenue by country and category</code>. One join hop each, which is simple and fast.'),
+ S(v(['','','on dash','']),'<b>Snowflake</b> variant: normalise a dimension further (product → category). Less redundancy, more joins. Most warehouses prefer star.')
+]);
+}
+
+/* ---------- 30. gaps and islands ---------- */
+{
+const rows=[[1,'01-01',1,'12-31','g1'],[1,'01-02',2,'12-31','g1'],[1,'01-03',3,'12-31','g1'],[1,'01-07',4,'01-03','g2'],[1,'01-08',5,'01-03','g2'],[2,'01-05',1,'01-04','g3']];
+A('gaps-islands','Gaps & islands: find consecutive streaks',[
+ S(TB('logins',['user_id','day'],rows.map(r=>({r:r.slice(0,2)}))),'User 1 logged in Jan 1–3 and Jan 7–8: two streaks ("islands").'),
+ S(TB('ROW_NUMBER per user ordered by day',['user_id','day','rn'],rows.map(r=>({r:r.slice(0,3),a:[2]}))),'Number each user\'s days 1, 2, 3, …'),
+ S(TB('day − rn = constant inside a streak',['user_id','day','rn','grp = day − rn'],rows.map(r=>({r:r.slice(0,4),c:r[4],a:[3]}))),'Consecutive dates increase by 1, and so does rn, so <b>day − rn stays constant</b> within a streak and jumps after a gap.'),
+ S(TB('GROUP BY user_id, grp',['user_id','start','end','days'],[{r:[1,'01-01','01-03',3],c:'g1 new'},{r:[1,'01-07','01-08',2],c:'g2 new'},{r:[2,'01-05','01-05',1],c:'g3 new'}]),'Group by that constant to get each streak with MIN, MAX and COUNT. The same trick finds consecutive months, outages and sessions.')
+]);
+}
+
+/* ---------- 31. sessionization ---------- */
+{
+const r=[[1,'10:00',null,1,1],[1,'10:10','10 min',0,1],[1,'11:00','50 min',1,2],[2,'09:00',null,1,1],[2,'09:20','20 min',0,1]];
+A('sessionize','Sessionization: new session after 30 minutes idle',[
+ S(TB('clicks',['user_id','ts'],r.map(x=>({r:x.slice(0,2)}))),'Raw click events per user.'),
+ S(TB('gap = ts − LAG(ts)',['user_id','ts','gap'],r.map(x=>({r:x.slice(0,3),a:[2]}))),'LAG per user gives the time since the previous click.'),
+ S(TB('new_session = gap is NULL or > 30 min',['user_id','ts','gap','new_session'],r.map(x=>({r:x.slice(0,4),a:[3],c:x[3]?'hot':''}))),'Flag 1 when a session starts: the first click, or a gap over 30 minutes.'),
+ S(TB('session_id = running SUM(new_session)',['user_id','ts','gap','new_session','session_id'],r.map(x=>({r:x,a:[4],c:(x[0]===1&&x[4]===2)?'g2':'g1'}))),'A running SUM of the flags numbers the sessions. Flag-then-cumulative-sum is a pattern worth memorising.')
+]);
+}
+
+/* ---------- 32. pivot ---------- */
+A('pivot','Pivot: rows into columns with FILTER / CASE',[
+ S(TB('sales by category & month (long)',['category','month','sales'],[['Accessories','Jan',45],['Accessories','Feb',120],['Accessories','Mar',80],['Clothing','Jan',60],['Clothing','Feb',75]]),'Long format: one row per category and month. Clothing has no March row.'),
+ S(H(Q(["SUM(sales) FILTER (WHERE month = 'Jan') AS jan,","SUM(sales) FILTER (WHERE month = 'Feb') AS feb,","SUM(CASE WHEN month = 'Mar' THEN sales ELSE 0 END) AS mar"],[0,1,2]),TB('GROUP BY category',['category','jan','feb','mar'],[{r:['Accessories',45,120,80],a:[1,2,3]},{r:['Clothing',60,75,0],a:[1,2,3]}])),'One conditional aggregate per output column. FILTER would give NULL for a missing month; the CASE … ELSE 0 form gives 0. Redshift: CASE or PIVOT. Athena: FILTER or CASE.')
+]);
+
+/* ---------- 33. correlated subquery ---------- */
+{
+const rows=[[1,'Jossef',3],[2,'Kevin',3],[3,'Mary',3],[4,'Mark',1],[5,'Anna',0]];
+const st=k=>TB('customers + correlated COUNT(*)',['customer_id','first_name','total_orders'],rows.map((r,i)=>({r:[r[0],r[1],i<=k?r[2]:''],c:i===k?'cur':'',a:i===k?[2]:[]})));
+A('correlated','Correlated subquery: runs per outer row',[
+ S(st(0),'For customer 1 the inner query runs with <code>c.customer_id = 1</code> → 3 orders.'),
+ S(st(3),'Then again for customer 2, 3, 4… The inner query depends on the outer row, so logically it runs once per row.'),
+ S(st(4),'Customer 5 has no orders → COUNT gives 0. For big tables, a JOIN + GROUP BY (or EXISTS) is usually faster; the planner often rewrites it for you.')
+]);
+}
+
+/* ---------- 34. CTE chain ---------- */
+{
+const v=(a)=>V(H(B('cte_total_sales','SUM(sales) per customer',a[0]),B('cte_last_order','MAX(order_date)',a[1])),H(RV(a[2]==='on'),RV(a[2]==='on')),H(B('cte_rank','RANK() over total',a[2]),B('cte_segment','CASE on total',a[2])),RV(a[3]==='on'),B('final SELECT','customers LEFT JOIN every CTE',a[3]));
+A('cte-chain','CTEs: build the answer step by step',[
+ S(v(['on','on','','']),'Independent CTEs each answer one small question.'),
+ S(v(['ok','','on','']),'<b>Nested</b> CTEs build on earlier ones: rank and segment both read cte_total_sales, so the logic is written once.'),
+ S(v(['','','','on']),'The final query assembles the report. Each step can be tested on its own by selecting from it, which is the main reason interviewers like CTEs.')
+]);
+}
+return AN;
+})();
+
+/* One-line summary + interview sound bite for every lesson: [in simple words, say it in the interview] */
+const TL={
+'what-is-sql':['A database stores data in an organised way; SQL is the language you use to ask it questions.','"SQL is declarative: I describe the result I want and the optimizer decides how to get it. I can check its decision with EXPLAIN."'],
+'postgres-aws':['RDS and Aurora run real PostgreSQL, Redshift is a PostgreSQL descendant built for analytics, and Athena speaks Trino SQL over S3.','"I write standard SQL by default and switch to dialect features only when needed: QUALIFY in Redshift, try_cast in Athena, ON CONFLICT in PostgreSQL."'],
+'db-types':['Pick the store by access pattern: relational for transactions, columnar for analytics, key-value for fast lookups, graph for relationships.','"OLTP is many small row-level writes on normalised tables; OLAP is few large scans on columnar, denormalised data. My job is moving data from one to the other."'],
+'db-structure':['Instance → database → schema → table → columns and rows. Choose the right data type: it affects correctness, storage and speed.','"I store money as NUMERIC, events as TIMESTAMPTZ in UTC, and semi-structured data as JSONB."'],
+'sql-commands':['DDL defines structure, DML changes data, DQL reads it, DCL grants access, TCL groups work into transactions.','"In PostgreSQL even DDL is transactional, so I can wrap a table swap in BEGIN … COMMIT."'],
+'select':['SELECT picks columns, FROM picks the table. It only reads; nothing changes.','"I avoid SELECT * in pipelines: in Redshift and Athena every extra column costs I/O, and in Athena it costs money."'],
+'where':['WHERE keeps only the rows for which a condition is TRUE.','"WHERE runs before GROUP BY and SELECT, so it can\'t use aggregates or column aliases."'],
+'order-by':['ORDER BY sorts the result; the second column only breaks ties of the first.','"In PostgreSQL NULLs sort last ascending and first descending. I make it explicit with NULLS LAST."'],
+'group-by':['GROUP BY turns many rows into one row per group, and aggregates summarise each group.','"Every selected column must be in GROUP BY or inside an aggregate, because each group returns only one row."'],
+'having':['WHERE filters rows before grouping; HAVING filters groups after.','"If the condition uses an aggregate it goes in HAVING; otherwise it belongs in WHERE, which is cheaper because it removes rows early."'],
+'distinct':['DISTINCT removes duplicate rows; DISTINCT ON keeps the first row per key (PostgreSQL only).','"DISTINCT costs a sort or hash, so I don\'t add it just in case. For latest-row-per-key I use ROW_NUMBER, which works in every engine."'],
+'limit':['LIMIT returns only the first N rows, so pair it with ORDER BY for a meaningful top-N.','"OFFSET paging gets slower with every page; I use keyset pagination: WHERE id > :last ORDER BY id LIMIT n."'],
+'exec-order':['You write SELECT first, but the database runs FROM → WHERE → GROUP BY → HAVING → SELECT → DISTINCT → ORDER BY → LIMIT.','"That order explains the alias rules: an alias works in ORDER BY but not in WHERE, and you filter window functions in an outer query."'],
+'create':['CREATE TABLE defines columns, types and rules (constraints) that protect the data.','"I use GENERATED ALWAYS AS IDENTITY for surrogate keys and never assume ids are gap-free."'],
+'alter-drop':['ALTER changes an existing table; DROP removes it completely.','"Adding a nullable column or one with a constant default is instant in PostgreSQL 11+; type changes can rewrite the whole table, so I plan them."'],
+'insert':['INSERT adds rows, either from VALUES or from a SELECT.','"For bulk data I never loop INSERTs: COPY in PostgreSQL, COPY from S3 in Redshift, or just drop files in S3 for Athena."'],
+'update':['UPDATE changes values in rows matched by WHERE. No WHERE means every row.','"I run the WHERE as a SELECT first, and I use UPDATE … FROM to update from another table."'],
+'delete-truncate':['DELETE removes chosen rows; TRUNCATE empties the whole table fast; DROP removes the table.','"In PostgreSQL DELETE leaves dead tuples for VACUUM. In Redshift TRUNCATE commits immediately and can\'t be rolled back."'],
+'upsert':['An upsert inserts new rows and updates existing ones in one step.','"I load into staging, dedupe, then MERGE or INSERT … ON CONFLICT on the business key, with IS DISTINCT FROM so a re-run changes nothing."'],
+'comparison-ops':['Comparison operators (=, <>, >, <, …) compare two values to produce TRUE, FALSE or UNKNOWN.','"For change detection I use IS DISTINCT FROM, because <> returns UNKNOWN when either side is NULL."'],
+'logical-ops':['AND needs every condition true, OR needs one, NOT flips one. NULL makes a condition UNKNOWN.','"NOT binds tighter than AND, and AND tighter than OR, so I always add parentheses when mixing them."'],
+'between':['BETWEEN checks a range and includes both ends.','"For timestamps I use half-open ranges (>= start AND < next day) so nothing on the last day is lost and pruning still works."'],
+'in':['IN checks whether a value is in a list; it\'s a short form of many ORs.','"NOT IN returns nothing if the list contains a NULL, so I use NOT EXISTS for anti-joins."'],
+'like':['LIKE matches text patterns: % for any characters, _ for one. ILIKE ignores case; ~ uses regular expressions.','"A leading wildcard can\'t use a B-tree index; for contains-search in PostgreSQL I use a pg_trgm GIN index."'],
+'combine-overview':['Joins add columns side by side using a key; set operators stack rows from queries with the same shape.','"I pick the join by which rows must survive: matches only (INNER), all from one side (LEFT), or all from both (FULL)."'],
+'inner-join':['INNER JOIN returns only rows that have a match in both tables.','"INNER is the default and usually cheapest join. I always qualify columns with table aliases."'],
+'left-join':['LEFT JOIN keeps every row from the left table and fills NULLs where the right side has no match.','"A filter on the right table belongs in ON. Put it in WHERE and the LEFT JOIN silently becomes an INNER JOIN."'],
+'right-join':['RIGHT JOIN keeps every row from the right table. It\'s a LEFT JOIN with the tables swapped.','"I rarely write RIGHT JOIN; swapping the tables into a LEFT JOIN keeps queries readable."'],
+'full-join':['FULL JOIN keeps all rows from both tables, matched where possible.','"FULL JOIN is my tool for reconciling two sources: unmatched rows on either side show up as NULLs."'],
+'anti-joins':['An anti join returns rows that have no match on the other side.','"LEFT JOIN … WHERE right.key IS NULL and NOT EXISTS both become an Anti Join in the plan; NOT EXISTS is safest with NULLs."'],
+'cross-join':['CROSS JOIN pairs every row with every row (rows × rows).','"I use it on purpose to build complete grids like product × month, then LEFT JOIN facts so missing combinations show as zero."'],
+'multi-joins':['Real queries join several tables; self joins compare a table with itself; LATERAL lets a subquery see the current outer row.','"If a join returns more rows than expected, a key is duplicated on one side. I check uniqueness or aggregate first."'],
+'set-rules':['Set operators need the same number of columns, compatible types and the same column order.','"Columns map by position, not name, so I list them explicitly and never UNION SELECT *."'],
+'union':['UNION stacks results and removes duplicates; UNION ALL keeps them all.','"I default to UNION ALL because it skips the duplicate check, and use UNION only when I really need de-duplication."'],
+'except-intersect':['EXCEPT returns rows in the first query but not the second; INTERSECT returns rows in both.','"To prove two tables are identical I run EXCEPT in both directions and expect zero rows each time."'],
+'set-usecases':['Set operators combine yearly tables, detect deltas and validate migrations.','"Across systems I can\'t EXCEPT directly, so I compare counts and aggregate fingerprints per partition."'],
+'functions-intro':['Row-level functions transform one value at a time; aggregates turn many rows into one value.','"Most of my transformation logic in the silver layer is row-level functions: trim, cast, standardise, handle NULLs."'],
+'string-fn':['String functions clean and reshape text: trim, case, replace, split, pad, concatenate.','"|| with a NULL returns NULL, while CONCAT skips NULLs. That difference causes missing names in reports."'],
+'numeric-fn':['Numeric functions round and calculate. Integer ÷ integer drops the decimals.','"5/2 is 2 in PostgreSQL, Redshift and Athena, so I cast one side to NUMERIC or DOUBLE before dividing."'],
+'date-basics':['DATE, TIME, TIMESTAMP, TIMESTAMPTZ and INTERVAL cover points in time and durations.','"I normalise everything to UTC with TIMESTAMPTZ and convert to local time only for presentation."'],
+'date-parts':['EXTRACT pulls out a number, date_trunc rounds down to a unit, to_char formats as text.','"date_trunc changes the grain of an aggregation; for filters I use ranges, not functions on the column, so pruning still works."'],
+'format-cast':['Formatting changes how a value looks (text); casting changes its type.','"PostgreSQL has no ISDATE, so I validate with a regex before casting. In Athena, try_cast returns NULL instead of failing."'],
+'date-calc':['Add or subtract INTERVALs; DATE − DATE gives days.','"Same task, three dialects: d + INTERVAL in PostgreSQL, DATEADD in Redshift, date_add in Athena."'],
+'null-fn':['NULL means unknown. COALESCE replaces it, NULLIF creates it, IS NULL tests for it.','"Aggregates skip NULLs, so I decide whether NULL means zero before averaging, and use NULLIF to avoid divide-by-zero."'],
+'case':['CASE returns the value of the first true condition, like if/else in SQL.','"I use CASE for categories, mappings and conditional aggregation (pivots), with the FILTER clause where the engine supports it."'],
+'aggregates':['Aggregates summarise many rows: COUNT, SUM, AVG, MIN, MAX, plus string_agg, percentiles and more.','"COUNT(*) counts rows and COUNT(col) counts non-NULLs, so the difference between them is a quick NULL check."'],
+'grouping-sets':['ROLLUP, CUBE and GROUPING SETS produce several grouping levels (subtotals, totals) in one query.','"I use GROUPING() to tell a subtotal row from a genuine NULL value."'],
+'window-basics':['A window function calculates across related rows but keeps every row, unlike GROUP BY.','"Window functions give aggregate context without losing detail, such as each order\'s share of its product total."'],
+'window-syntax':['OVER(PARTITION BY … ORDER BY … frame) defines which rows the function sees.','"PARTITION BY splits, ORDER BY orders, the frame limits. I write the ROWS frame explicitly: the default is RANGE and Redshift requires a frame."'],
+'window-agg':['SUM, COUNT, AVG, MIN and MAX with OVER() add totals, counts and comparisons next to each row.','"COUNT(*) OVER (PARTITION BY key) > 1 is my quick duplicate detector."'],
+'running-rolling':['A running total grows from the first row; a rolling total covers a fixed recent window that slides.','"Running = ROWS UNBOUNDED PRECEDING; rolling 7 = ROWS 6 PRECEDING, or RANGE INTERVAL \'7 days\' in PostgreSQL when dates have gaps."'],
+'ranking':['ROW_NUMBER numbers rows uniquely; RANK and DENSE_RANK give ties the same number.','"Latest row per key is ROW_NUMBER() OVER (PARTITION BY key ORDER BY updated_at DESC) = 1, with a tie-breaker so it\'s deterministic."'],
+'value-fn':['LAG and LEAD read the previous or next row; FIRST_VALUE and LAST_VALUE read the window\'s edges.','"LAST_VALUE needs ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING, otherwise it returns the current row."'],
+'techniques-overview':['Subqueries and CTEs structure one query; views reuse logic; materialised views, CTAS and temp tables store results.','"I choose by lifetime and cost: CTE for readability, view for reuse and security, materialised view or CTAS when reads must be fast."'],
+'subqueries':['A subquery is a query inside another query. It can return one value, a list or a whole table.','"A correlated subquery depends on the outer row. On large tables I rewrite it as a JOIN or EXISTS if the planner doesn\'t already."'],
+'cte':['A CTE (WITH …) names an intermediate result so a complex query reads like steps.','"CTEs are about readability. PostgreSQL 12+ inlines single-use CTEs, so they perform like subqueries unless I add MATERIALIZED."'],
+'recursive-cte':['A recursive CTE repeats a query, feeding each round the rows from the last, until no new rows appear.','"Anchor, UNION ALL, recursive part with a stop condition. I use it for hierarchies and graph walks, and guard against cycles."'],
+'views':['A view is a saved query that behaves like a table but stores no data.','"Views centralise logic and enforce security, exposing only the rows and columns a team should see."'],
+'materialized-views':['A materialised view stores the query result physically and needs refreshing.','"PostgreSQL refreshes fully (CONCURRENTLY needs a unique index); Redshift can refresh incrementally and automatically."'],
+'ctas-temp':['CTAS creates a real table from a query; temp tables live only for the session.','"In Athena, CTAS is how I convert raw CSV into partitioned Parquet; in Redshift I add DISTKEY and SORTKEY to the CTAS."'],
+'functions-procs':['Functions return values and run inside queries; procedures are CALLed and can commit or roll back.','"Procedures suit ETL steps that need transaction control; functions suit reusable calculations. Redshift supports PL/pgSQL procedures too."'],
+'triggers':['A trigger runs code automatically when rows are inserted, updated or deleted.','"Triggers are fine for audit columns in OLTP but slow bulk loads. Redshift and Athena don\'t have them; CDC uses WAL instead."'],
+'indexes':['An index is a sorted lookup structure that finds rows without reading the whole table.','"B-tree for equality and ranges, GIN for JSONB and arrays, BRIN for huge time-ordered tables. Every index slows writes, so I drop unused ones."'],
+'explain':['EXPLAIN shows the plan the optimizer chose; EXPLAIN ANALYZE runs it and shows real times and row counts.','"I read plans inside-out and look for big gaps between estimated and actual rows, sequential scans on selective filters, and sorts spilling to disk."'],
+'stats-vacuum':['PostgreSQL keeps old row versions (MVCC); VACUUM cleans them up and ANALYZE refreshes statistics.','"Autovacuum prevents bloat and transaction-ID wraparound. After big loads I run ANALYZE so the planner has fresh stats."'],
+'partitioning':['Partitioning splits a large table into pieces by a key so queries can skip irrelevant pieces.','"Pruning only works when I filter on the partition key without wrapping it in a function; dropping old partitions makes retention instant."'],
+'best-practices':['Read less data, filter early, join on keys, avoid functions on filtered columns, and measure with EXPLAIN.','"My first three checks for a slow query: is it reading only needed columns, is the filter sargable, and are the statistics fresh."'],
+'jsonb':['JSONB stores JSON in binary form that you can query, index and flatten with SQL.','"->> extracts text, jsonb_array_elements explodes arrays, and a GIN index makes containment (@>) fast."'],
+'arrays':['Arrays hold several values in one column; unnest turns them into rows and array_agg collects rows into an array.','"Splitting a delimited column into rows is unnest(string_to_array(col, \',\')) in PostgreSQL and CROSS JOIN UNNEST(split(col, \',\')) in Athena."'],
+'semi-aws':['Redshift stores JSON in SUPER and navigates it with PartiQL; Athena uses ROW, ARRAY and MAP types plus JSON functions.','"For flexible staging in Redshift I land JSON into SUPER, then project typed columns into the modelled tables."'],
+'acid':['A transaction is all-or-nothing: Atomicity, Consistency, Isolation, Durability.','"PostgreSQL guarantees durability with the write-ahead log and isolation with MVCC snapshots."'],
+'isolation':['Isolation levels decide what one transaction can see of another\'s changes.','"PostgreSQL defaults to READ COMMITTED and Redshift to SERIALIZABLE, so concurrent writes there can fail and must be retried."'],
+'locks':['Locks stop conflicting changes; deadlocks happen when two transactions wait on each other.','"Keep transactions short, lock in a consistent order, use SKIP LOCKED for job queues, and make every load idempotent."'],
+'rs-overview':['Redshift is a columnar, massively parallel warehouse: a leader node plans, compute-node slices do the work.','"Redshift looks like PostgreSQL but behaves like an MPP column store: no indexes, constraints not enforced, bulk COPY instead of row inserts."'],
+'rs-design':['DISTKEY decides which slice stores each row; SORTKEY orders the data on disk so blocks can be skipped.','"I distribute big fact and dimension tables on their common join key, put small dimensions on ALL, and sort facts by date."'],
+'rs-load':['COPY loads files from S3 in parallel; UNLOAD exports query results; MERGE upserts from staging.','"I split input into many similar-sized compressed files, COPY into staging, dedupe, then MERGE in one transaction."'],
+'rs-sql':['Most PostgreSQL SELECT syntax works in Redshift, with differences: LISTAGG, DATEADD, QUALIFY, explicit window frames, no LATERAL.','"The gotchas I watch for: an explicit ROWS frame for running totals, LISTAGG instead of string_agg, and no enforced primary keys."'],
+'ath-overview':['Athena runs Trino SQL directly on files in S3; tables are definitions in the Glue Data Catalog and you pay per data scanned.','"In Athena, cost and speed come from bytes scanned: Parquet, partitions and selecting only the needed columns."'],
+'ath-ddl':['Athena tables are metadata over S3 folders; partitions map to folder paths like dt=2025-01-15/.','"I use partition projection instead of MSCK REPAIR for date partitions, and CTAS or INSERT INTO to write Parquet."'],
+'ath-sql':['Athena functions differ from PostgreSQL: date_add, date_diff, date_format, try_cast, approx_distinct, UNNEST.','"On messy lake data I lean on try_cast and try() so one bad record doesn\'t fail the whole query."'],
+'ath-iceberg':['Iceberg tables add ACID updates, deletes, MERGE, schema evolution and time travel to data in S3.','"Each Iceberg write commits a new snapshot. I run OPTIMIZE to compact small files and VACUUM to expire old snapshots."'],
+'ath-perf':['Make Athena faster and cheaper by scanning less: columnar files, partitions, bigger files, fewer columns.','"For an expensive query: check bytes scanned, convert to partitioned Parquet with CTAS, compact small files, cap the workgroup."'],
+'rds-overview':['RDS and Aurora are managed PostgreSQL; Aurora adds distributed storage, fast replicas and serverless scaling.','"Same SQL, different operations: parameter groups instead of ALTER SYSTEM, RDS Proxy for pooling, Performance Insights for top SQL."'],
+'rds-s3':['Load and export RDS data with COPY, the aws_s3 extension, pg_dump, DMS or zero-ETL.','"For S3 to RDS I use aws_s3.table_import_from_s3; for RDS to Redshift, zero-ETL or DMS."'],
+'rds-cdc':['CDC captures every insert, update and delete from the WAL so downstream copies stay in sync.','"Logical replication slot → DMS → S3 or Redshift, then MERGE latest-per-key. I monitor slot lag because an idle slot fills the disk."'],
+'dwh-what':['A data warehouse integrates data from many systems into one trusted, historical source for analytics.','"Subject-oriented, integrated, time-variant, non-volatile: Inmon\'s four properties."'],
+'etl':['Extract from sources, transform into clean shapes, load into the target. ELT loads first and transforms inside the warehouse.','"I choose full or incremental extraction, batch or streaming, and truncate-insert, append or merge loads based on volume and freshness needs."'],
+'scd':['Slowly changing dimensions decide what happens to history when an attribute changes.','"Type 1 overwrites; Type 2 expires the old row and inserts a new one with a new surrogate key and validity dates."'],
+'dwh-arch':['Inmon, Kimball, Data Vault and Medallion are different ways to layer a warehouse.','"Medallion: bronze is raw for traceability, silver is cleaned, gold is business-ready star schemas and aggregates."'],
+'dim-model':['A star schema puts measures in a central fact table surrounded by descriptive dimensions.','"I decide the grain first, use surrogate keys, and keep dimensions denormalised so analysts need only one join per attribute."'],
+'dq-checks':['Data-quality checks are queries that should return zero rows when the data is healthy.','"Every load runs key uniqueness, NULL, referential-integrity, range, freshness and reconciliation checks, and a failure stops the pipeline."'],
+'analytics':['Analytics questions follow patterns: explore, measure, rank, trend, cumulate, compare, segment.','"Most business questions map to GROUP BY plus a window function: share of total, MoM growth, running totals, segments."'],
+'ai-sql':['AI assistants speed up SQL work if you give them the dialect, the schema and clear specs, and you test what they return.','"I always name the engine, Redshift or Athena engine v3, because the same request gives different correct SQL in each."'],
+'patterns':['A dozen patterns cover most SQL interview questions: top-N, dedup, Nth highest, running totals, gaps and islands, pivots, sessions.','"I recognise the pattern first, then pick the tool: ROW_NUMBER for top-N and dedup, LAG for change, date minus row_number for streaks."'],
+'dialects':['The same task has different syntax in PostgreSQL, Redshift, Athena and SQL Server.','"I write portable SQL first and know the handful of dialect switches that matter: dates, string aggregation, upserts and window filters."'],
+'scenarios':['Scenario questions test design judgement: picking services, keeping loads idempotent, controlling cost and quality.','"I answer with the flow (source, ingest, store, transform, serve) and then the guarantees: idempotency, data quality, monitoring, cost."'],
+'qa-bank':['Short, precise answers to the questions interviewers ask most.','"Answer in one sentence, then give one concrete example. That shows understanding, not memorisation."'],
+'playground':['A real PostgreSQL 16 database runs in this page; experiment freely and reset any time.','"Practise by predicting the result before you run the query; that habit is what interviews test."']
+};
+
 C('intro','1 · Introduction','SQL, databases, DBMS, PostgreSQL on AWS, structure and command families');
 L('what-is-sql','What is SQL?',`
 <p>Everything generates data: your name, your phone, your car, your bank statements. People keep personal data in spreadsheets and text files; companies generate far too much for that, so they store it in a <b>database</b> — a container that stores data in an <i>organized</i> way so it is easy to access, manage and search.</p>
@@ -417,6 +1079,7 @@ SELECT * FROM my_customers ORDER BY score ASC;
 `);
 L('group-by','GROUP BY — Aggregate',`
 <p><code>GROUP BY</code> combines rows that share a value into one row and aggregates another column per group.</p>
+{{anim:group-by}}
 @@run Total score and number of customers per country
 SELECT
     country,
@@ -427,7 +1090,7 @@ GROUP BY country;
 @@
 <p><code>AS</code> creates an alias that lives only in this query.</p>
 <div class="box warn"><b class="lbl">The GROUP BY rule</b>Every SELECT column must be aggregated or listed in GROUP BY. Adding <code>first_name</code> to SELECT without grouping by it fails (<i>column must appear in the GROUP BY clause or be used in an aggregate function</i>). Exception in PostgreSQL: if you group by a table's primary key you may select its other columns.</div>
-<div class="box tip"><b class="lbl">PostgreSQL shortcut</b>You may group by position or alias: <code>GROUP BY 1</code>, <code>GROUP BY country</code>. Redshift and Athena accept positions too — handy, but less readable.</div>
+<div class="box tip"><b class="lbl">PostgreSQL shortcut</b>You may group by position or alias: <code>GROUP BY 1</code>, <code>GROUP BY country</code>. Redshift accepts aliases and positions; Athena accepts positions but not aliases. Handy, but less readable.</div>
 @@ex Find the average score per country in my_customers (columns: country, avg_score).
 SELECT country, AVG(score) AS avg_score FROM my_customers GROUP BY country;
 @@
@@ -490,6 +1153,7 @@ ORDER BY col1
 LIMIT 2
 @@
 <div class="flow"><span>1 FROM / JOIN</span><i>→</i><span>2 WHERE</span><i>→</i><span>3 GROUP BY</span><i>→</i><span>4 HAVING</span><i>→</i><span>5 SELECT (window functions)</span><i>→</i><span>6 DISTINCT</span><i>→</i><span>7 ORDER BY</span><i>→</i><span>8 LIMIT / OFFSET</span></div>
+{{anim:exec-order}}
 <p>Because SELECT runs after WHERE, a column alias can't be used in WHERE — but it can in ORDER BY. Window functions are computed in step 5, so you filter on them with a subquery/CTE (or Redshift's <code>QUALIFY</code>).</p>
 <div class="tw"><table class="t"><tr><th>Clause</th><th>Filters</th></tr><tr><td>SELECT</td><td>Columns</td></tr><tr><td>DISTINCT</td><td>Duplicates</td></tr><tr><td>LIMIT</td><td>Rows by position</td></tr><tr><td>WHERE</td><td>Rows before aggregation</td></tr><tr><td>HAVING</td><td>Groups after aggregation</td></tr></table></div>
 `);
@@ -618,6 +1282,7 @@ WHERE t.score IS DISTINCT FROM EXCLUDED.score;              -- skip no-op update
 SELECT * FROM my_customers ORDER BY id;
 @@
 <p><code>ON CONFLICT DO NOTHING</code> just skips duplicates — an easy idempotent insert.</p>
+{{anim:merge-upsert}}
 <h2>MERGE (PostgreSQL 15+, Redshift, SQL Server, Athena Iceberg)</h2>
 @@run SCD Type 1 sync with MERGE
 CREATE TABLE stage (customer_id INT, first_name TEXT, country TEXT, score INT);
@@ -679,6 +1344,7 @@ SELECT * FROM my_customers WHERE country = 'USA' OR score > 500;
 SELECT * FROM my_customers WHERE NOT score < 500;
 @@
 <div class="box warn"><b class="lbl">Precedence</b>NOT, then AND, then OR. <code>country='USA' OR country='UK' AND score&gt;500</code> means USA OR (UK AND score&gt;500). Use parentheses.</div>
+{{anim:null-logic}}
 <div class="box note"><b class="lbl">Three-valued logic</b>A comparison with NULL is <i>unknown</i>, and WHERE keeps only <i>true</i>. So <code>WHERE score &lt;&gt; 0</code> drops rows where score is NULL.</div>
 @@ex Find customers from Germany whose score is below 400.
 SELECT * FROM my_customers WHERE country = 'Germany' AND score < 400;
@@ -746,6 +1412,8 @@ L('combine-overview','Combining Tables: Joins vs Set Operators',`
 <ol><li><b>Recombine data</b> spread across tables into one big picture.</li><li><b>Enrich</b> a master table with a field from a lookup/reference table.</li><li><b>Check existence</b> — filter one table by another without taking its columns.</li></ol>
 <p>The table in FROM is the <b>left</b> table; the one in JOIN is the <b>right</b> table.</p>
 {{venn:inner,left,right,full,leftanti,rightanti,fullanti}}
+{{anim:join-types}}
+
 `);
 L('inner-join','INNER JOIN',`
 <p>Only rows that match in both tables. Order of tables doesn't matter. <code>JOIN</code> alone means INNER — write it explicitly.</p>
@@ -767,6 +1435,8 @@ FROM my_customers AS c
 LEFT JOIN my_orders AS o ON c.id = o.customer_id;
 @@
 <p>The course author's favourite: start from the master table of the analysis, LEFT JOIN every supporting table, control the result with WHERE.</p>
+{{anim:join-types}}
+
 `);
 L('right-join','RIGHT JOIN',`
 {{venn:right}}
@@ -909,6 +1579,7 @@ ORDER BY first_name;             -- once, at the end
 <li>You are responsible for mapping the right information (swapping first/last name passes every rule and produces garbage).</li></ol>
 `);
 L('union','UNION & UNION ALL',`
+{{anim:set-ops}}
 @@run Employees and customers, no duplicates (8 people)
 SELECT first_name, last_name FROM employees
 UNION
@@ -1103,7 +1774,7 @@ SELECT raw,
   CASE WHEN raw ~ '^\\d{4}-\\d{2}-\\d{2}$' THEN raw::DATE END AS new_order_date
 FROM (VALUES ('2025-08-20'), ('2025-08-21'), ('2025-08'), ('2025-08-23')) AS t(raw);
 @@
-<p>Athena has <code>try_cast(raw AS DATE)</code> (NULL on failure) — very handy on dirty S3 data. Redshift has <code>CAN_JSON_PARSE</code> and (newer) <code>TRY_CAST</code> on some types; otherwise use regex checks.</p>
+<p>Athena has <code>try_cast(raw AS DATE)</code> (NULL on failure) — very handy on dirty S3 data. In Redshift, validate with a regex (<code>col ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'</code>) before casting, or load into a VARCHAR staging column first.</p>
 <div class="box tip"><b class="lbl">DE use case</b>Sources deliver different date formats (CSV, API, DB). Standardise them to one type and format in the silver layer before analysis.</div>
 `);
 L('date-calc','Date Arithmetic',`
@@ -1148,6 +1819,7 @@ SELECT order_id, ship_address, bill_address,
        COALESCE(ship_address, bill_address, 'N/A') AS address
 FROM orders;
 @@
+{{anim:null-logic}}
 <h2>Handle NULLs before…</h2>
 <h3>1. Aggregations</h3><p>Aggregates ignore NULLs (except <code>COUNT(*)</code>). If NULL means 0 for the business, replace first:</p>
 @@run
@@ -1296,6 +1968,7 @@ ORDER BY p.category NULLS LAST, p.product NULLS LAST;
 `);
 L('window-basics','Window Functions vs GROUP BY',`
 <p>A <b>window function</b> calculates over a set of rows <b>without collapsing them</b>: every row keeps its detail and gets the aggregate beside it.</p>
+{{anim:window-vs-group}}
 @@run GROUP BY: one row per product — details lost
 SELECT product_id, SUM(sales) AS total_sales FROM orders GROUP BY product_id;
 @@
@@ -1413,6 +2086,7 @@ WHERE salary = highest_salary;
 L('running-rolling','Running Total, Rolling Total & Moving Average',`
 <ul><li><b>Running total</b> — start to current row; nothing drops. Tracks progress against targets.</li>
 <li><b>Rolling total</b> — a fixed window (last 3 rows / 7 days); the oldest drops as a new one enters.</li></ul>
+{{anim:frame}}
 @@run Running vs rolling (3 orders) totals — explicit ROWS frames work on PostgreSQL, Redshift and Athena
 SELECT order_id, order_date, sales,
   SUM(sales) OVER (ORDER BY order_date ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS running_total,
@@ -1437,6 +2111,7 @@ SELECT order_id, order_date, sales, SUM(sales) OVER (ORDER BY order_date ROWS BE
 @@
 `);
 L('ranking','Ranking Functions',`
+{{anim:rank-ties}}
 @@run ROW_NUMBER vs RANK vs DENSE_RANK (ties at 60 and 20)
 SELECT order_id, sales,
   ROW_NUMBER() OVER (ORDER BY sales DESC) AS row_num,
@@ -1471,6 +2146,7 @@ SELECT * FROM (
   FROM orders_archive
 ) t WHERE rn = 1;          -- rn > 1 = rows to report or delete
 @@
+{{anim:dedup}}
 <h2>NTILE(n) — buckets</h2>
 <p>Bucket size = rows ÷ n; larger buckets first (10 into 3 → 4,3,3).</p>
 @@run Segment orders High / Medium / Low
@@ -1520,6 +2196,7 @@ FROM (
   FROM orders GROUP BY 1
 ) t ORDER BY order_month;
 @@
+{{anim:lag-mom}}
 <h2>Customer retention: average days between orders</h2>
 @@run Rank customers by loyalty (shortest average gap first)
 SELECT customer_id,
@@ -1607,6 +2284,7 @@ SELECT employee_id, first_name, salary,
        salary > ALL (SELECT salary FROM employees WHERE gender = 'M') AS gt_all_male
 FROM employees WHERE gender = 'F';
 @@
+{{anim:correlated}}
 <h2>Correlated subqueries &amp; EXISTS</h2>
 <p>A <b>correlated</b> subquery references the outer row, so it logically runs once per outer row. <code>EXISTS</code> stops at the first match.</p>
 @@run Orders per customer with a correlated subquery
@@ -1646,6 +2324,7 @@ LEFT JOIN cte_last_order  l ON l.customer_id = c.customer_id
 LEFT JOIN cte_rank        r ON r.customer_id = c.customer_id
 LEFT JOIN cte_segment     g ON g.customer_id = c.customer_id;
 @@
+{{anim:cte-chain}}
 <h2>Best practices</h2>
 <ul><li>Keep each CTE focused on one step; name it after what it returns.</li><li>Don't create many CTEs that could be one (the course suggests ~5 per query as a sanity limit).</li><li>CTEs can't be referenced outside their statement — use a view for reuse.</li></ul>
 <h2>MATERIALIZED / NOT MATERIALIZED (PostgreSQL 12+)</h2>
@@ -1665,6 +2344,7 @@ SELECT COUNT(*) AS rows_moved FROM moved;
 `);
 L('recursive-cte','Recursive CTEs',`
 <p>A CTE that references itself: an <b>anchor</b> query, <code>UNION ALL</code>, and a <b>recursive</b> query with a stop condition. Use for hierarchies, sequences and graphs.</p>
+{{anim:recursive}}
 @@run Generate a sequence 1..20
 WITH RECURSIVE series AS (
   SELECT 1 AS my_number                         -- anchor
@@ -1756,7 +2436,7 @@ AS SELECT order_date, SUM(sales) AS sales FROM sales.orders GROUP BY order_date;
 
 REFRESH MATERIALIZED VIEW mv_daily_sales;   -- incremental when possible
 @@
-<p>Athena doesn't have classic materialized views over S3 tables (Glue Data Catalog has Iceberg-based MVs in newer releases); the usual pattern is a scheduled <b>CTAS / INSERT INTO</b> producing a summary table.</p>
+<p>Athena has no classic materialized views over S3 tables; the usual pattern is a scheduled <b>CTAS / INSERT INTO</b> producing a summary table.</p>
 `);
 L('ctas-temp','CTAS & Temporary Tables',`
 <h2>CTAS — Create Table As Select</h2>
@@ -1906,6 +2586,7 @@ QZ('quiz-advanced','Quiz: Advanced Techniques',[
 C('performance','11 · PostgreSQL Performance','Indexes, EXPLAIN, statistics, VACUUM, partitioning and 30 best practices');
 L('indexes','Indexes',`
 <p>An index is a separate structure that lets the database find rows without scanning the whole table — like a book index. Speeds reads, slows writes, costs storage.</p>
+{{anim:btree}}
 <div class="tw"><table class="t"><tr><th>PostgreSQL index</th><th>Good for</th></tr>
 <tr><td><b>B-tree</b> (default)</td><td>=, &lt;, &gt;, BETWEEN, ORDER BY, LIKE 'abc%'</td></tr>
 <tr><td><b>Hash</b></td><td>Equality only</td></tr>
@@ -1946,6 +2627,7 @@ GROUP BY c.first_name;
 EXPLAIN (ANALYZE, BUFFERS, COSTS OFF) SELECT * FROM orders WHERE customer_id = 1;
 @@
 <div class="box tip"><b class="lbl">About this playground</b>The in-browser PostgreSQL (PGlite) reports odd costs (like 10000000000) for tiny tables; read the <i>shape</i> of the plan, not the numbers.</div>
+{{anim:explain-plan}}
 <h2>Plan nodes to know</h2>
 <div class="tw"><table class="t"><tr><th>Node</th><th>Meaning</th></tr>
 <tr><td>Seq Scan</td><td>Reads whole table (fine for small / most rows)</td></tr>
@@ -1970,6 +2652,7 @@ EXPLAIN ANALYZE SELECT COUNT(*) FROM analytics.orders_parquet WHERE order_month 
 `);
 L('stats-vacuum','Statistics, VACUUM & MVCC',`
 <p>PostgreSQL uses <b>MVCC</b>: UPDATE writes a new row version and DELETE marks the old one dead. Dead tuples stay until <b>VACUUM</b> reclaims them.</p>
+{{anim:mvcc}}
 <ul><li><code>VACUUM</code> — reclaims dead tuples for reuse (no lock on reads/writes). <code>VACUUM FULL</code> rewrites the table (exclusive lock).</li>
 <li><code>ANALYZE</code> — refreshes planner statistics (row counts, value distribution). Run after bulk loads.</li>
 <li><b>Autovacuum</b> does both automatically; tune per table for hot tables.</li>
@@ -2017,6 +2700,7 @@ SELECT tableoid::regclass AS partition, COUNT(*) FROM orders_part GROUP BY 1 ORD
 -- Pruning: only the February partition is scanned
 EXPLAIN (COSTS OFF) SELECT * FROM orders_part WHERE order_date >= '2025-02-01' AND order_date < '2025-03-01';
 @@
+{{anim:partition-prune}}
 <ul><li>Types: <b>RANGE</b> (dates), <b>LIST</b> (country/region), <b>HASH</b> (spread evenly).</li>
 <li>Retention: <code>ALTER TABLE orders_part DETACH PARTITION orders_2025_01; DROP TABLE orders_2025_01;</code> — instant vs a huge DELETE.</li>
 <li>Automate partition creation with <b>pg_partman</b> (available on RDS).</li>
@@ -2135,6 +2819,7 @@ CREATE INDEX idx_events_payload ON raw_events USING gin (payload);
 SELECT id FROM raw_events WHERE payload @> '{"status":"paid"}';
 SELECT id, (jsonb_set(payload, '{status}', '"settled"') || '{"checked":true}'::jsonb) - 'amount' AS new_doc FROM raw_events;
 @@
+{{anim:json-flatten}}
 <p>SQL/JSON path (PG12+): <code>jsonb_path_query(payload, '$.items[*] ? (@.qty &gt; 1).sku')</code>. PG16+ adds <code>IS JSON</code>; PG17 adds <code>JSON_TABLE</code>.</p>
 @@ex From raw JSON '[{"n":"a","v":1},{"n":"b","v":5}]' return a row per element with columns n (text) and v (int).
 SELECT e->>'n' AS n, (e->>'v')::INT AS v FROM jsonb_array_elements('[{"n":"a","v":1},{"n":"b","v":5}]'::jsonb) AS e;
@@ -2241,6 +2926,7 @@ BEGIN ISOLATION LEVEL REPEATABLE READ;
 SELECT COUNT(*) FROM orders;
 COMMIT;
 @@
+{{anim:isolation}}
 <ul><li><b>Redshift</b> uses serializable isolation by default (newer clusters allow SNAPSHOT ISOLATION); concurrent writes to the same table can fail with <i>Serializable isolation violation</i> — serialize ETL writes per table or retry.</li>
 <li><b>Aurora PostgreSQL</b> readers serve read committed snapshots with small replica lag.</li></ul>
 `);
@@ -2262,6 +2948,7 @@ CREATE INDEX CONCURRENTLY idx_orders_date ON orders (order_date);  -- cannot run
 SET lock_timeout = '5s';                     -- fail fast instead of queueing behind long queries
 ALTER TABLE orders ADD COLUMN channel TEXT;  -- adding a nullable column / with constant default is instant (PG11+)
 @@
+{{anim:idempotent}}
 <h2>Idempotent loads (interview favourite)</h2>
 <p>A pipeline step that may be retried must not create duplicates. Patterns:</p>
 <ol><li><b>Delete-insert by partition</b>: <code>BEGIN; DELETE FROM fact WHERE load_date = :d; INSERT … WHERE load_date = :d; COMMIT;</code></li>
@@ -2289,6 +2976,7 @@ QZ('quiz-tx','Quiz: Transactions',[
 C('redshift','14 · Amazon Redshift SQL','Architecture, DIST/SORT keys, COPY/UNLOAD, Spectrum, differences from PostgreSQL');
 L('rs-overview','Redshift Architecture',`
 <p>Redshift is a <b>columnar MPP data warehouse</b>. Its SQL dialect began as PostgreSQL 8.0.2, so most of this guide applies — but the engine underneath is very different.</p>
+{{anim:rs-arch}}
 <ul><li><b>Leader node</b> parses, plans, and coordinates; <b>compute nodes</b> are split into <b>slices</b> that each own part of every table and work in parallel.</li>
 <li><b>Columnar storage</b> in 1MB blocks with compression encodings (AZ64, ZSTD, LZO, RAW…) and <b>zone maps</b> (min/max per block) to skip blocks.</li>
 <li><b>RA3</b> nodes separate compute from storage (Redshift Managed Storage on S3); <b>Serverless</b> bills in RPU-hours.</li>
@@ -2310,10 +2998,12 @@ L('rs-design','Distribution & Sort Keys',`
 <tr><td><b>EVEN</b></td><td>Round robin</td><td>No join pattern / staging tables</td></tr>
 <tr><td><b>AUTO</b> (default)</td><td>Redshift picks & changes it</td><td>Most tables to start</td></tr></table></div>
 <p>Pick a DISTKEY with high cardinality and even distribution (avoid <b>skew</b>), that's used in joins. Bad key → one slice does all the work.</p>
+{{anim:rs-dist}}
 <h2>Sort keys</h2>
 <ul><li><b>Compound</b> (default): ordered like a composite index — great for filters on the leading column(s), e.g. date.</li>
 <li><b>Interleaved</b>: equal weight to each column; costly VACUUM REINDEX — rarely recommended now.</li>
 <li><b>AUTO</b>: Redshift chooses.</li></ul>
+{{anim:rs-zonemap}}
 @@rs Star schema DDL on Redshift
 CREATE TABLE dim_customer (
   customer_key   INT IDENTITY(1,1),
@@ -2354,6 +3044,7 @@ DELIMITER ',' NULL AS '' MAXERROR 10 REGION 'us-east-1';
 -- what went wrong?
 SELECT * FROM sys_load_error_detail ORDER BY start_time DESC LIMIT 20;   -- (older: stl_load_errors)
 @@
+{{anim:copy-parallel}}
 <ul><li>Split input into multiple files (a multiple of the number of slices), compressed, similar sizes.</li><li>Use a <b>manifest</b> to load an exact file list; <code>COPY … JOB CREATE … AUTO ON</code> for auto-copy from S3.</li><li><code>COMPUPDATE</code>/<code>STATUPDATE</code> control encoding analysis and statistics.</li></ul>
 @@rs UNLOAD — export query results to S3
 UNLOAD ('SELECT * FROM sales.orders WHERE order_date >= ''2025-01-01''')
@@ -2434,6 +3125,7 @@ QZ('quiz-redshift','Quiz: Redshift',[
 C('athena','15 · Amazon Athena (Trino SQL)','Serverless SQL on S3: Glue catalog, partitions, CTAS, Iceberg, cost & performance');
 L('ath-overview','How Athena Works',`
 <p>Athena is <b>serverless, interactive SQL on files in S3</b>. Engine v3 is based on <b>Trino</b> (formerly PrestoSQL), so its SQL is ANSI/Trino — <b>not PostgreSQL</b>. Table definitions live in the <b>AWS Glue Data Catalog</b> (DDL is Hive-style).</p>
+{{anim:athena-flow}}
 <ul><li><b>Pricing</b>: per TB of data scanned (~$5/TB, 10MB minimum per query) — or provisioned capacity (DPUs). Less data scanned = cheaper and faster.</li>
 <li><b>Schema-on-read</b>: the table is metadata; data is files (CSV, JSON, Parquet, ORC, Avro). Dropping an external table doesn't delete S3 data.</li>
 <li><b>Workgroups</b> isolate users, set result locations, per-query data limits and engine versions.</li>
@@ -2573,6 +3265,7 @@ FROM (SELECT ARRAY[3,1,3] AS arr, map(ARRAY['a'], ARRAY[1]) AS m);
 `);
 L('ath-iceberg','Iceberg Tables: UPDATE, DELETE, MERGE & Time Travel',`
 <p>Plain Hive tables in S3 are append-only from Athena's point of view. <b>Apache Iceberg</b> tables add ACID transactions, row-level DML, schema evolution, hidden partitioning and time travel — the standard lakehouse table format on AWS.</p>
+{{anim:iceberg}}
 @@ath Create and modify an Iceberg table
 CREATE TABLE lake.customers_iceberg (
   customer_id INT, first_name STRING, country STRING, score INT, updated_at TIMESTAMP)
@@ -2604,6 +3297,7 @@ ALTER TABLE lake.customers_iceberg ADD COLUMNS (segment STRING); -- schema evolu
 <div class="box"><b class="lbl">Related</b>Same Iceberg tables are readable/writable by Glue (Spark), EMR, Redshift Spectrum and S3 Tables. Hudi and Delta Lake tables can also be read by Athena.</div>
 `);
 L('ath-perf','Athena Performance & Cost Tuning',`
+{{anim:athena-flow}}
 <ol><li><b>Columnar formats</b> — Parquet/ORC read only needed columns; often 80–95% less data scanned than CSV/JSON.</li>
 <li><b>Compression</b> — Snappy/ZSTD; use splittable formats.</li>
 <li><b>Partition</b> on common filters (date) and always filter on the partition column; use <b>partition projection</b> for many partitions.</li>
@@ -2628,7 +3322,7 @@ QZ('quiz-athena','Quiz: Athena',[
 C('rds','16 · RDS & Aurora PostgreSQL','Managed PostgreSQL on AWS: extensions, S3 import/export, replication, CDC, zero-ETL');
 L('rds-overview','RDS vs Aurora PostgreSQL',`
 <div class="tw"><table class="t"><tr><th></th><th>RDS for PostgreSQL</th><th>Aurora PostgreSQL</th></tr>
-<tr><td>Storage</td><td>EBS volumes you size (gp3/io2)</td><td>Distributed, auto-growing to 128TB, 6 copies across 3 AZs</td></tr>
+<tr><td>Storage</td><td>EBS volumes you size (gp3/io2)</td><td>Distributed, auto-growing storage (no volume sizing), 6 copies across 3 AZs</td></tr>
 <tr><td>HA</td><td>Multi-AZ standby (sync); Multi-AZ cluster with 2 readable standbys</td><td>Up to 15 low-lag readers, fast failover</td></tr>
 <tr><td>Read scaling</td><td>Read replicas (async)</td><td>Reader endpoint load-balances replicas</td></tr>
 <tr><td>Extras</td><td>—</td><td>Serverless v2, Global Database, cloning, backtrack-like fast restores, I/O-Optimized</td></tr>
@@ -2687,6 +3381,7 @@ WHERE o.creation_time > (SELECT last_value FROM etl_watermark WHERE table_name =
 ORDER BY o.creation_time;
 @@
 <div class="box warn"><b class="lbl">Ops gotcha</b>An inactive replication slot keeps WAL forever and can fill the disk of an RDS instance. Monitor <code>pg_replication_slots</code> and the <code>OldestReplicationSlotLag</code> metric.</div>
+{{anim:cdc}}
 <h2>Extensions worth knowing (supported on RDS/Aurora)</h2>
 <div class="tw"><table class="t"><tr><th>Extension</th><th>Use</th></tr>
 <tr><td>pg_stat_statements</td><td>Top queries by time</td></tr><tr><td>aws_s3 / aws_lambda</td><td>S3 import/export, invoke Lambda from SQL</td></tr>
@@ -2780,6 +3475,7 @@ INSERT INTO dim_customer_t1 VALUES (1,'Austria'), (3,'UK')
 ON CONFLICT (customer_id) DO UPDATE SET country = EXCLUDED.country;
 SELECT * FROM dim_customer_t1 ORDER BY customer_id;
 @@
+{{anim:scd2}}
 @@run SCD Type 2: expire changed rows, insert new versions (works on PG & Redshift)
 CREATE TABLE dim_customer (sk INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY, customer_id INT, country TEXT,
                            valid_from DATE, valid_to DATE, is_current BOOLEAN);
@@ -2823,6 +3519,7 @@ L('dwh-arch','Architectures: Inmon, Kimball, Data Vault, Medallion',`
 <tr><td>Transforms</td><td>None</td><td>Cleansing, standardizing, derived columns, enrichment</td><td>Integration, aggregation, business logic</td></tr>
 <tr><td>Model</td><td>None</td><td>Source-shaped</td><td>Star schema, flat / aggregated tables</td></tr>
 <tr><td>AWS typical</td><td>S3 raw/ (JSON/CSV), Redshift staging</td><td>S3 Parquet/Iceberg via Glue/Athena CTAS</td><td>Redshift marts / Athena views / QuickSight</td></tr></table></div>
+{{anim:medallion}}
 <h2>Conventions (course)</h2>
 <ul><li>Schemas per layer: <code>bronze</code>, <code>silver</code>, <code>gold</code>; bronze/silver tables <code>&lt;source&gt;_&lt;entity&gt;</code> (<code>crm_cust_info</code>); gold <code>dim_customers</code>, <code>fact_sales</code>.</li>
 <li>snake_case, English, no reserved words; surrogate keys <code>&lt;table&gt;_key</code>; technical columns <code>dwh_load_date</code>; load procedures <code>load_&lt;layer&gt;</code>.</li>
@@ -2832,6 +3529,7 @@ L('dim-model','Dimensional Modelling: Star Schema',`
 <ul><li><b>Fact</b> — events with measures + foreign keys (long, narrow). <b>Dimension</b> — descriptive context (wide, short).</li>
 <li><b>Star</b> — denormalized dimensions; <b>snowflake</b> — normalized sub-dimensions.</li>
 <li><b>Grain</b> — what one fact row means. Decide it first.</li></ul>
+{{anim:star}}
 @@run Gold layer as views
 CREATE VIEW dim_customers AS
 SELECT ROW_NUMBER() OVER (ORDER BY customer_id) AS customer_key,
@@ -3031,6 +3729,7 @@ g AS (SELECT user_id, d, d - ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY d)
 SELECT user_id, MIN(d) AS streak_start, MAX(d) AS streak_end, COUNT(*) AS days
 FROM g GROUP BY user_id, grp ORDER BY user_id, streak_start;
 @@
+{{anim:gaps-islands}}
 <p>Redshift: <code>DATEADD(day, -ROW_NUMBER() OVER (…), d)</code>. Athena: <code>date_add('day', -ROW_NUMBER() OVER (…), d)</code>.</p>
 <h2>6. Find missing dates (gaps) with a date spine</h2>
 @@run Days in January with no orders
@@ -3055,6 +3754,7 @@ CROSS JOIN LATERAL (VALUES ('department', e.department), ('gender', e.gender)) A
 WHERE e.employee_id <= 2;
 @@
 <p>Redshift has <code>PIVOT</code>/<code>UNPIVOT</code> operators; Athena: conditional aggregation and <code>CROSS JOIN UNNEST(ARRAY[…], ARRAY[…])</code> for unpivot.</p>
+{{anim:pivot}}
 <h2>8. Did X but never Y</h2>
 @@run Customers with shipped but no delivered orders
 SELECT customer_id FROM orders WHERE order_status = 'Shipped'
@@ -3074,6 +3774,7 @@ SELECT user_id, ts,
        SUM(new_session) OVER (PARTITION BY user_id ORDER BY ts ROWS UNBOUNDED PRECEDING) AS session_id
 FROM flagged;
 @@
+{{anim:sessionize}}
 <h2>10. Year-over-year &amp; compare to group average</h2>
 @@run
 SELECT product_id, order_id, sales,
@@ -3161,7 +3862,7 @@ L('scenarios','AWS DE Scenario Questions',`
 L('qa-bank','Rapid-Fire Q&A Bank',`
 <p>Open each, answer out loud in under a minute, then compare.</p>
 <details class="iq"><summary>Logical execution order of SELECT?</summary><p>FROM/JOIN → WHERE → GROUP BY → HAVING → SELECT (window functions) → DISTINCT → ORDER BY → LIMIT/OFFSET.</p></details>
-<details class="iq"><summary>Can you use a SELECT alias in WHERE? In ORDER BY? In GROUP BY?</summary><p>WHERE: no (it runs before SELECT). ORDER BY: yes. GROUP BY: PostgreSQL, Redshift and Athena allow aliases and ordinal numbers (GROUP BY 1); SQL Server doesn't.</p></details>
+<details class="iq"><summary>Can you use a SELECT alias in WHERE? In ORDER BY? In GROUP BY?</summary><p>WHERE: no (it runs before SELECT). ORDER BY: yes. GROUP BY: PostgreSQL and Redshift allow aliases and ordinal numbers (GROUP BY 1); Athena/Trino allows ordinals but not SELECT aliases; SQL Server allows neither.</p></details>
 <details class="iq"><summary>WHERE vs HAVING?</summary><p>WHERE filters rows before aggregation; HAVING filters groups after. Postgres also has FILTER (WHERE …) per aggregate.</p></details>
 <details class="iq"><summary>DELETE vs TRUNCATE vs DROP?</summary><p>DELETE removes chosen rows (MVCC, triggers fire, needs VACUUM). TRUNCATE empties instantly, reclaims space; in PG it's transactional, in Redshift it commits immediately. DROP removes the table.</p></details>
 <details class="iq"><summary>UNION vs UNION ALL?</summary><p>UNION removes duplicates (sort/hash); UNION ALL keeps all rows and is faster.</p></details>
@@ -3372,6 +4073,7 @@ function renderBody(src){
     if(buf===null){ const m=ln.match(/^@@(run|sql|pg|rs|ath|ms|ex)\s*(.*)$/); if(m){mode=m[1];arg=m[2];buf=[];continue;} html+=ln+'\n'; }
     else{ if(ln.trim()==='@@'){html+=block(mode,arg,buf.join('\n').replace(/\s+$/,''));buf=null;continue;} buf.push(ln); }
   }
+  html=html.replace(/\{\{anim:([a-z0-9-]+)\}\}/g,(m,id)=>`<figure class="anim" data-anim="${id}"></figure>`);
   return html.replace(/\{\{venn:([a-z ,]+)\}\}/g,(m,t)=>'<div class="venns">'+t.split(',').map(x=>{x=x.trim();return `<figure>${venn(x)}<figcaption>${x.replace('anti',' anti')}</figcaption></figure>`}).join('')+'</div>');
 }
 function block(mode,arg,code){
@@ -3448,12 +4150,44 @@ $('#menuBtn').onclick=()=>$('#side').classList.toggle('open');
 $('#themeBtn').onclick=()=>{const r=document.documentElement;const cur=r.dataset.theme||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');r.dataset.theme=cur==='dark'?'light':'dark';store.set('sqlde-theme',r.dataset.theme);};
 const th=store.get('sqlde-theme',null); if(th) document.documentElement.dataset.theme=th;
 
+
+/* ---------- animated walkthroughs ---------- */
+let animTimers=[];
+const RM=matchMedia('(prefers-reduced-motion: reduce)');
+function mountAnims(){
+  document.querySelectorAll('figure.anim:not([data-m])').forEach(f=>{
+    f.dataset.m=1; const a=(typeof AN!=='undefined')&&AN[f.dataset.anim]; if(!a){f.remove();return;}
+    const n=a.steps.length;
+    f.innerHTML=`<div class="anim-h"><b>${a.title}</b><span class="atag">Step-through animation</span></div>`+
+      `<div class="anim-stage">${a.steps.map(s=>`<div class="st" aria-hidden="true">${s.v}</div>`).join('')}</div>`+
+      `<figcaption class="anim-cap" aria-live="polite"></figcaption>`+
+      `<div class="anim-ctl"><button class="abtn" data-a="prev" aria-label="Previous step">‹ Back</button><button class="abtn pri" data-a="play">▶ Play</button><button class="abtn" data-a="next" aria-label="Next step">Next ›</button>`+
+      `<span class="dots">${a.steps.map((s,i)=>`<button class="dot" data-a="go" data-i="${i}" aria-label="Go to step ${i+1}"></button>`).join('')}</span><span class="acount"></span></div>`;
+    const sts=[...f.querySelectorAll('.st')], cap=f.querySelector('.anim-cap'), cnt=f.querySelector('.acount'), playB=f.querySelector('[data-a=play]'), dots=[...f.querySelectorAll('.dot')];
+    let k=0, timer=null;
+    const stop=()=>{ if(timer){clearInterval(timer);timer=null;} playB.textContent=k===n-1?'↺ Replay':'▶ Play'; };
+    const go=i=>{ k=Math.max(0,Math.min(n-1,i)); sts.forEach((s,j)=>{ s.classList.remove('on'); s.setAttribute('aria-hidden',j!==k?'true':'false'); });
+      void sts[k].offsetWidth; sts[k].classList.add('on');
+      cap.innerHTML=`<span class="snum">${k+1}/${n}</span> `+a.steps[k].c; cnt.textContent=`Step ${k+1} of ${n}`;
+      dots.forEach((d,j)=>{d.classList.toggle('on',j===k);d.classList.toggle('seen',j<k);});
+      f.querySelector('[data-a=prev]').disabled=k===0; f.querySelector('[data-a=next]').disabled=k===n-1;
+      if(!timer) playB.textContent=k===n-1?'↺ Replay':'▶ Play'; };
+    f.addEventListener('click',e=>{ const b=e.target.closest('[data-a]'); if(!b) return; const act=b.dataset.a;
+      if(act==='play'){ if(timer){stop();return;} if(k===n-1) go(0); playB.textContent='❚❚ Pause';
+        timer=setInterval(()=>{ if(k>=n-1){stop();return;} go(k+1); if(k>=n-1) stop(); }, a.ms||3200); animTimers.push(()=>clearInterval(timer)); return; }
+      stop(); if(act==='prev') go(k-1); else if(act==='next') go(k+1); else if(act==='go') go(+b.dataset.i); });
+    f.addEventListener('keydown',e=>{ if(e.target.closest('.anim-ctl')&&(e.key==='ArrowRight'||e.key==='ArrowLeft')){e.preventDefault(); stop(); go(k+(e.key==='ArrowRight'?1:-1));} });
+    go(0);
+  });
+}
+function tldr(id){ const t=(typeof TL!=='undefined')&&TL[id]; if(!t) return '';
+  return `<div class="tldr"><div><b class="k">In simple words</b><p>${t[0]}</p></div><div><b class="k">Say it in the interview</b><p>${t[1]}</p></div></div>`; }
 /* ---------- routing ---------- */
 let curId='home';
 function home(){
   return `<div class="eyebrow">AWS data engineering interview reference · ${ALL.length} lessons</div><h1>SQL for AWS Data Engineers</h1>
   <p>One place for every SQL concept an AWS data engineering interview can touch, taught in <b>PostgreSQL</b> — the dialect behind Amazon RDS and Aurora PostgreSQL and the ancestor of Amazon Redshift — with dedicated chapters for <b>Redshift</b> and <b>Athena (Trino)</b>. It follows Baraa Khatib Salkini's full SQL course, converted from SQL Server to PostgreSQL, and adds the PostgreSQL internals and AWS patterns interviewers ask about.</p>
-  <div class="box tip"><b class="lbl">How to use this page</b><ul style="margin:4px 0"><li><b>Read</b> lessons in order from the left menu, or search with <kbd>/</kbd>.</li><li><b>Try it Yourself »</b> opens a live editor running <b>real PostgreSQL 16</b> inside your browser on a sample database. <kbd>Ctrl</kbd>+<kbd>Enter</kbd> runs. Changes roll back after each run unless you tick <i>Keep changes</i>.</li><li><b>Exercises</b> check your query against the expected result. <b>Quizzes</b> close each chapter.</li><li><b>Purple boxes</b> are interview questions with model answers.</li><li>Code boxes are colour-coded on the left edge: <b>blue</b> = PostgreSQL (runs here), <b>orange</b> = Redshift, <b>violet</b> = Athena/Trino, <b>grey</b> = SQL Server for comparison.</li></ul></div>
+  <div class="box tip"><b class="lbl">How to use this page</b><ul style="margin:4px 0"><li><b>Read</b> lessons in order from the left menu, or search with <kbd>/</kbd>.</li><li><b>Try it Yourself »</b> opens a live editor running <b>real PostgreSQL 16</b> inside your browser on a sample database. <kbd>Ctrl</kbd>+<kbd>Enter</kbd> runs. Changes roll back after each run unless you tick <i>Keep changes</i>.</li><li><b>Step-through animations</b> show what the engine does row by row (34 of them, on joins, window functions, indexes, Redshift, Athena, Iceberg, SCD2, CDC and more). Press <i>Play</i> or step with <i>Next</i>.</li><li>Each lesson opens with <b>In simple words</b> and a <b>Say it in the interview</b> line.</li><li><b>Exercises</b> check your query against the expected result. <b>Quizzes</b> close each chapter.</li><li><b>Purple boxes</b> are interview questions with model answers.</li><li>Code boxes are colour-coded on the left edge: <b>blue</b> = PostgreSQL (runs here), <b>orange</b> = Redshift, <b>violet</b> = Athena/Trino, <b>grey</b> = SQL Server for comparison.</li></ul></div>
   <div class="box note"><b class="lbl">What is from the course and what is added</b>Chapters 1–11 and the warehouse chapter follow the course's topics, order and examples (converted to PostgreSQL). Everything Redshift-, Athena-, RDS- and PostgreSQL-internals-specific, the JSON and transactions chapters, and the Interview Kit are additions for AWS interviews.</div>
   <h2>Chapters</h2><div class="home-grid">${CH.map(c=>`<a href="#${c.lessons[0].id}"><b>${c.title}</b><span>${c.blurb}</span></a>`).join('')}</div>
   <h2>Sample database</h2><p>The course's <i>SalesDB</i> in PostgreSQL naming (snake_case), plus the small <i>MyDatabase</i> tables:</p>
@@ -3473,8 +4207,9 @@ function show(id){
   if(!l) html=home();
   else{ const i=ALL.indexOf(l), p=ALL[i-1], n=ALL[i+1];
     const nav=`<div class="navbtns">${p?`<a class="btn" href="#${p.id}">❮ Previous</a>`:'<span></span>'}${n?`<a class="btn" href="#${n.id}">Next ❯</a>`:'<span></span>'}</div>`;
-    html=`<div class="eyebrow">${l.ch.title}</div><h1>${l.title}</h1>${nav}${l.quiz?renderQuiz(l):renderBody(l.body)}<div class="done-row"><button class="btn ghost" id="markDone">${done[l.id]?'✔ Completed — undo':'Mark lesson complete'}</button></div>${nav}`; }
-  $('#page').innerHTML=html; renderSide($('#search').value); window.scrollTo(0,0);
+    html=`<div class="eyebrow">${l.ch.title}</div><h1>${l.title}</h1>${nav}${l.quiz?'':tldr(l.id)}${l.quiz?renderQuiz(l):renderBody(l.body)}<div class="done-row"><button class="btn ghost" id="markDone">${done[l.id]?'✔ Completed — undo':'Mark lesson complete'}</button></div>${nav}`; }
+  animTimers.forEach(f=>f()); animTimers=[];
+  $('#page').innerHTML=html; mountAnims(); renderSide($('#search').value); window.scrollTo(0,0);
   const md=$('#markDone'); if(md) md.onclick=()=>{ if(done[curId]) delete done[curId]; else done[curId]=1; store.set('sqlde-done',done); show(curId); };
   document.querySelectorAll('.exer textarea').forEach(ta=>ta.addEventListener('keydown',e=>{if(e.key==='Tab'){e.preventDefault();const s=ta.selectionStart;ta.value=ta.value.slice(0,s)+'  '+ta.value.slice(ta.selectionEnd);ta.selectionStart=ta.selectionEnd=s+2;}}));
 }
