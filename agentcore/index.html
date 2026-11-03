@@ -835,7 +835,7 @@ ${eli(`<p>You built a helper program (an <b>agent</b>) on your laptop. This hand
 <li>Each lesson shows its reading time in the sidebar. Most are 5 minutes.</li>
 </ul>
 <h2>The whole journey in one picture</h2>
-${flow([["Your laptop","agent works locally"],["Lunchbox","code packed in a container"],["Amazon's building","AgentCore Runtime runs it",1],["Receptionist","Lambda lets a website in"],["Report card","evals grade the answers"]])}
+${flow([["Your laptop","agent works locally"],["Lunchbox","code packed in a container"],["Amazon's building","AgentCore runs it as an Agent",1],["Receptionist","Lambda lets a website in"],["Report card","evals grade the answers"]])}
 <h2>Two ways to get an agent onto AWS</h2>
 <p>The AgentCore console now opens on an <b>Agents</b> page with two buttons. This handbook teaches both:</p>
 ${table(["Console option","What it means","Lesson"],[
@@ -847,14 +847,16 @@ ${you(`<ul><li>Agent tested on your laptop (both tests pass with Sonnet 4.6).</l
 <div class="cards" id="modCards"></div>
 `);
 
-add("start","words","11 words you need",5,`
-${eli(`<p>Most of the confusion comes from new words. Here are the only eleven you need, each in one line.</p>`)}
+add("start","words","12 words you need",5,`
+${eli(`<p>Most of the confusion comes from new words. Here are the only twelve you need, each in one line.</p>`)}
+${key(`<p><b>Is "Runtime" still a thing?</b> Yes. The console was renamed around <b>Agents</b>, but the engine is still AgentCore Runtime. You will keep seeing <i>runtime</i> in commands (<code>agentcore invoke --runtime SupportAgent</code>), in API names (<code>invoke_agent_runtime</code>) and in your agent's address (<code>...:runtime/SupportAgent_...</code>). In this handbook: <b>Agents</b> = what you click in the console, <b>runtime</b> = what you type in code and commands.</p>`)}
 ${table(["Word","Simple meaning","You already know it as"],[
  ["Agent","A program where an AI model decides which function to call next","A Step Functions workflow where the next step is chosen by an LLM"],
  ["Tool","A plain Python function the model is allowed to call","A Lambda the workflow can invoke"],
  ["LangGraph","Library to draw the agent's flow as boxes and arrows","Step Functions / Airflow DAG, in Python"],
- ["AgentCore Runtime","Amazon's service that runs your agent code in the cloud","Glue: you give code, AWS runs it, you don't manage servers"],
+ ["Agent (in the console)","Anything listed on the AgentCore <b>Agents</b> page: a harness or your deployed code","A Glue job in the Jobs list, visual or script"],
  ["Harness","An agent made from settings only; AWS writes and runs the loop","Glue Studio visual job: configure boxes instead of writing the script"],
+ ["Runtime","The engine underneath that runs every agent. The console says <i>Agents</i>; the CLI, API and ARNs still say <i>runtime</i>","Glue's Spark engine: you rarely see it, but it runs every job"],
  ["Container","Your code + Python + libraries sealed in one box","A Glue job's script plus all its <code>--additional-python-modules</code>, frozen together"],
  ["Deploy","Send the box to AWS and switch it on","Saving and publishing a Glue job"],
  ["ARN","The agent's unique address in AWS","Same ARN idea as for an S3 bucket or Lambda"],
@@ -868,12 +870,12 @@ ${table(["Word","Simple meaning","You already know it as"],[
 /* ======================= 1. THE BIG IDEA ======================= */
 add("idea","what","What AgentCore is",5,`
 ${eli(`<p>AgentCore is a building at Amazon where AI helpers live and work. You bring your helper, Amazon gives it a room, electricity, a security guard and a logbook. You never have to manage the building.</p>`)}
-${de(`<p>Think of <b>Glue</b>. You write a PySpark script, Glue runs it and you never see a server. AgentCore Runtime does the same for agent code. The big difference: a Glue job runs once and finishes, while an agent waits for people to ask questions and holds a conversation.</p>`)}
+${de(`<p>Think of <b>Glue</b>. You write a PySpark script, Glue runs it and you never see a server. AgentCore Runtime does the same for agent code (in the console you find your agents under <b>Agents</b>; Runtime is the engine behind that page). The big difference: a Glue job runs once and finishes, while an agent waits for people to ask questions and holds a conversation.</p>`)}
 <h2>The building has several rooms</h2>
 <p>You only need one of the first two to start. The rest are add-ons you switch on when you need them.</p>
 ${table(["Room","What it does","Do you need it now?"],[
- ["<b>Harness</b>","Agent built from settings; AWS runs the thinking loop","One of the two ways to start (Module 3)"],
- ["<b>Runtime</b>","Runs your own agent code","The other way. This is what you used"],
+ ["<b>Harness</b>","Agent built from settings; AWS runs the thinking loop. Console: <i>Agents → Build agent with harness</i>","One of the two ways to start (Module 3)"],
+ ["<b>Runtime</b>","Runs your own agent code (and, underneath, harnesses too). Console: <i>Agents → Deploy your code</i>","The other way. This is what you used"],
  ["Observability","Logbook: every question, every tool call, timings","Comes switched on"],
  ["Evaluations","Grades the agent's answers","Module 6"],
  ["Memory","Remembers users across days","Module 5"],
@@ -935,7 +937,7 @@ ${tip(`<p>For repeat deploys, the CLI (<code>agentcore deploy</code>) is faster 
 add("idea","why","Why not just use Lambda or EC2?",5,`
 ${eli(`<p>An agent is a chat, not a single task. It must remember each user, keep users apart, wait patiently while a tool runs, and cope with 5 users at night and 5,000 in the morning. AgentCore was built for exactly that.</p>`)}
 ${de(`<p>You know Lambda's 15-minute limit and that it forgets everything between calls. You know EC2 bills you even when idle. AgentCore sits in between: it keeps a private, remembering "room" per conversation for up to 8 hours, and bills mostly for the time the agent is actually working.</p>`)}
-${table(["Need","Lambda","EC2 / ECS","AgentCore Runtime"],[
+${table(["Need","Lambda","EC2 / ECS","AgentCore"],[
  ["Remember the chat between questions","No (stateless)","You build it","Yes, per session"],
  ["Keep users fully separate","Shared environments","Shared machine","Each chat gets its own small private computer"],
  ["Long work (research, big tools)","15 min max","Unlimited","Up to 8 hours per chat"],
@@ -1081,7 +1083,7 @@ ${table(["Thing in AWS","Simple meaning"],[
  ["ECR repository","The shelf where your lunchbox is stored"],
  ["CodeBuild project","A machine that packs the lunchbox in the cloud"],
  ["IAM role","The agent's ID badge: may call the model and write logs"],
- ["AgentCore Runtime","The agent itself, switched on"],
+ ["AgentCore Runtime","The agent itself, switched on. It appears on the console's <b>Agents</b> page"],
  ["CloudFormation stack","A receipt listing all of the above, so it can all be deleted together"]])}
 ${you(`<p>This is exactly what you ran. Your runtime is called <code>SupportAgent</code> and its address (ARN) ends in <code>SupportAgent-Sby4uN4HRH</code>.</p>`)}
 ${trap(`<p>The CLI changes quickly. Older guides show <code>agentcore configure</code> / <code>agentcore launch</code> (old Python toolkit) or <code>--build Container</code> and <code>run eval</code> (CLI 0.x). CLI 1.0 (Oct 2026) uses <code>--template</code>, the <code>runtimes</code> list shown here, and groups commands by resource (<code>logs runtime</code>, <code>eval ondemand</code>). Have an old 0.x project? Run <code>agentcore migrate</code>. When in doubt, add <code>--help</code> to any command.</p>`)}
@@ -1264,7 +1266,7 @@ ${code("sh-clean")}
 
 add("career","interview","Explain it in an interview",4,`
 ${table(["Question","Your short answer"],[
- ["What is AgentCore Runtime?","AWS's serverless service for running agents. Any framework, any model, a private room per chat, up to 8-hour sessions."],
+ ["What is AgentCore Runtime?","AWS's serverless engine for running agents. Any framework, any model, a private room per chat, up to 8-hour sessions. The console shows these as Agents, and harnesses run on it too."],
  ["Harness or your own code?","Harness when a model + instructions + tools is enough: fastest, config only, exportable. Own code on Runtime when I need fixed steps, custom checks or LangGraph."],
  ["How did you deploy your LangGraph agent?","Added /ping and /invocations to FastAPI, wrote an ARM64 Dockerfile, described it in agentcore.json, ran agentcore deploy. CodeBuild built the image; the CLI created ECR, IAM role and the runtime."],
  ["How does the agent remember a conversation?","The session id from AgentCore becomes LangGraph's thread_id. For long-term memory I'd add AgentCore Memory."],
