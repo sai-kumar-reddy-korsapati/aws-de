@@ -2424,6 +2424,20 @@ spark.conf.set("spark.sql.requireAllClusterKeysForCoPartition", "false")</code><
 <tr><td>0</td><td>broadcast exchange</td><td>03:09:31</td><td>8 s</td><td>1/1</td><td>12/12</td></tr></table>
 <p class="note">The description column shows the action and the <b>line number in your script</b>. Start here: which action is slow?</p></div></div>
 
+<p>Click job 2 and you get its stages. One job splits into stages at every shuffle, and the shuffle columns show where data moved between them:</p>
+<div class="ui"><div class="uibar"><span class="logo">Spark 3.5.6</span><span>Jobs</span><span class="on">Stages</span><span>Storage</span><span>Environment</span><span>Executors</span><span>SQL / DataFrame</span></div>
+<div class="uibody"><h5>Details for Job 2 — Completed Stages (2), Skipped Stages (1)</h5>
+<table><tr><th>Stage Id</th><th>Description</th><th>Duration</th><th>Tasks: Succeeded/Total</th><th>Input</th><th>Output</th><th>Shuffle Read</th><th>Shuffle Write</th></tr>
+<tr><td>9</td><td>parquet at orders_etl.py:88</td><td class="amb">36 min</td><td>400/400</td><td></td><td>58 GB</td><td>61 GB</td><td></td></tr>
+<tr><td>8</td><td>parquet at orders_etl.py:88</td><td>2.1 min</td><td>200/200</td><td>96 GB</td><td></td><td></td><td>61 GB</td></tr>
+<tr><td>7</td><td>count at orders_etl.py:71 (skipped)</td><td>—</td><td>0/12</td><td></td><td></td><td></td><td></td></tr></table>
+<p class="note">Read it as a pipeline: stage 8 reads 96 GB from S3 and <b>writes</b> 61 GB of shuffle; stage 9 <b>reads</b> that 61 GB and writes the output. Stage 9 is where the time goes, so open it next. Stage 7 was skipped because its shuffle output already existed from job 1.</p></div></div>
+
+<h2>Connecting your code to the UI</h2>
+<div class="flow"><span>Your code (line 88)</span><i>→</i><span>Physical plan (SQL tab)</span><i>→</i><span>Job</span><i>→</i><span>Stages (cut at Exchanges)</span><i>→</i><span class="o">Tasks (one per partition)</span><i>→</i><span class="g">Executors (where tasks ran)</span></div>
+<p>Each Exchange in the SQL tab's plan becomes a stage boundary in the Stages tab. That is how you trace a slow stage back to the operator, and then to the line of code that created it.</p>
+<div class="box note"><b class="lbl">There is no “Shuffle” tab</b><p>Some cheat sheets show a Shuffle tab, but the real Spark UI doesn't have one. Shuffle numbers appear in three places: the Shuffle Read and Shuffle Write columns of the Stages tab, per executor in the Executors tab, and on Exchange nodes in the SQL tab.</p></div>
+
 <div class="tw"><table class="t">
 <tr><th>Tab</th><th>What it shows</th><th>Go there when</th></tr>
 <tr><td><b>Jobs</b></td><td>One row per job with duration, stage and task counts; an event timeline of executors added and removed</td><td>Find the slow action; see executors being lost mid-run</td></tr>
@@ -2489,6 +2503,16 @@ spark.conf.set("spark.sql.requireAllClusterKeysForCoPartition", "false")</code><
 <tr><td>GC Time</td><td class="red">1.1 min</td><td class="red">1.4 min</td><td class="red">1.6 min</td><td class="red">1.8 min</td><td class="red">2.6 min</td></tr>
 <tr><td>Spill (Memory)</td><td>4 GB</td><td>5 GB</td><td>5 GB</td><td>6 GB</td><td>7 GB</td></tr></table>
 <p class="note">A third of every task's time is garbage collection. <b>Causes:</b> partitions too big for per-task memory, Python UDFs or <code>collect_list</code> building big objects, too many cores per executor. <b>Fix:</b> more, smaller partitions; built-ins instead of UDFs; more memory per core (bigger Glue worker or R-type).</p></div></div>
+
+<h2>Finding the straggler task</h2>
+<p>Below the summary, the <b>Tasks</b> table lists every task. Sort it by Duration, slowest first, and compare the slowest task's row with a normal one:</p>
+<div class="ui"><div class="uibar"><span class="logo">Spark</span><span class="on">Stages › Stage 12 › Tasks (sorted by Duration)</span></div><div class="uibody">
+<table><tr><th>Index</th><th>Status</th><th>Executor</th><th>Duration</th><th>GC Time</th><th>Shuffle Read Size / Records</th><th>Spill (Disk)</th><th>Errors</th></tr>
+<tr><td>212</td><td>RUNNING</td><td>14</td><td class="red">38 min</td><td class="red">2.1 min</td><td class="red">41.3 GB / 310 M</td><td class="red">18.6 GB</td><td></td></tr>
+<tr><td>87</td><td>SUCCESS</td><td>3</td><td>6 s</td><td>90 ms</td><td>58 MB / 450 K</td><td>0</td><td></td></tr>
+<tr><td>15</td><td>SUCCESS</td><td>9</td><td>5 s</td><td>60 ms</td><td>52 MB / 410 K</td><td>0</td><td></td></tr>
+<tr><td>140</td><td>SUCCESS</td><td>2</td><td>5 s</td><td>55 ms</td><td>51 MB / 400 K</td><td>0</td><td></td></tr></table>
+<p class="note">Task 212 reads about 700× more records than the others. That is a <b>data</b> problem (a hot key). If it were a machine problem, the slow task would have a normal record count and the slowness would follow one executor. Check the Executor column for that.</p></div></div>
 
 <h2>Other parts of the stage page</h2>
 <dl class="terms">
