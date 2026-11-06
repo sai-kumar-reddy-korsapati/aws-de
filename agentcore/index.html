@@ -49,13 +49,15 @@ a{color:var(--accent)}
 .prog{margin-left:auto;display:flex;align-items:center;gap:10px;font-size:14px;color:var(--muted);font-variant-numeric:tabular-nums;flex:none}
 .bar{width:120px;height:6px;border-radius:3px;background:var(--line);overflow:hidden}
 .bar i{display:block;height:100%;background:var(--accent);width:0}
-.menu-btn{display:none;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:8px;padding:6px 10px;font:600 15px var(--body);cursor:pointer;flex:none}
+.menu-btn .ic{font-size:15px;line-height:1}
+.menu-btn{display:inline-flex;align-items:center;gap:6px;white-space:nowrap;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:8px;padding:6px 10px;font:600 15px var(--body);cursor:pointer;flex:none}
 
 .theme-btn{flex:none;display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:999px;padding:5px 12px;font:600 14px var(--body);cursor:pointer;white-space:nowrap}
 .theme-btn:hover{background:var(--accent-soft)}
 .theme-btn .ic{font-size:15px;line-height:1}
 @media (max-width:520px){.theme-btn .tx{display:none}.theme-btn{padding:5px 9px}}
 .wrap{display:grid;grid-template-columns:var(--side) minmax(0,1fr)}
+@media (min-width:901px){.wrap.collapsed{grid-template-columns:minmax(0,1fr)}.wrap.collapsed .side{display:none}}
 .side{position:sticky;top:calc(53px + env(safe-area-inset-top,0px));height:calc(100vh - 53px - env(safe-area-inset-top,0px));overflow-y:auto;
   border-right:1px solid var(--line);background:var(--panel);padding:14px 0 40px}
 .search{margin:0 14px 10px;width:calc(100% - 28px);padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font:15px var(--body)}
@@ -148,7 +150,6 @@ tr:last-child td{border-bottom:0}
 
 @media (max-width:900px){
   .wrap{grid-template-columns:minmax(0,1fr)}
-  .menu-btn{display:block}
   .side{position:fixed;z-index:25;top:calc(53px + env(safe-area-inset-top,0px));left:0;width:min(86vw,330px);height:calc(100% - 53px - env(safe-area-inset-top,0px));
     transform:translateX(-102%);transition:transform .2s ease;box-shadow:0 10px 40px rgba(0,0,0,.25);padding-left:env(safe-area-inset-left,0px)}
   .side.open{transform:none}
@@ -159,7 +160,7 @@ tr:last-child td{border-bottom:0}
 </style>
 
 <header class="top">
-  <button class="menu-btn" id="menuBtn" aria-controls="side" aria-expanded="false">Topics</button>
+  <button class="menu-btn" id="menuBtn" type="button" aria-controls="side" aria-expanded="true"><span class="ic" aria-hidden="true">☰</span><span class="tx">Hide topics</span></button>
   <div class="brand">AgentCore <span>Runtime Handbook</span></div>
   <div class="prog"><span class="lbl">Progress</span><div class="bar"><i id="barFill"></i></div><span id="progTxt">0/0</span></div>
   <button class="theme-btn" id="themeBtn" type="button" aria-label="Theme: follows your device. Click to change."><span class="ic" aria-hidden="true">◐</span><span class="tx">Auto</span></button>
@@ -1386,8 +1387,29 @@ document.addEventListener("click",e=>{
   try{navigator.clipboard.writeText(raw).then(okf,fallback)}catch(err){fallback()}
 });
 const side=$("#side"), mb=$("#menuBtn");
-mb.onclick=()=>{const o=side.classList.toggle("open");mb.setAttribute("aria-expanded",o)};
-side.addEventListener("click",e=>{if(e.target.closest("a")){side.classList.remove("open");mb.setAttribute("aria-expanded","false")}});
+/* menu: drawer on phones, hide/show sidebar on wider screens (remembered) */
+const wrapEl=document.querySelector(".wrap"), mq=matchMedia("(max-width:900px)"), SK="agentcore-hub-side";
+let sideHidden=false;
+try{sideHidden=localStorage.getItem(SK)==="1"}catch(e){}
+function syncMenu(){
+  const tx=mb.querySelector(".tx");
+  if(mq.matches){
+    wrapEl.classList.remove("collapsed"); tx.textContent="Topics";
+    mb.setAttribute("aria-expanded",side.classList.contains("open"));
+  }else{
+    side.classList.remove("open"); wrapEl.classList.toggle("collapsed",sideHidden);
+    tx.textContent=sideHidden?"Show topics":"Hide topics";
+    mb.setAttribute("aria-expanded",!sideHidden);
+  }
+}
+mb.onclick=()=>{
+  if(mq.matches) side.classList.toggle("open");
+  else{ sideHidden=!sideHidden; try{localStorage.setItem(SK,sideHidden?"1":"0")}catch(e){} }
+  syncMenu();
+};
+side.addEventListener("click",e=>{if(e.target.closest("a")&&mq.matches){side.classList.remove("open");syncMenu()}});
+if(mq.addEventListener) mq.addEventListener("change",syncMenu);
+syncMenu();
 $("#search").addEventListener("input",e=>renderTree(e.target.value));
 window.addEventListener("hashchange",render);
 /* theme switch: Auto (follow device) -> Light -> Dark */
