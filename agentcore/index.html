@@ -885,12 +885,14 @@ ${table(["Room","What it does","Do you need it now?"],[
  ["Observability","Logbook: every question, every tool call, timings","Comes switched on"],
  ["Evaluations","Grades the agent's answers","Module 6"],
  ["Memory","Remembers users across days","Module 5"],
- ["Gateway","Shares tools (APIs, Lambdas, Step Functions) with many agents","Module 5"],
- ["Browser · Code Interpreter","Ready-made tools: browse the web, run Python safely","Module 5"],
- ["Identity","Logins and keys for the agent, stored safely","Later"],
+ ["Gateways","Shares tools (APIs, Lambdas, Step Functions) with many agents","Module 5"],
+ ["Browser · Code Interpreter · Knowledge Bases","Ready-made tools: browse the web, run Python safely, search your documents","Module 5"],
+ ["Outbound Auth (Identity)","Logins and keys for the agent, stored safely","Later"],
  ["Policy","Rules on what the agent may do (e.g. never refund over 100 USD)","Later"],
- ["Optimization","Suggests better prompts and tool descriptions from real chats","Later"],
+ ["Optimizations","Suggests better prompts and tool descriptions from real chats","Later"],
+ ["Capacity providers","Your own EC2 machines for heavy, very long agent work","Not needed yet"],
  ["Registry · Payments","Company catalogue of agents/tools; agents paying for APIs","Not needed yet"]])}
+<p>The <b>Tour of the new console</b> lesson shows where each of these sits in the console menu.</p>
 ${key(`<p>AgentCore works with any agent library (LangGraph, Strands, CrewAI) and any model (Bedrock, OpenAI, Gemini). You did not have to rewrite your LangGraph agent.</p>`)}
 `,[
  {q:"Which AgentCore part actually runs your agent code?",o:["Gateway","Runtime","Memory","Identity"],a:[1],e:"Runtime is the part that runs the code. Everything else is optional."}
@@ -914,21 +916,42 @@ ${key(`<p>Both run on the same Runtime underneath, so sessions, memory, logs, ev
  {q:"You want a working research assistant by this afternoon. Which option?",o:["Build agent with harness","Deploy your code"],a:[0],e:"A harness needs only a model, instructions and tools. No code, no container."}
 ]);
 
-add("idea","console","Tour of the new console",6,`
-${eli(`<p>The AgentCore console was reorganised around <b>agents</b>. Instead of starting from technical pieces ("Runtime"), you start from what you want: build an agent, give it tools, give it memory, check its quality.</p>`)}
+add("idea","console","Tour of the new console",8,`
+${eli(`<p>The AgentCore console is organised like a workshop. At the top: your <b>agents</b>, a <b>playground</b> to chat with them, and a <b>logbook</b> (Observability). Then two drawers: <b>Connections</b> (things your agent can reach out to) and <b>Resources</b> (things your agent uses or is measured by). You only need the top three to start.</p>`)}
 <h2>Open it</h2>
-${steps(["Go to console.aws.amazon.com and set the region (top right) to <b>N. Virginia (us-east-1)</b>.","Search <b>Bedrock AgentCore</b>.","The left menu is your map. The table below says what each part is for."])}
-<h2>What each part of the menu is for</h2>
-${table(["Menu area","What you do there","Old name / where it was"],[
- ["<b>Agents</b>","See all your agents. Create one with <b>Build agent with harness</b> or <b>Deploy your code</b>. Open an agent to test it, see versions and endpoints.","Used to be <i>Runtime</i> (code) and <i>Harness preview</i> (no code) as separate pages"],
- ["Gateway / tools","Turn Lambdas, APIs, MCP servers and Step Functions into tools agents can use","Gateway"],
- ["Built-in tools","Browser (watch the agent browse live) and Code Interpreter","Same"],
- ["Memory","Long-term memory stores, their strategies and records","Same"],
- ["Identity","Logins and API keys the agent uses to call other services","Same"],
- ["Evaluations","Create evaluation configurations that grade your agent's answers","Same, now simpler"],
- ["Policy","Rules that allow or block what the agent does","Same"],
- ["Observability","Opens CloudWatch GenAI Observability: sessions, traces, scores","CloudWatch"]])}
-${trap(`<p>AWS keeps polishing the console, so a label may read slightly differently on your screen. Look for the closest match to the names above. Your agent built with the CLI shows up under <b>Agents</b> too: CLI and console are two windows onto the same thing.</p>`)}
+${steps(["Go to console.aws.amazon.com and set the region (top right) to <b>United States (N. Virginia)</b>.","Search <b>Bedrock AgentCore</b>. You land on <b>Overview</b>.","The left menu is your map. The tables below go through it top to bottom."])}
+<h2>Overview page: four shortcuts</h2>
+${table(["Card on the page","Button","Takes you to"],[
+ ["Build an agent","<b>Create agent</b>","Build with the harness, or deploy your own code to the runtime"],
+ ["Observe your agents","<b>View agent activity</b>","Observability: latency, tokens, errors, full traces per chat"],
+ ["Evaluate your agents","<b>Set up evaluator</b>","Evaluations: built-in and custom graders"],
+ ["Explore all capabilities","<b>Read the docs</b>","The AgentCore user guide"]])}
+<h2>Top of the menu: the three you use daily</h2>
+${table(["Menu item","What you do there","Handbook lesson"],[
+ ["<b>Agents</b>","All your agents in one list: harness ones and code ones. Create a new one, open one to see versions, endpoints and settings. Your CLI-deployed <code>SupportAgent</code> is here.","Module 3"],
+ ["<b>Playground</b>","A chat window to talk to a harness agent and change its settings live","Path 1 · harness"],
+ ["<b>Observability</b>","Every chat: how long it took, tokens used, errors, and the step-by-step trace","See what it's doing"]])}
+<h2>Connections: what your agent can reach</h2>
+${table(["Menu item","Simple meaning","DE translation"],[
+ ["Browser","A safe web browser the agent can drive; you can watch it live","A headless scraper in a sandbox"],
+ ["Code Interpreter","A safe place where the agent runs Python (e.g. pandas on a CSV)","A throwaway Glue Python shell"],
+ ["Knowledge Bases (KB)","Connect Bedrock Knowledge Bases so the agent can search your documents (RAG)","A search index over S3 documents"],
+ ["Outbound Auth","Keys and logins the agent uses to call other systems (Google, Jira, Salesforce, API keys). This is the <i>Identity</i> service","Secrets Manager + a Glue connection's credentials"],
+ ["Payments","Let agents pay for paid APIs and content, with spending limits","Not needed for learning"]])}
+<h2>Resources: what your agent uses or is measured by</h2>
+${table(["Menu item","Simple meaning","Handbook lesson"],[
+ ["Memory","Long-term memory stores: facts, preferences, summaries per user","Memory that lasts for days"],
+ ["Evaluations","Graders that score your agent's answers","Module 6"],
+ ["Gateways","Turn Lambdas, APIs, MCP servers and Step Functions into shared tools","Gateway"],
+ ["Policy","Rules that allow or block what the agent does (e.g. no refunds over 100 USD)","Later"],
+ ["Capacity providers","Run agents on EC2 machines you choose, for heavy or very long work (up to 14 days). The default needs none","Optional"],
+ ["Optimizations","AWS suggests better prompts and tool descriptions from real chats, and A/B tests them","Later"]])}
+<h2>At the bottom</h2>
+${table(["Menu item","Simple meaning"],[
+ ["Registry","Your company's catalogue of approved agents, tools and skills, so teams reuse instead of rebuild"],
+ ["Amazon Bedrock","Back to the main Bedrock console (models, Knowledge Bases, guardrails)"],
+ ["User guide","The official AgentCore documentation"]])}
+${key(`<p>There is no menu item called "Runtime". Agents built with your own code still run on AgentCore Runtime underneath, and the CLI and API still say "runtime". In the console, look under <b>Agents</b>.</p>`)}
 <h2>"Deploy your code" in the console, step by step</h2>
 ${steps([
  "<b>Agents → Deploy your code</b>.",
@@ -1037,12 +1060,12 @@ ${eli(`<p>Fill a short form, click create, and chat with your agent in a playgro
 ${de(`<p>Like building a Glue Studio visual job before writing PySpark: you learn the moving parts (source, transform, target) without code. Here the parts are model, instructions, tools.</p>`)}
 <h2>In the console</h2>
 ${steps([
- "<b>Bedrock AgentCore → Agents → Build agent with harness</b>.",
+ "<b>Bedrock AgentCore → Agents → Build agent with harness</b> (or <b>Overview → Create agent</b> and pick the harness).",
  "<b>Name</b>: <code>support_harness</code>.",
  "<b>Model</b>: Claude Sonnet 4.6 (Bedrock). Harnesses also accept OpenAI, Gemini or LiteLLM models, and you can switch later.",
  "<b>Instructions</b> (system prompt): <i>You are a support agent for an online store. Refunds are allowed within 30 days of purchase with a valid receipt. Be brief.</i>",
  "<b>Tools</b>: start with none, or add <b>Code Interpreter</b> so it can calculate things. Later you can add a <b>Gateway</b> to give it your own Lambdas.",
- "Create. It is ready in under a minute and opens a <b>playground</b>: a chat box on the left, settings on the right.",
+ "Create. It is ready in under a minute and opens the <b>Playground</b> (also in the left menu): a chat box with the settings next to it.",
  "Ask <i>Can I return something after 45 days?</i> Then open <b>observability</b> on the same page to see each step it took."])}
 <h2>What you get for free</h2>
 ${table(["Built in","Meaning"],[
@@ -1118,7 +1141,7 @@ add("ship","watch","See what it's doing (logs and traces)",5,`
 ${eli(`<p><b>Logs</b> are the agent's diary: what it printed. <b>Traces</b> are a timeline for each question: model thought for 1.2 s, called <code>get_order_status</code>, took 0.1 s, then answered. When something goes wrong, look here first.</p>`)}
 ${de(`<p>Logs = the Glue job's CloudWatch log group. Traces = Spark UI for one run: you see each step and how long it took.</p>`)}
 ${code("sh-logs")}
-${con(`<ul><li><b>CloudWatch → Log groups → /aws/bedrock-agentcore/runtimes/...</b> — the diary.</li><li><b>CloudWatch → GenAI Observability → Bedrock AgentCore</b> — sessions and traces, with each tool call.</li></ul>`)}
+${con(`<ul><li><b>Bedrock AgentCore → Observability</b> (left menu) — latency, tokens, errors and full traces per chat. Easiest place to start.</li><li><b>CloudWatch → Log groups → /aws/bedrock-agentcore/runtimes/...</b> — the diary.</li><li><b>CloudWatch → GenAI Observability → Bedrock AgentCore</b> — sessions and traces, with each tool call.</li></ul>`)}
 ${trap(`<p>CLI 1.0 switches on CloudWatch <b>Transaction Search</b> for you on deploy, and traces and evals depend on it. During your first deploy it was still "pending", so check once: <b>CloudWatch → Application Signals → Transaction search</b> should say enabled.</p>`)}
 `);
 
@@ -1246,7 +1269,7 @@ ${code("sh-evals")}
 <h2>New: find out <i>why</i> answers fail</h2>
 <p><code>Builtin.FailureAnalysis</code> (October 2026) reads many chats, finds the ones that went wrong, groups them by root cause and suggests a fix (for example "the tool description for get_order_status is unclear"). Run it as part of a batch evaluation.</p>
 <h2>In the console</h2>
-${steps(["<b>Bedrock AgentCore → Evaluations → Create evaluation configuration</b>.","Pick your agent (harness or code) and its endpoint.","Pick evaluators: built-in ones and any you created.","Set the sampling percentage and tick <b>enable after creation</b>.","Chat with the agent, wait 5–10 minutes, then look at the scores in Observability."])}
+${steps(["<b>Bedrock AgentCore → Resources → Evaluations</b> (or <b>Overview → Set up evaluator</b>) → create an evaluation configuration.","Pick your agent (harness or code) and its endpoint.","Pick evaluators: built-in ones and any you created.","Set the sampling percentage and tick <b>enable after creation</b>.","Chat with the agent, wait 5–10 minutes, then look at the scores in Observability."])}
 ${trap(`<p>Evaluations read <b>traces</b>. If Transaction Search isn't enabled (see "See what it's doing"), there's nothing to grade. Also wait 5–10 minutes after chatting before running an eval.</p>`)}
 ${tip(`<p>Grade 100% of chats while testing, but only 1–5% in production. Every judge call is a model call and costs money.</p>`)}
 `);
