@@ -738,6 +738,34 @@ agentcore add online-eval --help
 agentcore deploy          # creates the evaluators in AWS
 </script>
 
+<script type="text/x-code" id="sh-registry" data-name="terminal — AWS Agent Registry with the AWS CLI (new agent-registry namespace)">
+# control plane = create and manage   |   data plane = search
+# 1. create a registry (a catalogue)
+aws agent-registry-control create-registry \
+  --name "TeamCatalog" --description "Approved agents and tools" --region us-east-1
+
+# 2. add a record (starts as DRAFT)
+aws agent-registry-control create-registry-record \
+  --registry-id <registryId> \
+  --name "weather-server" --display-name "WeatherServer" \
+  --record-type MCP \
+  --descriptors '{"mcpServer": {"data": "{\"name\": \"weather/mcp-server\", \"description\": \"Weather data service\", \"version\": \"1.0.0\"}", "dataSchemaVersion": "2025-12-11"}}' \
+  --record-version "1.0" --region us-east-1
+
+# 3. submit it for approval (-> PENDING_APPROVAL, or APPROVED if auto-approval is on)
+aws agent-registry-control submit-registry-record-for-approval \
+  --registry-id <registryId> --record-id <recordId> --region us-east-1
+
+# 4. a curator approves it
+aws agent-registry-control update-registry-record-status \
+  --registry-id <registryId> --record-id <recordId> \
+  --status APPROVED --status-reason "Reviewed and approved" --region us-east-1
+
+# 5. anyone (or any agent) searches approved records
+aws agent-registry search-discoverable-registry-records \
+  --search-query "weather" --registry-ids "<registryId>" --region us-east-1
+</script>
+
 <script type="text/x-code" id="sh-clean" data-name="terminal — tear it all down">
 # 1. remove everything from the project's settings
 agentcore remove all --yes
@@ -891,7 +919,8 @@ ${table(["Room","What it does","Do you need it now?"],[
  ["Policy","Rules on what the agent may do (e.g. never refund over 100 USD)","Later"],
  ["Optimizations","Suggests better prompts and tool descriptions from real chats","Later"],
  ["Capacity providers","Your own EC2 machines for heavy, very long agent work","Not needed yet"],
- ["Registry · Payments","Company catalogue of agents/tools; agents paying for APIs","Not needed yet"]])}
+ ["Payments","Agents paying for APIs and content, with limits","Not needed yet"]])}
+<p><b>AWS Agent Registry</b>, the company catalogue of approved agents and tools, used to sit in this console. It is now its own AWS service with a separate console (Module 5).</p>
 <p>The <b>Tour of the new console</b> lesson shows where each of these sits in the console menu.</p>
 ${key(`<p>AgentCore works with any agent library (LangGraph, Strands, CrewAI) and any model (Bedrock, OpenAI, Gemini). You did not have to rewrite your LangGraph agent.</p>`)}
 `,[
@@ -948,9 +977,10 @@ ${table(["Menu item","Simple meaning","Handbook lesson"],[
  ["Optimizations","AWS suggests better prompts and tool descriptions from real chats, and A/B tests them","Later"]])}
 <h2>At the bottom</h2>
 ${table(["Menu item","Simple meaning"],[
- ["Registry","Your company's catalogue of approved agents, tools and skills, so teams reuse instead of rebuild"],
+ ["Registry","Now a link out: <b>AWS Agent Registry</b> has its own console (see below)"],
  ["Amazon Bedrock","Back to the main Bedrock console (models, Knowledge Bases, guardrails)"],
  ["User guide","The official AgentCore documentation"]])}
+${trap(`<p><b>Registry moved out.</b> AWS Agent Registry is now a standalone service with its own console at <code>console.aws.amazon.com/agent-registry</code>, still inside the AWS console. Manage registries and records there. Its CLI/SDK names changed too (<code>agent-registry</code>, <code>agent-registry-control</code>); the old <code>bedrock-agentcore</code> registry APIs are discontinued from 30 October 2026. See the <b>Agent Registry</b> lesson in Module 5.</p>`)}
 ${key(`<p>There is no menu item called "Runtime". Agents built with your own code still run on AgentCore Runtime underneath, and the CLI and API still say "runtime". In the console, look under <b>Agents</b>.</p>`)}
 <h2>"Deploy your code" in the console, step by step</h2>
 ${steps([
@@ -1227,6 +1257,40 @@ ${de(`<p>Example: "Reprocess yesterday's Quantum Metric load for region EU." The
 ${tip(`<p>Expose only safe, idempotent workflows at first (re-runs, reports, data-quality checks). Keep destructive ones (deletes, overwrites) behind a human approval step.</p>`)}
 `);
 
+add("smart","registry","AWS Agent Registry: a catalogue for agents",6,`
+${eli(`<p>When a company has 50 agents and 200 tools, nobody knows what already exists, so teams build the same thing twice. <b>Agent Registry</b> is the company's shelf of <b>approved</b> agents, tools (MCP servers) and skills. Builders put things on the shelf, a reviewer approves them, and everyone (people and agents) can search the shelf.</p>`)}
+${de(`<p>It's the <b>Glue Data Catalog / DataZone for agents</b>. A record is like a table entry with a description and owner; publishing needs approval, like a data product in DataZone; and consumers search the catalogue instead of asking around on Slack.</p>`)}
+<h2>Where it lives now</h2>
+${table(["","Detail"],[
+ ["Service name","AWS Agent Registry (standalone, outside the AgentCore console)"],
+ ["Console","<code>console.aws.amazon.com/agent-registry</code>"],
+ ["CLI / SDK","<code>agent-registry-control</code> (create, manage, approve) and <code>agent-registry</code> (search)"],
+ ["Status","Generally available since 31 August 2026 (preview from April 2026)"],
+ ["Regions","N. Virginia, Oregon, Ireland, Tokyo, Sydney"],
+ ["Price","Free tier of 5,000 records and 1 million searches a month; small per-record and per-call charges above that"]])}
+<h2>The words</h2>
+${table(["Word","Meaning"],[
+ ["Registry","One catalogue. Has a name, who may search it (IAM or JWT), and whether records need approval"],
+ ["Record","One entry: an <b>MCP</b> server, an <b>Agent</b>, a <b>Skill</b>, or <b>Custom</b>. Has a name and version"],
+ ["Lifecycle","Draft → Pending approval → Approved (or Rejected). Old entries can be Deprecated"],
+ ["Record directory","The search page showing only approved records"]])}
+<h2>In the console (from the AWS getting-started guide)</h2>
+${steps([
+ "Open the <b>AWS Agent Registry</b> console → <b>Registry</b> → <b>Create registry</b>.",
+ "Enter a <b>Name</b>. Under <b>Discovery Authorization</b> pick <b>Use IAM Authorization</b> (choose carefully: it can't be changed later).",
+ "Under <b>Record approval</b>, leave <b>Auto-approval</b> off if you want a reviewer, then <b>Create registry</b>. Wait for <b>Ready</b>.",
+ "Open the registry → <b>Create record</b>. Source: <b>Manual</b>, or <b>Synchronize from endpoint</b> to pull details from a live MCP or A2A endpoint.",
+ "Fill <b>Name</b>, <b>Description</b>, <b>Record version</b> (e.g. 1.0.0), and pick a <b>Type</b> (MCP, Agent, Skills, Custom). The record is created as <b>Draft</b>.",
+ "<b>Update status → Submit for approval</b>. A reviewer opens it and chooses <b>Update status → Approve</b> with a reason.",
+ "Go to <b>Record directory</b>, pick the registry, and <b>Search approved records</b>."])}
+<h2>Same thing from the CLI</h2>
+${code("sh-registry")}
+${tip(`<p>For a data team, a natural first registry: your approved data tools, e.g. the Athena "count orders" tool and the Step Functions re-run workflow from earlier lessons, so other agent builders find and reuse them instead of writing their own SQL.</p>`)}
+`,[
+ {q:"Where do you manage Agent Registry records now?",o:["AgentCore console → Resources","The standalone AWS Agent Registry console","Glue Data Catalog","CloudFormation"],a:[1],e:"Agent Registry moved to its own console; the AgentCore menu only links to it."},
+ {q:"A record was just created and nobody approved it. Can others find it in the Record directory?",o:["Yes","No, only Approved records are discoverable"],a:[1],e:"New records start as Draft; only Approved ones show up in search."}
+]);
+
 add("smart","harness","Harness: power features",5,`
 ${eli(`<p>A harness started as a quick prototype tool. Since it became generally available (June 2026) it has grown up: it can load skills, pause for approval through hooks, keep files, and open terminals. You can go surprisingly far without code.</p>`)}
 ${table(["Feature","Simple meaning"],[
@@ -1345,6 +1409,7 @@ ${table(["You see","Usually means","Fix"],[
  ["Long answers time out","Request too long","Stream, or raise Lambda timeout to 60 s+"]])}
 <h2>Sources</h2>
 <ul>
+<li><a href="https://docs.aws.amazon.com/agent-registry/" target="_blank" rel="noopener">AWS Agent Registry docs</a> · <a href="https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/registry-get-started.html" target="_blank" rel="noopener">Get started with Agent Registry</a></li>
 <li><a href="https://github.com/aws/agentcore-cli" target="_blank" rel="noopener">AgentCore CLI</a> · <a href="https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/release-notes.html" target="_blank" rel="noopener">Release notes</a></li>
 <li><a href="https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/runtime-troubleshooting.html" target="_blank" rel="noopener">Runtime troubleshooting</a> · <a href="https://aws.amazon.com/bedrock/agentcore/pricing/" target="_blank" rel="noopener">Pricing</a></li>
 </ul>
