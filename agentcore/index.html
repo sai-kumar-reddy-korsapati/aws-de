@@ -51,6 +51,10 @@ a{color:var(--accent)}
 .bar i{display:block;height:100%;background:var(--accent);width:0}
 .menu-btn{display:none;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:8px;padding:6px 10px;font:600 15px var(--body);cursor:pointer;flex:none}
 
+.theme-btn{flex:none;display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:999px;padding:5px 12px;font:600 14px var(--body);cursor:pointer;white-space:nowrap}
+.theme-btn:hover{background:var(--accent-soft)}
+.theme-btn .ic{font-size:15px;line-height:1}
+@media (max-width:520px){.theme-btn .tx{display:none}.theme-btn{padding:5px 9px}}
 .wrap{display:grid;grid-template-columns:var(--side) minmax(0,1fr)}
 .side{position:sticky;top:calc(53px + env(safe-area-inset-top,0px));height:calc(100vh - 53px - env(safe-area-inset-top,0px));overflow-y:auto;
   border-right:1px solid var(--line);background:var(--panel);padding:14px 0 40px}
@@ -158,6 +162,7 @@ tr:last-child td{border-bottom:0}
   <button class="menu-btn" id="menuBtn" aria-controls="side" aria-expanded="false">Topics</button>
   <div class="brand">AgentCore <span>Runtime Handbook</span></div>
   <div class="prog"><span class="lbl">Progress</span><div class="bar"><i id="barFill"></i></div><span id="progTxt">0/0</span></div>
+  <button class="theme-btn" id="themeBtn" type="button" aria-label="Theme: follows your device. Click to change."><span class="ic" aria-hidden="true">◐</span><span class="tx">Auto</span></button>
 </header>
 <div class="wrap">
   <nav class="side" id="side" aria-label="Topics">
@@ -1385,6 +1390,24 @@ mb.onclick=()=>{const o=side.classList.toggle("open");mb.setAttribute("aria-expa
 side.addEventListener("click",e=>{if(e.target.closest("a")){side.classList.remove("open");mb.setAttribute("aria-expanded","false")}});
 $("#search").addEventListener("input",e=>renderTree(e.target.value));
 window.addEventListener("hashchange",render);
+/* theme switch: Auto (follow device) -> Light -> Dark */
+const THEMES=[["auto","◐","Auto","follows your device"],["light","☀","Light","light"],["dark","☾","Dark","dark"]];
+const TK="agentcore-hub-theme";
+function applyTheme(t){
+  const root=document.documentElement;
+  if(t==="auto") root.removeAttribute("data-theme"); else root.setAttribute("data-theme",t);
+  const th=THEMES.find(x=>x[0]===t)||THEMES[0], b=$("#themeBtn");
+  b.querySelector(".ic").textContent=th[1]; b.querySelector(".tx").textContent=th[2];
+  b.setAttribute("aria-label","Theme: "+th[3]+". Click to change.");
+  b.dataset.t=th[0];
+}
+let savedTheme=null;
+try{savedTheme=localStorage.getItem(TK)}catch(e){}
+applyTheme(savedTheme||"auto");
+$("#themeBtn").onclick=()=>{
+  const i=THEMES.findIndex(x=>x[0]===$("#themeBtn").dataset.t), next=THEMES[(i+1)%THEMES.length][0];
+  applyTheme(next); try{localStorage.setItem(TK,next)}catch(e){}
+};
 renderTree(); progress(); render();
 </script>
 
