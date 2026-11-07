@@ -14,6 +14,7 @@ Self-study guides for AWS data engineering, APIs, FastAPI and agentic AI. Each o
 | PyDSA Interview Workbook | Python data structures and algorithms for data-engineering interviews | [open](https://sai-kumar-reddy-korsapati.github.io/aws-de/pydsa/) |
 | SQL for AWS Data Engineers | PostgreSQL from basics to window functions, CTEs, PL/pgSQL, indexes and partitioning, plus Redshift, Athena and RDS/Aurora SQL, with a live in-browser Postgres editor and interview kit | [open](https://sai-kumar-reddy-korsapati.github.io/aws-de/sql-de/) |
 | PySpark for AWS Data Engineers | 88-lesson course on Spark 3.5.6+ (Glue 5.1, EMR 7.x) with animated diagrams and real output: internals, explain plans, Spark UI and logs, tuning, debugging, Glue/EMR, Iceberg maintenance, streaming, Spark 4 (labelled), coding round and interview prep | [open](https://sai-kumar-reddy-korsapati.github.io/aws-de/pyspark-de/) |
+| Apache Airflow 3 & MWAA | 95-lesson course on Airflow 3.x and Amazon MWAA: architecture, DAG authoring, scheduling and data intervals, assets and event-driven pipelines, local setup on macOS (uv, Docker Compose, Astro CLI, MWAA image), MWAA provisioned and Serverless, five real AWS projects, production operations and interview prep | [open](https://sai-kumar-reddy-korsapati.github.io/aws-de/airflow-de/) |
 
 ## Use it on your phone
 Open the live site, then **Add to Home Screen** (Safari share menu, or Chrome's ⋮ menu).
