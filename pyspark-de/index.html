@@ -4021,6 +4021,737 @@ SELECT COUNT(*) AS manifests FROM glue_catalog.sales.orders.manifests;</code></p
 <details class="iq"><summary>How does hidden partitioning differ from Hive partitioning?</summary><p>Hive partitioning requires an explicit partition column and users must filter on it to prune. Iceberg partitions by a transform of a source column (days, hours, bucket, truncate) stored in metadata, so users filter on the source column and pruning happens automatically; the partition scheme can also evolve without rewriting existing data.</p></details>
 <details class="iq"><summary>What is the role of the Glue Data Catalog with Iceberg?</summary><p>It stores the pointer to each table's current metadata file and performs the atomic compare-and-swap on commit. Athena, EMR, Glue and Redshift all find the table there. It also hosts managed table optimizers for compaction, snapshot retention and orphan cleanup.</p></details>
 </section>
+<!-- ================= SLOWLY CHANGING DIMENSIONS ================= -->
+<section class="lesson" id="scd-what" data-ch="Slowly Changing Dimensions" data-t="What SCD is and why it matters" data-lvl="B" data-min="12">
+<h1>What SCD is and why it matters</h1>
+<div class="plain"><p>A <b>dimension</b> is a table that describes things: customers, products, stores, employees. A <b>fact</b> table records events about them: orders, payments, clicks. Dimension values change slowly over time: a customer moves city, a product changes category, an employee changes department. <b>Slowly Changing Dimension (SCD)</b> is the name for the rules that decide what your table does when such a value changes: ignore it, overwrite it, or keep history. Pick the wrong rule and last year's reports silently change.</p></div>
+
+<div class="analogy"><p>Think of your phone contacts. When a friend changes number, most people just overwrite it (Type 1): the old number is gone. A bank, on the other hand, must remember which address you had when each statement was sent (Type 2): it keeps every old address with the dates it was valid. A school record that keeps “current class” and “previous class” side by side is Type 3. The right rule depends on whether anyone needs the old value later.</p></div>
+
+<h2>Facts and dimensions in one picture</h2>
+<figure class="dg"><svg viewBox="0 0 790 200" role="img" aria-label="Fact table linked to dimension tables">
+<rect x="290" y="60" width="210" height="90" rx="10" class="bxo"/><text x="304" y="84" class="h">fact_orders</text><text x="304" y="106" class="m">order_id, order_date,</text><text x="304" y="124" class="m">customer_sk, product_sk,</text><text x="304" y="142" class="m">amount</text>
+<rect x="10" y="20" width="200" height="70" rx="10" class="bxa"/><text x="22" y="44" class="h">dim_customer</text><text x="22" y="66" class="m">name, city, segment</text><text x="22" y="82" class="s">changes slowly</text>
+<rect x="10" y="110" width="200" height="70" rx="10" class="bxa"/><text x="22" y="134" class="h">dim_product</text><text x="22" y="156" class="m">name, category, brand</text><text x="22" y="172" class="s">changes slowly</text>
+<rect x="580" y="20" width="200" height="70" rx="10" class="bxa"/><text x="592" y="44" class="h">dim_store</text><text x="592" y="66" class="m">region, manager</text>
+<rect x="580" y="110" width="200" height="70" rx="10" class="bxa"/><text x="592" y="134" class="h">dim_date</text><text x="592" y="156" class="m">day, month, holiday</text><text x="592" y="172" class="s">never changes</text>
+<path d="M288 90L212 60" class="ln" marker-end="url(#arr)"/><path d="M288 120L212 145" class="ln" marker-end="url(#arr)"/><path d="M502 90L578 60" class="ln" marker-end="url(#arr)"/><path d="M502 120L578 145" class="ln" marker-end="url(#arr)"/>
+</svg><figcaption>A star schema. Facts are added all the time and never change. Dimensions are few rows that change occasionally; SCD rules govern those changes.</figcaption></figure>
+
+<h2>One change, four outcomes</h2>
+<p>Ravi lived in Pune and placed a ₹500 order on 15 October. On 3 November he moved to Mumbai. Press <b>Play</b> to see what each SCD type stores, and what the “revenue by city” report then says about October.</p>
+<figure class="anim">
+<div class="atitle">Ravi moves from Pune to Mumbai on 3 November</div>
+<div class="stage"><svg viewBox="0 0 790 360" role="img" aria-label="One change handled by different SCD types">
+<g data-s="1"><rect x="10" y="14" width="300" height="56" rx="8" class="bxw" data-hi="1"/><text x="22" y="36" class="b">Change arrives (3 Nov)</text><text x="22" y="56" class="m">customer 2  Ravi  Pune → Mumbai</text></g>
+<g data-s="2"><rect x="10" y="84" width="380" height="58" rx="8" class="bxg" data-hi="2"/><text x="22" y="104" class="b">Type 0 — keep original</text><text x="22" y="124" class="m">2 | Ravi | Pune</text><text x="200" y="124" class="s">change ignored</text></g>
+<g data-s="3"><rect x="10" y="152" width="380" height="58" rx="8" class="bxo" data-hi="3"/><text x="22" y="172" class="b">Type 1 — overwrite</text><text x="22" y="192" class="m">2 | Ravi | Mumbai</text><text x="200" y="192" class="s">Pune is gone forever</text></g>
+<g data-s="4"><rect x="400" y="84" width="380" height="126" rx="8" class="bxt" data-hi="4"/><text x="412" y="104" class="b">Type 2 — add a new row (history)</text>
+<text x="412" y="128" class="m">sk 101 | 2 | Pune   | 01-01 → 11-03 | old</text><text x="412" y="150" class="m">sk 205 | 2 | Mumbai | 11-03 → 9999  | current</text><text x="412" y="176" class="s">every version kept with the dates it was true;</text><text x="412" y="194" class="s">each version gets its own surrogate key (sk)</text></g>
+<g data-s="5"><rect x="10" y="220" width="380" height="58" rx="8" class="bxp" data-hi="5"/><text x="22" y="240" class="b">Type 3 — previous-value column</text><text x="22" y="260" class="m">2 | Ravi | Mumbai | prev: Pune</text></g>
+<g data-s="6"><rect x="400" y="220" width="380" height="132" rx="8" class="bxa" data-hi="6"/><text x="412" y="240" class="b">Report: October revenue by city</text>
+<text x="412" y="264" class="m">Type 1:  Mumbai ₹500</text><text x="580" y="264" class="r">wrong for October</text>
+<text x="412" y="286" class="m">Type 2:  Pune   ₹500</text><text x="580" y="286" class="g">correct</text>
+<text x="412" y="312" class="s">Type 1 silently rewrote history: a report run</text><text x="412" y="328" class="s">last month and today give different answers.</text></g>
+</svg></div>
+<ol class="asteps">
+<li>The source system sends today's customer data. Ravi's city is now Mumbai.</li>
+<li><b>Type 0</b> never changes the value. Used for things that must stay as first recorded, like the original signup channel.</li>
+<li><b>Type 1</b> overwrites the old value. Simple and small, but history is lost.</li>
+<li><b>Type 2</b> closes the old row (sets its end date) and inserts a new row. Each version is a separate row with its own surrogate key, so facts can point to the exact version.</li>
+<li><b>Type 3</b> keeps the current value and one previous value in extra columns. Limited history.</li>
+<li>The business impact: only Type 2 still credits Ravi's October order to Pune, where he lived at the time.</li>
+</ol>
+</figure>
+
+<h2>Words you need</h2>
+<dl class="terms">
+<dt>Natural key (business key)</dt><dd>The ID from the source system, e.g. <code>customer_id</code>. Same for every version of a customer.</dd>
+<dt>Surrogate key</dt><dd>A key the warehouse creates, unique per <b>version</b> (row). Facts store it so they point to the exact version that was true when the event happened.</dd>
+<dt>Tracked columns</dt><dd>The attributes whose changes you care about (city, segment). Changes to untracked columns (e.g. a typo fix in the name) may be handled differently.</dd>
+<dt>Effective dates</dt><dd><code>valid_from</code> / <code>valid_to</code>: the period a version was true.</dd>
+<dt>Current flag</dt><dd><code>is_current</code>: marks the one live version per natural key.</dd>
+</dl>
+
+<div class="say"><p>A slowly changing dimension is a dimension whose attributes change over time, and the SCD type defines how we record those changes. Type 1 overwrites, so we only know the current value. Type 2 keeps full history by closing the old row and inserting a new version with effective dates and a current flag, and facts reference the version's surrogate key. Type 3 keeps a previous-value column. I choose per attribute, based on whether reports must reflect the value at the time of the event.</p></div>
+
+<div class="remember"><ul>
+<li>Dimensions describe; facts record events.</li>
+<li>SCD type = what happens to old values when a dimension changes.</li>
+<li>Wrong choice → historical reports change silently.</li>
+</ul></div>
+</section>
+
+<section class="lesson" id="scd-types" data-ch="Slowly Changing Dimensions" data-t="All SCD types and when to use each" data-lvl="I" data-min="12">
+<h1>All SCD types and when to use each</h1>
+<div class="plain"><p>There are seven named types, but in practice you use three: <b>Type 1</b> (overwrite), <b>Type 2</b> (full history) and sometimes <b>Type 3</b> (one previous value). Type 0, 4 and 6 come up in interviews and in specific designs. You can also mix types in one table: track <code>city</code> as Type 2 but fix spelling mistakes in <code>name</code> as Type 1.</p></div>
+
+<div class="tw"><table class="t">
+<tr><th>Type</th><th>What it does</th><th>History</th><th>Table grows?</th><th>Use when</th><th>Example</th></tr>
+<tr><td><b>0</b> Retain original</td><td>Never update the value</td><td>Only the first value</td><td>No</td><td>Value must stay as first captured</td><td>Date of birth, original signup channel, first order date</td></tr>
+<tr><td><b>1</b> Overwrite</td><td>Replace old value</td><td>None</td><td>No</td><td>Corrections, or history has no business value</td><td>Fixing a misspelt name, email, phone</td></tr>
+<tr><td><b>2</b> Add row</td><td>Close old row, insert new version with dates and current flag</td><td>Full</td><td>Yes, per change</td><td>Reports must use the value at the time of the event; audit; regulation</td><td>Customer city/segment, product category, employee department, sales territory</td></tr>
+<tr><td><b>3</b> Add column</td><td>Keep current and previous value in columns</td><td>One step back</td><td>No (more columns)</td><td>“Before and after” comparisons of one planned change</td><td>Sales region realignment: old_region vs new_region</td></tr>
+<tr><td><b>4</b> History table</td><td>Current values in the main table; all versions in a separate history table</td><td>Full (separate)</td><td>History table grows</td><td>Most queries need only current values; history needed occasionally; fast-changing attributes</td><td>dim_customer + dim_customer_history</td></tr>
+<tr><td><b>6</b> Hybrid 1+2+3</td><td>Type 2 rows plus a <code>current_*</code> column overwritten on every version</td><td>Full + easy current view</td><td>Yes</td><td>Analysts need both “as it was” and “as it is now” without a self-join</td><td>Revenue by city at the time and by today's city</td></tr>
+<tr><td>5 / 7</td><td>Variations: mini-dimension + Type 1 outrigger (5); dual keys in the fact, surrogate and natural (7)</td><td>—</td><td>—</td><td>Very large or fast-changing dimensions</td><td>Mention by name only</td></tr>
+</table></div>
+
+<h2>Choose a type: a quick decision path</h2>
+<figure class="dg"><svg viewBox="0 0 790 300" role="img" aria-label="Decision flow for choosing an SCD type">
+<rect x="10" y="20" width="230" height="56" rx="8" class="bxa"/><text x="22" y="42" class="b">Must the value never change?</text><text x="22" y="62" class="s">(original signup channel)</text>
+<path d="M240 48H290" class="ln" marker-end="url(#arr)"/><text x="248" y="40" class="s">yes</text>
+<rect x="292" y="24" width="120" height="48" rx="8" class="bxg"/><text x="304" y="53" class="b">Type 0</text>
+<path d="M125 76V100" class="ln" marker-end="url(#arr)"/><text x="132" y="94" class="s">no</text>
+<rect x="10" y="102" width="230" height="56" rx="8" class="bxa"/><text x="22" y="124" class="b">Do reports need the old value?</text><text x="22" y="144" class="s">(as it was at event time)</text>
+<path d="M240 130H290" class="ln" marker-end="url(#arr)"/><text x="248" y="122" class="s">no</text>
+<rect x="292" y="106" width="120" height="48" rx="8" class="bxo"/><text x="304" y="135" class="b">Type 1</text>
+<path d="M125 158V182" class="ln" marker-end="url(#arr)"/><text x="132" y="176" class="s">yes</text>
+<rect x="10" y="184" width="230" height="56" rx="8" class="bxa"/><text x="22" y="206" class="b">Only one previous value?</text><text x="22" y="226" class="s">(before/after one change)</text>
+<path d="M240 212H290" class="ln" marker-end="url(#arr)"/><text x="248" y="204" class="s">yes</text>
+<rect x="292" y="188" width="120" height="48" rx="8" class="bxp"/><text x="304" y="217" class="b">Type 3</text>
+<path d="M125 240V262" class="ln" marker-end="url(#arr)"/><text x="132" y="256" class="s">no: full history</text>
+<rect x="10" y="264" width="402" height="30" rx="8" class="bxt"/><text x="22" y="284" class="b">Type 2 (default for history)</text>
+<rect x="450" y="20" width="330" height="274" rx="10" class="bx"/><text x="464" y="44" class="h">Then refine Type 2</text>
+<text x="464" y="72" class="s">Analysts also want today's value on old rows</text><text x="476" y="90" class="b">→ Type 6 (add current_* columns)</text>
+<text x="464" y="120" class="s">Most queries only want current values,</text><text x="464" y="136" class="s">history used rarely</text><text x="476" y="154" class="b">→ Type 4 (separate history table)</text>
+<text x="464" y="184" class="s">Some columns are corrections only</text><text x="476" y="202" class="b">→ mix: those columns Type 1</text>
+<text x="464" y="232" class="s">Attribute changes many times a day</text><text x="476" y="250" class="b">→ mini-dimension or keep it in the</text><text x="476" y="268" class="b">  fact table instead of the dimension</text>
+</svg></figure>
+
+<div class="box warn"><b class="lbl">Iceberg time travel is not Type 2</b><p>Interviewers like this trap. Iceberg snapshots record <b>when data was loaded</b> (system time), and they are deleted by snapshot expiry, usually after days. SCD Type 2 records <b>when the change was true in the business</b> (business time) and is kept for years. A late correction loaded today still needs a version that started last month. Use time travel for recovery and audit of loads, and SCD2 for business history.</p></div>
+
+<details class="iq"><summary>Interview: Which SCD type would you use for a customer's address, email and date of birth?</summary>
+<p>Address: Type 2 if reports or compliance need to know where the customer lived at the time of each order (shipping analytics, tax). Email: usually Type 1, since only the current value is used. Date of birth: Type 0, as it should not change; a correction would be handled as a deliberate Type 1 fix. That mix lives in one table: the Type 2 change detection hashes only the Type 2 columns.</p></details>
+
+<div class="remember"><ul>
+<li>Type 1 overwrite, Type 2 history rows, Type 3 previous column.</li>
+<li>Type 0 never changes, Type 4 separate history table, Type 6 = 2 + current columns.</li>
+<li>Choose per column; Iceberg time travel does not replace Type 2.</li>
+</ul></div>
+</section>
+
+<section class="lesson" id="scd-0-1" data-ch="Slowly Changing Dimensions" data-t="Type 0 and Type 1 in PySpark and SQL" data-lvl="I" data-min="11">
+<h1>Type 0 and Type 1 in PySpark and SQL</h1>
+<div class="plain"><p><b>Type 1</b> is an <b>upsert</b>: update customers that exist, insert customers that are new. <b>Type 0</b> only inserts new customers and never touches existing ones. With Iceberg, both are one <code>MERGE</code>. Without a table format (plain Parquet), you compute the new full table with a join and overwrite it.</p></div>
+
+<p>All SCD lessons use the same data. The dimension today, and the source snapshot that arrives on 3 November:</p>
+<div class="tables">
+<table class="mini"><caption>dim_customer (current)</caption><tr><th>customer_id</th><th>name</th><th>city</th><th>segment</th></tr>
+<tr><td>1</td><td>Asha</td><td>Hyderabad</td><td>GOLD</td></tr><tr><td>2</td><td>Ravi</td><td>Pune</td><td>SILVER</td></tr><tr><td>3</td><td>Meena</td><td>Chennai</td><td>SILVER</td></tr></table>
+<table class="mini"><caption>stg_customer (3 Nov)</caption><tr><th>customer_id</th><th>name</th><th>city</th><th>segment</th></tr>
+<tr><td>1</td><td>Asha</td><td>Hyderabad</td><td>GOLD</td></tr><tr><td>2</td><td>Ravi</td><td class="chg">Mumbai</td><td>SILVER</td></tr><tr><td>3</td><td>Meena</td><td>Chennai</td><td class="chg">GOLD</td></tr><tr><td class="new">4</td><td class="new">Omar</td><td class="new">Dubai</td><td class="new">BRONZE</td></tr></table>
+</div>
+
+<h2>Type 1 with the DataFrame API</h2>
+<div class="ex"><div class="exh">Full outer join, source wins<span class="tag">pyspark</span></div><pre><code class="py">cols = ["name", "city", "segment"]
+t1 = (stg.alias("s").join(dim.alias("t"), "customer_id", "full")         # every customer from either side
+         .select("customer_id",
+                 *[F.coalesce(F.col(f"s.{c}"), F.col(f"t.{c}")).alias(c) for c in cols]))   # source value if present
+t1.orderBy("customer_id").show()</code></pre>
+<div class="outh">Output (Spark 3.5.6)</div><pre class="out"><code>+-----------+-----+---------+-------+
+|customer_id| name|     city|segment|
++-----------+-----+---------+-------+
+|          1| Asha|Hyderabad|   GOLD|
+|          2| Ravi|   Mumbai| SILVER|     &lt;- overwritten
+|          3|Meena|  Chennai|   GOLD|     &lt;- overwritten
+|          4| Omar|    Dubai| BRONZE|     &lt;- inserted
++-----------+-----+---------+-------+</code></pre>
+<div class="exf"><p><code>coalesce(s.col, t.col)</code> takes the source value when the customer is in today's file, otherwise keeps the old value. Customers missing from the source are kept (a partial feed). One catch: if the source legitimately sends NULL for a column, <code>coalesce</code> keeps the old value. If NULL should overwrite, use <code>F.when(F.col("s.customer_id").isNotNull(), F.col(f"s.{c}")).otherwise(F.col(f"t.{c}"))</code>.</p></div></div>
+
+<h2>Type 1 in Spark SQL</h2>
+<div class="cols">
+<div><h4>Iceberg table: MERGE (production)</h4><pre style="margin:0;font:400 .78rem/1.55 var(--mono);white-space:pre-wrap"><code class="sql">MERGE INTO glue_catalog.dw.dim_customer t
+USING stg_customer s
+ON t.customer_id = s.customer_id
+WHEN MATCHED AND NOT (t.name &lt;=&gt; s.name
+                  AND t.city &lt;=&gt; s.city
+                  AND t.segment &lt;=&gt; s.segment)
+  THEN UPDATE SET *
+WHEN NOT MATCHED THEN INSERT *</code></pre><p>The condition on <code>MATCHED</code> skips rows that did not change, so Iceberg rewrites fewer files. <code>&lt;=&gt;</code> is NULL-safe equality.</p></div>
+<div><h4>Plain Parquet table: rebuild</h4><pre style="margin:0;font:400 .78rem/1.55 var(--mono);white-space:pre-wrap"><code class="sql">INSERT OVERWRITE TABLE dw.dim_customer_v2
+SELECT coalesce(s.customer_id, t.customer_id),
+       coalesce(s.name, t.name),
+       coalesce(s.city, t.city),
+       coalesce(s.segment, t.segment)
+FROM stg_customer s
+FULL OUTER JOIN dw.dim_customer t
+  ON s.customer_id = t.customer_id</code></pre><p>Plain Spark tables don't support MERGE or UPDATE. Write to a new table or location, then switch readers to it. Never overwrite the table you are reading in the same query.</p></div>
+</div>
+
+<h2>Type 0: insert new keys only</h2>
+<div class="ex"><div class="exh">Left anti join finds new customers<span class="tag">pyspark + sql</span></div><pre><code class="py">t0 = dim.unionByName(stg.join(dim, "customer_id", "left_anti"))      # existing rows untouched
+# Iceberg:
+spark.sql("""
+  MERGE INTO glue_catalog.dw.dim_customer t USING stg_customer s
+  ON t.customer_id = s.customer_id
+  WHEN NOT MATCHED THEN INSERT *""")                                   # no WHEN MATCHED clause at all</code></pre>
+<div class="outh">Output</div><pre class="out"><code>|1|Asha|Hyderabad|GOLD|   |2|Ravi|Pune|SILVER|   |3|Meena|Chennai|SILVER|   |4|Omar|Dubai|BRONZE|  &lt;- only Omar added</code></pre></div>
+
+<div class="remember"><ul>
+<li>Type 1 = upsert. Type 0 = insert-only.</li>
+<li>Iceberg: one MERGE. Plain Parquet: full outer join + write to a new location.</li>
+<li>Add a “changed?” condition so unchanged rows are not rewritten.</li>
+</ul></div>
+</section>
+
+<section class="lesson" id="scd2-design" data-ch="Slowly Changing Dimensions" data-t="Type 2 table design: keys, dates, flags" data-lvl="I" data-min="13">
+<h1>Type 2 table design: keys, dates, flags</h1>
+<div class="plain"><p>Before writing any code, design the Type 2 table. Each row is one <b>version</b> of a customer, valid for a period. You need a unique key per version (surrogate key), the business key, the tracked attributes, the start and end of the validity period, a current flag, and a hash of the tracked columns to detect changes quickly. Getting these right makes the merge logic and every downstream join simpler.</p></div>
+
+<div class="tw"><table class="t">
+<tr><th>Column</th><th>Purpose</th><th>Recommendation</th></tr>
+<tr><td><code>customer_sk</code></td><td>Unique per version; stored in facts</td><td>Deterministic: <code>xxhash64(customer_id, valid_from)</code> (bigint) or <code>sha2(...)</code> (string)</td></tr>
+<tr><td><code>customer_id</code></td><td>Natural key from the source</td><td>Same type as the source; never NULL</td></tr>
+<tr><td>tracked attributes</td><td>city, segment …</td><td>Only these trigger a new version</td></tr>
+<tr><td><code>valid_from</code></td><td>When this version became true</td><td>Business change time if the source has it, else the load date</td></tr>
+<tr><td><code>valid_to</code></td><td>When it stopped being true</td><td><b>Exclusive</b> end; open rows use <code>9999-12-31</code></td></tr>
+<tr><td><code>is_current</code></td><td>Fast filter for the live version</td><td>Exactly one true per natural key</td></tr>
+<tr><td><code>row_hash</code></td><td>Change detection</td><td>sha2 of tracked columns with NULL-safe concatenation</td></tr>
+<tr><td>optional</td><td><code>is_deleted</code>, <code>version_no</code>, <code>load_ts</code>, <code>source_system</code></td><td>Soft deletes, ordering, audit</td></tr>
+</table></div>
+
+<h2>Half-open intervals: [valid_from, valid_to)</h2>
+<figure class="dg"><svg viewBox="0 0 790 190" role="img" aria-label="Half-open validity intervals on a timeline">
+<line x1="30" y1="90" x2="770" y2="90" class="ln"/>
+<rect x="60" y="62" width="390" height="26" rx="4" class="bxa"/><text x="70" y="80" class="m">v1 Pune   [2026-01-01, 2026-11-03)</text>
+<rect x="450" y="62" width="310" height="26" rx="4" class="bxt"/><text x="460" y="80" class="m">v2 Mumbai [2026-11-03, 9999-12-31)</text>
+<line x1="450" y1="50" x2="450" y2="110" class="lno"/><text x="380" y="44" class="o">3 Nov belongs to v2 only</text>
+<text x="30" y="132" class="s">Old row's valid_to = new row's valid_from. No gaps, no overlaps, and the same-day change is unambiguous.</text>
+<text x="30" y="152" class="s">Join facts with: order_date &gt;= valid_from AND order_date &lt; valid_to</text>
+<text x="30" y="172" class="s">The alternative (valid_to = new valid_from − 1 day, inclusive BETWEEN) breaks when two changes happen on one day or with timestamps.</text>
+</svg></figure>
+
+<h2>Surrogate key options</h2>
+<div class="tw"><table class="t">
+<tr><th>Method</th><th>Unique?</th><th>Same on re-run?</th><th>Distributed?</th><th>Verdict</th></tr>
+<tr><td><code>xxhash64(natural_key, valid_from)</code></td><td>Practically (64-bit)</td><td>Yes</td><td>Yes</td><td>Recommended</td></tr>
+<tr><td><code>sha2(concat_ws('|', key, valid_from), 256)</code></td><td>Yes</td><td>Yes</td><td>Yes</td><td>Good; string keys are bigger in facts</td></tr>
+<tr><td><code>max(sk) + row_number()</code></td><td>Yes</td><td>No (order dependent)</td><td>Window on new rows goes to one task</td><td>Classic warehouse style; fine for small daily volumes; needs a lock-free single writer</td></tr>
+<tr><td><code>monotonically_increasing_id()</code></td><td>Within one run</td><td>No</td><td>Yes</td><td>Avoid: collides across runs</td></tr>
+<tr><td>Identity column</td><td>—</td><td>—</td><td>—</td><td>Not available in Spark 3.5 / Iceberg; Delta and Redshift have them</td></tr>
+</table></div>
+
+<h2>NULL-safe change detection</h2>
+<div class="ex"><div class="exh">Hash only the tracked columns<span class="tag">pyspark</span></div><pre><code class="py">tracked = ["name", "city", "segment"]          # Type 2 columns; Type 1 columns are left out
+
+def row_hash(df, cols=tracked):
+    # coalesce(…, "~") stops concat_ws from skipping NULLs, so (NULL, "a") and ("a", NULL) differ
+    return F.sha2(F.concat_ws("||", *[F.coalesce(df[c].cast("string"), F.lit("~")) for c in cols]), 256)</code></pre>
+<div class="exf"><p>Comparing one hash is cheaper and less error-prone than comparing 20 columns with <code>&lt;=&gt;</code>. Normalise first if the source is noisy (<code>trim</code>, <code>upper</code>), otherwise a trailing space creates a new version.</p></div></div>
+
+<details class="iq"><summary>Interview: Why use a surrogate key instead of customer_id in the fact table?</summary>
+<p>Because a Type 2 customer has several rows with the same customer_id. The fact must point to the exact version that was true when the event happened, so it stores the version's surrogate key, looked up at load time with a point-in-time join. Surrogate keys also isolate the warehouse from source key changes and allow combining customers from several source systems.</p></details>
+
+<div class="remember"><ul>
+<li>One row per version: surrogate key, natural key, attributes, valid_from, valid_to, is_current, row_hash.</li>
+<li>Half-open intervals with a 9999-12-31 open end.</li>
+<li>Deterministic surrogate keys; NULL-safe hashing of tracked columns only.</li>
+</ul></div>
+</section>
+
+<section class="lesson" id="scd2-pyspark" data-ch="Slowly Changing Dimensions" data-t="Type 2 with the DataFrame API" data-lvl="I" data-min="16">
+<h1>Type 2 with the DataFrame API</h1>
+<div class="plain"><p>The DataFrame approach compares <b>current</b> dimension rows with the incoming snapshot and sorts every customer into one of four buckets: <b>unchanged</b> (keep), <b>changed</b> (close the old row and add a new version), <b>new</b> (add a first version) and <b>missing from source</b> (keep, or close if missing means deleted). History rows are never touched. Then everything is unioned back together.</p></div>
+
+<figure class="anim">
+<div class="atitle">How the Type 2 merge sorts rows into buckets</div>
+<div class="stage"><svg viewBox="0 0 790 330" role="img" aria-label="Type 2 DataFrame steps">
+<g data-s="1"><rect x="10" y="14" width="180" height="56" rx="8" class="bxa" data-hi="1"/><text x="22" y="36" class="b">dim_customer</text><text x="22" y="56" class="s">split by is_current</text>
+<rect x="10" y="84" width="85" height="40" rx="6" class="bxg"/><text x="18" y="108" class="s">history</text>
+<rect x="105" y="84" width="85" height="40" rx="6" class="bxa"/><text x="113" y="108" class="s">current</text></g>
+<g data-s="2"><rect x="230" y="14" width="160" height="56" rx="8" class="bxo" data-hi="2"/><text x="242" y="36" class="b">stg + row_hash</text><text x="242" y="56" class="s">today's snapshot</text>
+<path d="M150 124L300 160M310 70V158" class="lnd"/>
+<rect x="210" y="160" width="200" height="50" rx="8" class="bxw" data-hi="2"/><text x="222" y="182" class="b">FULL OUTER JOIN</text><text x="222" y="200" class="s">on customer_id</text></g>
+<g data-s="3"><path d="M410 185H448" class="ln" marker-end="url(#arr)"/>
+<rect x="450" y="14" width="330" height="44" rx="6" class="bxg" data-hi="3"/><text x="462" y="33" class="b">unchanged</text><text x="462" y="50" class="s">hash equal, or missing from source → keep (Asha)</text>
+<rect x="450" y="66" width="330" height="62" rx="6" class="bxr" data-hi="3"/><text x="462" y="85" class="b">changed: hash differs (Ravi, Meena)</text><text x="462" y="102" class="s">1. old row: valid_to = load date, is_current = false</text><text x="462" y="118" class="s">2. new row from source, valid_from = load date</text>
+<rect x="450" y="136" width="330" height="44" rx="6" class="bxt" data-hi="3"/><text x="462" y="155" class="b">new: only in source (Omar)</text><text x="462" y="172" class="s">insert first version</text></g>
+<g data-s="4"><rect x="450" y="196" width="330" height="44" rx="6" class="bxg" data-hi="4"/><text x="462" y="215" class="b">history rows</text><text x="462" y="232" class="s">passed through untouched</text></g>
+<g data-s="5"><path d="M615 240V262" class="ln" marker-end="url(#arr)"/><rect x="10" y="264" width="770" height="58" rx="8" class="bxt" data-hi="5"/><text x="22" y="286" class="b">unionByName → new dim_customer</text><text x="22" y="306" class="s">history + unchanged + expired + new versions. Write to a new location (Parquet) or MERGE the changed rows (Iceberg).</text></g>
+</svg></div>
+<ol class="asteps">
+<li>Split the dimension: history rows are finished and never change; only current rows take part in the comparison.</li>
+<li>Add a hash of the tracked columns to today's snapshot, then full-outer-join it with the current rows on the natural key.</li>
+<li>Classify every key: unchanged, changed or new. A changed customer produces two rows: the closed old version and the new version.</li>
+<li>History rows from step 1 pass straight through.</li>
+<li>Union the buckets. The result is the complete new dimension.</li>
+</ol>
+</figure>
+
+<div class="ex"><div class="exh">Complete Type 2 function (tested on Spark 3.5.6)<span class="tag">pyspark</span></div><pre><code class="py">from pyspark.sql import DataFrame, functions as F
+
+HIGH = F.to_date(F.lit("9999-12-31"))
+tracked = ["name", "city", "segment"]
+
+def row_hash(df, cols=tracked):
+    return F.sha2(F.concat_ws("||", *[F.coalesce(df[c].cast("string"), F.lit("~")) for c in cols]), 256)
+
+def scd2(dim: DataFrame, src: DataFrame, load_date) -&gt; DataFrame:
+    s    = src.withColumn("row_hash", row_hash(src))
+    cur  = dim.filter("is_current")
+    hist = dim.filter(~F.col("is_current"))
+
+    j = cur.alias("t").join(s.alias("s"), "customer_id", "full_outer")
+    t_cols = [F.col("customer_id")] + [F.col(f"t.{c}") for c in dim.columns if c != "customer_id"]
+    s_cols = [F.col("customer_id")] + [F.col(f"s.{c}") for c in tracked + ["row_hash"]]
+
+    in_dim, in_src = F.col("t.customer_sk").isNotNull(), F.col("s.row_hash").isNotNull()
+    same = F.col("t.row_hash") == F.col("s.row_hash")
+
+    unchanged = j.filter(in_dim &amp; (~in_src | same)).select(*t_cols)        # keep as is
+    changed   = j.filter(in_dim &amp; in_src &amp; ~same)
+    expired   = (changed.select(*t_cols)                                   # close old version
+                 .withColumn("valid_to", load_date)
+                 .withColumn("is_current", F.lit(False)))
+    new_rows  = (changed.select(*s_cols)                                   # new version of changed
+                 .unionByName(j.filter(~in_dim).select(*s_cols))           # + brand-new customers
+                 .withColumn("valid_from", load_date)
+                 .withColumn("valid_to", HIGH)
+                 .withColumn("is_current", F.lit(True))
+                 .withColumn("customer_sk", F.xxhash64("customer_id", "valid_from"))
+                 .select(*dim.columns))
+    return hist.unionByName(unchanged).unionByName(expired).unionByName(new_rows)
+
+result = scd2(dim, stg, F.to_date(F.lit("2026-11-03")))
+result.drop("row_hash").orderBy("customer_id", "valid_from").show()</code></pre>
+<div class="outh">Output</div><pre class="out"><code>+--------------------+-----------+-----+---------+-------+----------+----------+----------+
+|         customer_sk|customer_id| name|     city|segment|valid_from|  valid_to|is_current|
++--------------------+-----------+-----+---------+-------+----------+----------+----------+
+|-5488638099003664039|          1| Asha|Hyderabad|   GOLD|2026-01-01|9999-12-31|      true|
+|-7015704917477310995|          2| Ravi|     Pune| SILVER|2026-01-01|<span class="mk">2026-11-03</span>|     <span class="mk">false</span>|
+|-2170294953861443125|          2| Ravi|   <span class="mk">Mumbai</span>| SILVER|2026-11-03|9999-12-31|      true|
+| 6601879412621348927|          3|Meena|  Chennai| SILVER|2026-01-01|<span class="mk">2026-11-03</span>|     <span class="mk">false</span>|
+|-1415422703402219002|          3|Meena|  Chennai|   <span class="mk">GOLD</span>|2026-11-03|9999-12-31|      true|
+| 6531721166160098237|          4| Omar|    Dubai| BRONZE|2026-11-03|9999-12-31|      true|
++--------------------+-----------+-----+---------+-------+----------+----------+----------+</code></pre>
+<div class="exf"><p>Asha is unchanged. Ravi and Meena each have a closed old row and a new current row. Omar is new. We then ran the same function again with the same input: the row count stayed at 6, because the new current rows now match the source hashes. That is <b>idempotency</b>: a retried job does not create duplicate versions.</p></div></div>
+
+<h2>Writing the result</h2>
+<div class="cols">
+<div><h4>Plain Parquet / Hive table</h4><p>The result is the whole new table. Write it to a <b>new location</b> (e.g. <code>.../dim_customer/v=20261103/</code>), validate, then point the Glue table at it. Overwriting the path you read from in the same job can delete input files mid-read. Fine for dimensions up to a few hundred million rows.</p></div>
+<div><h4>Iceberg table</h4><p>Don't rewrite the table. Feed only the <b>changed and new</b> rows into a <code>MERGE</code> (next lesson), so Iceberg rewrites only affected files, in one atomic commit. Compute the source DataFrame with this code if the logic is complex, register it as a temp view, MERGE it.</p></div>
+</div>
+
+<details class="iq"><summary>Interview: How do you make SCD2 idempotent?</summary>
+<p>Change detection is based on comparing the source hash with the current row's hash, and effective dates come from the batch's business date, not the wall clock. If the batch is re-run, the current rows already match the source, so no new versions are created and nothing is closed twice. Surrogate keys are deterministic (hash of natural key and valid_from), so even a partial re-run produces the same keys. With Iceberg the MERGE is atomic, so a failure mid-way leaves the table unchanged.</p></details>
+
+<div class="remember"><ul>
+<li>Split current/history → full join current with source → classify → union.</li>
+<li>Changed = two rows: closed old + new version.</li>
+<li>Re-running the same batch must add zero rows.</li>
+</ul></div>
+</section>
+
+<section class="lesson" id="scd2-sql" data-ch="Slowly Changing Dimensions" data-t="Type 2 in Spark SQL and Iceberg MERGE" data-lvl="A" data-min="16">
+<h1>Type 2 in Spark SQL and Iceberg MERGE</h1>
+<div class="plain"><p>There are three SQL ways to do Type 2. On a plain Parquet table you rebuild the table with CTEs and <code>INSERT OVERWRITE</code> into a new location. On Iceberg you use one <code>MERGE INTO</code> with a well-known trick: each changed customer appears twice in the source, once to close the old row and once, with a NULL key, to insert the new row. A third option uses two statements, which is simpler but not atomic.</p></div>
+
+<h2>Option A: plain Spark SQL rebuild (no table format needed)</h2>
+<div class="ex"><div class="exh">CTE rebuild — real output below<span class="tag">spark sql</span></div><pre><code class="sql">WITH stg AS (
+  SELECT *, sha2(concat_ws('||', coalesce(name,'~'), coalesce(city,'~'), coalesce(segment,'~')), 256) AS row_hash
+  FROM stg_customer),
+cur AS (SELECT * FROM dim_customer WHERE is_current),
+changed AS (                                   -- customers whose tracked values differ
+  SELECT s.* FROM stg s JOIN cur c ON s.customer_id = c.customer_id WHERE s.row_hash &lt;&gt; c.row_hash),
+brand_new AS (                                 -- customers not in the dimension yet
+  SELECT s.* FROM stg s LEFT ANTI JOIN cur c ON s.customer_id = c.customer_id)
+-- 1. all existing rows; close the current row of changed customers
+SELECT d.customer_sk, d.customer_id, d.name, d.city, d.segment, d.valid_from,
+       CASE WHEN ch.customer_id IS NOT NULL AND d.is_current THEN DATE'2026-11-03' ELSE d.valid_to END AS valid_to,
+       CASE WHEN ch.customer_id IS NOT NULL AND d.is_current THEN false ELSE d.is_current END AS is_current,
+       d.row_hash
+FROM dim_customer d LEFT JOIN changed ch ON d.customer_id = ch.customer_id
+UNION ALL
+-- 2. new versions for changed customers and first versions for new customers
+SELECT xxhash64(customer_id, DATE'2026-11-03'), customer_id, name, city, segment,
+       DATE'2026-11-03', DATE'9999-12-31', true, row_hash
+FROM (SELECT * FROM changed UNION ALL SELECT * FROM brand_new)</code></pre>
+<div class="outh">Output: identical to the DataFrame version</div><pre class="out"><code>|1|Asha |Hyderabad|GOLD  |2026-01-01|9999-12-31|true |
+|2|Ravi |Pune     |SILVER|2026-01-01|2026-11-03|false|
+|2|Ravi |Mumbai   |SILVER|2026-11-03|9999-12-31|true |
+|3|Meena|Chennai  |SILVER|2026-01-01|2026-11-03|false|
+|3|Meena|Chennai  |GOLD  |2026-11-03|9999-12-31|true |
+|4|Omar |Dubai    |BRONZE|2026-11-03|9999-12-31|true |</code></pre>
+<div class="exf"><p>Wrap it in <code>INSERT OVERWRITE TABLE dw.dim_customer_next ...</code> (a different table or location), validate, and swap. The date literal would come from a job parameter, e.g. <code>spark.sql(query, args={"load_date": run_date})</code> with <code>:load_date</code> in the SQL.</p></div></div>
+
+<h2>Option B: one Iceberg MERGE (the production pattern)</h2>
+<figure class="anim">
+<div class="atitle">The “NULL merge key” trick, step by step</div>
+<div class="stage"><svg viewBox="0 0 790 340" role="img" aria-label="Iceberg MERGE for SCD2">
+<text x="10" y="22" class="h">Source of the MERGE (union of two parts)</text>
+<g data-s="1"><rect x="10" y="34" width="370" height="128" rx="8" class="bxa" data-hi="1"/><text x="22" y="54" class="b">Part 1: every staging row, merge_key = customer_id</text>
+<text x="22" y="78" class="m">merge_key=1 Asha  Hyderabad GOLD</text><text x="22" y="98" class="m">merge_key=2 Ravi  Mumbai    SILVER</text><text x="22" y="118" class="m">merge_key=3 Meena Chennai   GOLD</text><text x="22" y="138" class="m">merge_key=4 Omar  Dubai     BRONZE</text></g>
+<g data-s="2"><rect x="10" y="172" width="370" height="84" rx="8" class="bxp" data-hi="2"/><text x="22" y="192" class="b">Part 2: CHANGED rows again, merge_key = NULL</text>
+<text x="22" y="216" class="m">merge_key=NULL Ravi  Mumbai  SILVER</text><text x="22" y="236" class="m">merge_key=NULL Meena Chennai GOLD</text></g>
+<g data-s="3"><text x="420" y="22" class="h">ON t.customer_id = s.merge_key AND t.is_current</text>
+<rect x="420" y="34" width="360" height="40" rx="6" class="bxg"/><text x="432" y="58" class="s">Asha: matched, hash equal → no action</text>
+<rect x="420" y="80" width="360" height="40" rx="6" class="bxr" data-hi="3"/><text x="432" y="104" class="s">Ravi, Meena: matched, hash differs → UPDATE: close row</text>
+<rect x="420" y="126" width="360" height="40" rx="6" class="bxt"/><text x="432" y="150" class="s">Omar: not matched → INSERT first version</text></g>
+<g data-s="4"><rect x="420" y="190" width="360" height="56" rx="6" class="bxt" data-hi="4"/><text x="432" y="212" class="s">NULL keys never match anything →</text><text x="432" y="230" class="s">INSERT new current rows for Ravi and Meena</text>
+<path d="M380 214H418" class="lno" marker-end="url(#arrO)"/></g>
+<g data-s="5"><rect x="10" y="270" width="770" height="62" rx="8" class="bxw"/><text x="22" y="292" class="b">One atomic commit</text><text x="22" y="312" class="s">Closing old rows and inserting new versions happen together: readers never see a customer with zero or two current rows.</text></g>
+</svg></div>
+<ol class="asteps">
+<li>Part 1 of the source is the staging data with <code>merge_key = customer_id</code>. It matches each customer's current row.</li>
+<li>Part 2 repeats only the <b>changed</b> customers with <code>merge_key = NULL</code>.</li>
+<li>Part 1 matches: unchanged customers are skipped by the condition, changed customers get their current row closed, new customers are inserted.</li>
+<li>Part 2 rows can never match (NULL = anything is not true), so they fall into <code>WHEN NOT MATCHED</code> and become the new current versions.</li>
+<li>All of it is a single Iceberg commit.</li>
+</ol>
+</figure>
+
+<div class="ex"><div class="exh">SCD2 MERGE on Iceberg<span class="tag">spark sql</span></div><pre><code class="sql">MERGE INTO glue_catalog.dw.dim_customer t
+USING (
+  -- part 1: match every staging row against its current version
+  SELECT s.customer_id AS merge_key, s.* FROM stg_hashed s
+  UNION ALL
+  -- part 2: changed customers again with a NULL key, so they INSERT as new versions
+  SELECT NULL AS merge_key, s.*
+  FROM stg_hashed s
+  JOIN glue_catalog.dw.dim_customer d
+    ON d.customer_id = s.customer_id AND d.is_current AND d.row_hash &lt;&gt; s.row_hash
+) u
+ON t.customer_id = u.merge_key AND t.is_current
+WHEN MATCHED AND t.row_hash &lt;&gt; u.row_hash THEN
+  UPDATE SET t.valid_to = DATE'2026-11-03', t.is_current = false
+WHEN NOT MATCHED THEN
+  INSERT (customer_sk, customer_id, name, city, segment, valid_from, valid_to, is_current, row_hash)
+  VALUES (xxhash64(u.customer_id, DATE'2026-11-03'), u.customer_id, u.name, u.city, u.segment,
+          DATE'2026-11-03', DATE'9999-12-31', true, u.row_hash)</code></pre>
+<div class="exf"><p><code>stg_hashed</code> is the staging view with <code>row_hash</code> added and deduplicated to one row per customer (MERGE fails if two source rows match one target row). Expected result: the same six rows as the DataFrame version. Re-running it changes nothing: part 2 is empty because hashes now match, and part 1 matches with equal hashes. Run it on Glue 5.x with <code>--datalake-formats iceberg</code>; Athena can run the same MERGE on Iceberg tables.</p></div></div>
+
+<h2>Option C: two statements (simple, not atomic)</h2>
+<div class="ex"><div class="exh">Close, then insert<span class="tag">spark sql</span></div><pre><code class="sql">-- 1. close changed current rows
+MERGE INTO glue_catalog.dw.dim_customer t USING stg_hashed s
+ON t.customer_id = s.customer_id AND t.is_current
+WHEN MATCHED AND t.row_hash &lt;&gt; s.row_hash THEN UPDATE SET valid_to = DATE'2026-11-03', is_current = false;
+
+-- 2. insert a current row for every staging customer that has no current row now
+INSERT INTO glue_catalog.dw.dim_customer
+SELECT xxhash64(s.customer_id, DATE'2026-11-03'), s.customer_id, s.name, s.city, s.segment,
+       DATE'2026-11-03', DATE'9999-12-31', true, s.row_hash
+FROM stg_hashed s
+LEFT ANTI JOIN (SELECT customer_id FROM glue_catalog.dw.dim_customer WHERE is_current) c
+  ON s.customer_id = c.customer_id;</code></pre>
+<div class="exf"><p>Easier to read, and safe to re-run (step 2 only inserts customers without a current row). But between the two commits, readers see changed customers with <b>no</b> current row. Use it when nobody queries the table during the load, or use a branch (write-audit-publish) to hide the intermediate state.</p></div></div>
+
+<div class="box s4"><b class="lbl">Spark 4: MERGE from the DataFrame API</b><p>Spark 4.0 adds <code>DataFrame.mergeInto(table, condition)</code> with <code>.whenMatched().update(...)</code>, <code>.whenNotMatched().insertAll()</code> and <code>.merge()</code>, so the MERGE can be written without SQL text. On Glue 5.x / EMR 7.x (Spark 3.5) MERGE is SQL only. <span class="v4">Spark 4 only</span></p></div>
+
+<div class="remember"><ul>
+<li>Plain tables: CTE rebuild into a new location.</li>
+<li>Iceberg: one MERGE with the NULL merge-key trick; atomic and idempotent.</li>
+<li>Two-statement version is simpler but exposes an in-between state.</li>
+</ul></div>
+</section>
+
+<section class="lesson" id="scd2-advanced" data-ch="Slowly Changing Dimensions" data-t="Type 2 edge cases: late, multiple, deleted" data-lvl="A" data-min="16">
+<h1>Type 2 edge cases: late, multiple, deleted</h1>
+<div class="plain"><p>The basic merge assumes one clean snapshot per day. Real CDC feeds are messier: a customer can change <b>twice in one batch</b>, a change can arrive <b>late</b> and belong between two versions you already have, the same change can be sent <b>twice</b>, an “update” can carry <b>no real change</b>, and customers can be <b>deleted</b>. A senior answer handles all five. The robust approach is to rebuild the full version chain for just the affected customers.</p></div>
+
+<figure class="anim">
+<div class="atitle">A late change lands between two existing versions</div>
+<div class="stage"><svg viewBox="0 0 790 270" role="img" aria-label="Late arriving change inserted in the middle of history">
+<line x1="30" y1="60" x2="770" y2="60" class="ln"/>
+<text x="30" y="40" class="m">Jan</text><text x="300" y="40" class="m">15 Jun</text><text x="560" y="40" class="m">2 Nov</text><text x="690" y="40" class="m">3 Nov</text>
+<g data-s="1"><text x="10" y="92" class="b">Already in the dimension</text>
+<rect x="30" y="102" width="530" height="28" rx="4" class="bxa"/><text x="40" y="121" class="m">Pune [Jan, 2 Nov)</text>
+<rect x="560" y="102" width="210" height="28" rx="4" class="bxt"/><text x="570" y="121" class="m">Mumbai [2 Nov, ∞)</text></g>
+<g data-s="2"><text x="10" y="160" class="b">Today's CDC batch</text>
+<circle cx="310" cy="176" r="7" class="fl-r"/><text x="322" y="181" class="s">Hyderabad, changed 15 Jun (arrived late)</text>
+<circle cx="700" cy="176" r="7" class="fl-o"/><text x="590" y="200" class="s">Bengaluru, 3 Nov 18:00</text></g>
+<g data-s="3"><text x="10" y="228" class="b">Rebuilt chain (sort by date, valid_to = next valid_from)</text>
+<rect x="30" y="238" width="270" height="26" rx="4" class="bxa"/><text x="40" y="256" class="m">Pune</text>
+<rect x="300" y="238" width="260" height="26" rx="4" class="bxr"/><text x="310" y="256" class="m">Hyderabad</text>
+<rect x="560" y="238" width="130" height="26" rx="4" class="bxa"/><text x="570" y="256" class="m">Mumbai</text>
+<rect x="690" y="238" width="80" height="26" rx="4" class="bxt"/><text x="696" y="256" class="m">Bengaluru</text></g>
+</svg></div>
+<ol class="asteps">
+<li>The dimension already has Pune (from January) and Mumbai (from 2 November).</li>
+<li>Today's batch contains a change from 15 June that arrived months late, and a second change on 3 November.</li>
+<li>Put existing versions and new changes for this customer in one list, sort by change time, and set each version's <code>valid_to</code> to the next version's <code>valid_from</code>. The late change slots into the middle and Pune's end date moves to 15 June.</li>
+</ol>
+</figure>
+
+<div class="ex"><div class="exh">Rebuild the chain for affected customers only (tested)<span class="tag">pyspark</span></div><pre><code class="py">w = W.partitionBy("customer_id").orderBy("valid_from")
+keys = cdc.select("customer_id").distinct()                          # customers touched by this batch
+
+untouched = hist.join(keys, "customer_id", "left_anti")             # everyone else: leave alone
+affected  = (hist.join(keys, "customer_id", "left_semi")            # their existing versions
+               .unionByName(cdc.withColumnRenamed("changed_at", "valid_from"))   # + new changes
+               .dropDuplicates(["customer_id", "valid_from"]))      # same change sent twice
+
+# drop "changes" that don't change anything compared with the previous version
+affected = (affected.withColumn("h", row_hash(affected))
+                    .withColumn("prev_h", F.lag("h").over(w))
+                    .filter(F.col("prev_h").isNull() | (F.col("h") != F.col("prev_h")))
+                    .drop("h", "prev_h"))
+
+def close(df):                                                      # end = next version's start
+    nxt = F.lead("valid_from").over(w)
+    return (df.withColumn("valid_to", F.coalesce(nxt, F.to_timestamp(F.lit("9999-12-31 00:00:00"))))
+              .withColumn("is_current", nxt.isNull()))
+
+result = close(affected).unionByName(close(untouched))</code></pre>
+<div class="outh">Output: batch had a late change, two changes for customer 2, a duplicate for 3 and a no-op for 1</div><pre class="out"><code>+-----------+---------+-------+-------------------+-------------------+----------+
+|customer_id|city     |segment|valid_from         |valid_to           |is_current|
++-----------+---------+-------+-------------------+-------------------+----------+
+|1          |Hyderabad|GOLD   |2026-01-01 00:00:00|9999-12-31 00:00:00|true      |   &lt;- no-op update ignored
+|2          |Pune     |SILVER |2026-01-01 00:00:00|<span class="mk">2026-06-15 12:00:00</span>|false     |   &lt;- end moved back
+|2          |<span class="mk">Hyderabad</span>|SILVER |2026-06-15 12:00:00|2026-11-02 09:00:00|false     |   &lt;- late change inserted
+|2          |Mumbai   |SILVER |2026-11-02 09:00:00|2026-11-03 18:00:00|false     |
+|2          |Bengaluru|SILVER |2026-11-03 18:00:00|9999-12-31 00:00:00|true      |   &lt;- second change in batch
+|3          |Chennai  |SILVER |2026-01-01 00:00:00|2026-11-03 10:00:00|false     |
+|3          |Chennai  |GOLD   |2026-11-03 10:00:00|9999-12-31 00:00:00|true      |   &lt;- duplicate removed
++-----------+---------+-------+-------------------+-------------------+----------+</code></pre></div>
+
+<h3>Applying the rebuilt chain to Iceberg</h3>
+<div class="ex"><div class="exh">MERGE on (natural key, valid_from)<span class="tag">spark sql</span></div><pre><code class="sql">MERGE INTO glue_catalog.dw.dim_customer t
+USING rebuilt_chain s                                   -- affected customers only
+ON t.customer_id = s.customer_id AND t.valid_from = s.valid_from
+WHEN MATCHED AND (t.valid_to &lt;&gt; s.valid_to OR t.is_current &lt;&gt; s.is_current) THEN
+  UPDATE SET t.valid_to = s.valid_to, t.is_current = s.is_current      -- existing versions re-dated
+WHEN NOT MATCHED THEN INSERT *                                          -- late and new versions</code></pre>
+<div class="exf"><p>Each version is identified by (customer_id, valid_from), so the MERGE is idempotent. Facts already loaded with the old Pune surrogate key for orders between 15 June and 2 November now point to the wrong version: a late-arriving dimension change may require re-keying those facts. Mention that trade-off; many teams accept it or restate only recent partitions.</p></div></div>
+
+<h2>Deletes</h2>
+<div class="ex"><div class="exh">Soft delete: close the row and flag it<span class="tag">pyspark</span></div><pre><code class="py">deleted = spark.createDataFrame([(3,)], "customer_id int").withColumn("del", F.lit(True))
+sd = (dim.join(deleted, "customer_id", "left")
+         .withColumn("valid_to",   F.when(F.col("del") &amp; F.col("is_current"), F.to_date(F.lit("2026-11-04"))).otherwise(F.col("valid_to")))
+         .withColumn("is_deleted", F.coalesce(F.col("del") &amp; F.col("is_current"), F.lit(False)))
+         .withColumn("is_current", F.when(F.col("del"), F.lit(False)).otherwise(F.col("is_current")))
+         .drop("del"))</code></pre>
+<div class="outh">Output for customer 3</div><pre class="out"><code>|3|Chennai|SILVER|2026-01-01|2026-11-03|false|false|
+|3|Chennai|GOLD  |2026-11-03|2026-11-04|false|true |   &lt;- closed and flagged; no current row left</code></pre>
+<div class="exf"><p>Never hard-delete Type 2 rows: facts still reference them. How you learn about deletes depends on the source: CDC sends an explicit <code>D</code> operation; a full snapshot means “missing today = deleted” (left anti join of current rows against the snapshot); a partial feed cannot detect deletes at all. GDPR erasure is the exception: then you anonymise the attributes in every version.</p></div></div>
+
+<h2>Point-in-time joins: using the dimension</h2>
+<div class="ex"><div class="exh">Attach the version that was true on the order date (tested)<span class="tag">pyspark</span></div><pre><code class="py">pit = (facts.alias("f").join(dim.alias("d"),
+          (F.col("f.customer_id") == F.col("d.customer_id")) &amp;
+          (F.col("f.order_date") &gt;= F.col("d.valid_from")) &amp;
+          (F.col("f.order_date") &lt;  F.col("d.valid_to")))         # half-open interval
+       .select("f.order_id", "f.order_date", "f.amount", "d.customer_sk", "d.city", "d.segment"))</code></pre>
+<div class="outh">Output</div><pre class="out"><code>+--------+----------+------+--------------------+-------+-------+
+|order_id|order_date|amount|         customer_sk|   city|segment|
++--------+----------+------+--------------------+-------+-------+
+|      o1|2026-10-15| 500.0|-7015704917477310995|   Pune| SILVER|   &lt;- October order → Pune version
+|      o2|2026-11-05| 700.0|-2170294953861443125| Mumbai| SILVER|
+|      o3|2026-11-04|  90.0|-1415422703402219002|Chennai|   GOLD|
++--------+----------+------+--------------------+-------+-------+</code></pre>
+<div class="exf"><p>Do this lookup when loading facts and store <code>customer_sk</code> in the fact table; reports then join on the surrogate key only. The range condition is a non-equi join, but the equality on <code>customer_id</code> lets Spark hash-partition it; broadcast the dimension if it is small.</p></div></div>
+
+<h2>Quality checks every SCD2 table should pass</h2>
+<div class="ex good"><div class="exh">Three checks (all returned 0 on our result)<span class="tag">pyspark</span></div><pre><code class="py">w = W.partitionBy("customer_id").orderBy("valid_from")
+one_current = dim.groupBy("customer_id").agg(F.sum(F.col("is_current").cast("int")).alias("c")).filter("c != 1")
+gaps_or_overlaps = (dim.withColumn("nxt", F.lead("valid_from").over(w))
+                       .filter(F.col("nxt").isNotNull() &amp; (F.col("nxt") != F.col("valid_to"))))
+dup_sk = dim.groupBy("customer_sk").count().filter("count &gt; 1")
+for name, df in [("current_rows", one_current), ("gaps_overlaps", gaps_or_overlaps), ("dup_sk", dup_sk)]:
+    assert df.limit(1).count() == 0, f"SCD2 check failed: {name}"</code></pre>
+<div class="exf"><p>Soft-deleted customers legitimately have zero current rows; exclude <code>is_deleted</code> keys from the first check.</p></div></div>
+
+<div class="remember"><ul>
+<li>Messy CDC → rebuild the version chain for affected keys with lag/lead.</li>
+<li>Deduplicate, drop no-op changes, sort by business change time.</li>
+<li>Soft-delete, never hard-delete. Point-in-time join with half-open ranges.</li>
+<li>Check: one current row, no gaps/overlaps, unique surrogate keys.</li>
+</ul></div>
+</section>
+
+<section class="lesson" id="scd-3-4-6" data-ch="Slowly Changing Dimensions" data-t="Type 3, Type 4 and Type 6" data-lvl="I" data-min="11">
+<h1>Type 3, Type 4 and Type 6</h1>
+<div class="plain"><p>These three are variations you will be asked to explain and occasionally build. <b>Type 3</b> adds a “previous value” column. <b>Type 4</b> keeps the main table small (current values only) and moves history to a separate table. <b>Type 6</b> is Type 2 plus a column with today's value on every version, so analysts can report both “as it was” and “as it is now” without a self-join.</p></div>
+
+<h2>Type 3: previous value column</h2>
+<div class="ex"><div class="exh">Keep current and previous city (tested)<span class="tag">pyspark</span></div><pre><code class="py">moved = F.col("t.city").isNotNull() &amp; F.col("s.city").isNotNull() &amp; ~F.col("t.city").eqNullSafe(F.col("s.city"))
+t3 = (dim.alias("t").join(stg.alias("s"), "customer_id", "full")
+         .select("customer_id",
+                 F.coalesce("s.name", "t.name").alias("name"),
+                 F.coalesce("s.city", "t.city").alias("current_city"),
+                 F.when(moved, F.col("t.city")).alias("previous_city"),
+                 F.when(moved, F.lit("2026-11-03").cast("date")).alias("city_changed_on")))</code></pre>
+<div class="outh">Output</div><pre class="out"><code>+-----------+-----+------------+-------------+---------------+
+|customer_id| name|current_city|previous_city|city_changed_on|
++-----------+-----+------------+-------------+---------------+
+|          1| Asha|   Hyderabad|         NULL|           NULL|
+|          2| Ravi|      Mumbai|         Pune|     2026-11-03|
+|          3|Meena|     Chennai|         NULL|           NULL|
+|          4| Omar|       Dubai|         NULL|           NULL|
++-----------+-----+------------+-------------+---------------+</code></pre>
+<div class="exf"><p>In a real Type 3 table, customers who did not move keep their existing <code>previous_city</code> from earlier runs; take <code>t.previous_city</code> in the <code>otherwise</code> branch. Iceberg version: <code>MERGE ... WHEN MATCHED AND t.current_city &lt;&gt; s.city THEN UPDATE SET previous_city = t.current_city, current_city = s.city, city_changed_on = current_date()</code>. In a MERGE, the right-hand side reads the <b>old</b> target values, so the swap works in one statement.</p></div></div>
+
+<h2>Type 4: current table + history table</h2>
+<figure class="dg"><svg viewBox="0 0 790 150" role="img" aria-label="Type 4 split into current and history tables">
+<rect x="10" y="20" width="250" height="110" rx="8" class="bxo"/><text x="22" y="44" class="b">stg_customer</text><text x="22" y="66" class="s">daily snapshot / CDC</text>
+<path d="M260 60H318" class="ln" marker-end="url(#arr)"/><path d="M260 100H318" class="ln" marker-end="url(#arr)"/>
+<rect x="320" y="20" width="460" height="50" rx="8" class="bxa"/><text x="332" y="42" class="b">dim_customer (Type 1 upsert)</text><text x="332" y="60" class="s">one row per customer, small, fast; most reports use this</text>
+<rect x="320" y="80" width="460" height="50" rx="8" class="bxt"/><text x="332" y="102" class="b">dim_customer_history (Type 2 or append-only log)</text><text x="332" y="120" class="s">every version with dates; used for audits and as-of analysis</text>
+</svg></figure>
+<p>Implementation: run the Type 1 MERGE on the current table and the Type 2 logic (or a simple append of changed rows with timestamps) on the history table in the same job. With Iceberg, use a branch or run the history write first, so a failure never leaves current updated without history. Facts can store the current table's key; as-of analysis joins to history by date.</p>
+
+<h2>Type 6: Type 2 plus current values everywhere</h2>
+<div class="ex"><div class="exh">Add current_city to every version (tested)<span class="tag">pyspark</span></div><pre><code class="py">latest = W.partitionBy("customer_id").orderBy(F.desc("valid_from"))
+t6 = scd2_result.withColumn("current_city", F.first("city").over(latest))</code></pre>
+<div class="outh">Output</div><pre class="out"><code>+-----------+-------+------------+----------+----------+----------+
+|customer_id|   city|current_city|valid_from|  valid_to|is_current|
++-----------+-------+------------+----------+----------+----------+
+|          2|   Pune|      <span class="mk">Mumbai</span>|2026-01-01|2026-11-03|     false|   &lt;- historical row knows today's city
+|          2| Mumbai|      Mumbai|2026-11-03|9999-12-31|      true|
++-----------+-------+------------+----------+----------+----------+</code></pre>
+<div class="exf"><p>Now one query can report “October revenue by the city at the time” (<code>city</code>) and “by the customer's city today” (<code>current_city</code>). The cost: every change updates <code>current_city</code> on all of that customer's historical rows. In Iceberg: after the Type 2 MERGE, run <code>MERGE ... ON t.customer_id = s.customer_id WHEN MATCHED AND t.current_city &lt;&gt; s.city THEN UPDATE SET current_city = s.city</code> with the current rows as source.</p></div></div>
+
+<div class="remember"><ul>
+<li>Type 3: one previous value; MERGE swaps columns in one statement.</li>
+<li>Type 4: small current table + separate history table.</li>
+<li>Type 6: Type 2 + current_* columns updated on every version.</li>
+</ul></div>
+</section>
+
+<section class="lesson" id="scd-choose" data-ch="Slowly Changing Dimensions" data-t="PySpark or Spark SQL: which and when" data-lvl="A" data-min="12">
+<h1>PySpark or Spark SQL: which and when</h1>
+<div class="plain"><p>Both produce the same plan, so the choice is about the <b>target table</b> and about <b>maintainability</b>, not speed. On Iceberg, the actual write should be a SQL <code>MERGE</code>, because it is atomic and rewrites only affected files. How you <b>prepare</b> the MERGE's source can be DataFrame code (testable, reusable, config-driven) or SQL (readable for analysts). Most production teams combine them.</p></div>
+
+<div class="tw"><table class="t">
+<tr><th>Situation</th><th>Recommended</th><th>Why</th></tr>
+<tr><td>Target is Iceberg (or Delta/Hudi), standard SCD1/SCD2</td><td><b>Spark SQL MERGE</b></td><td>Atomic, row-level, only touches changed files, short and readable, same SQL works in Athena</td></tr>
+<tr><td>Target is plain Parquet / Hive</td><td><b>DataFrame API</b> (or CTE rebuild) + write to a new location</td><td>No MERGE/UPDATE available; you must rebuild the table anyway</td></tr>
+<tr><td>Many dimensions, same logic, columns from config</td><td><b>DataFrame function</b> producing the source, then MERGE</td><td>One tested function, parameterised by table name, keys and tracked columns</td></tr>
+<tr><td>Messy CDC: late, multiple, duplicate changes</td><td><b>DataFrame</b> (lag/lead chain rebuild) → MERGE on (key, valid_from)</td><td>Window logic is clearer step by step and easy to unit-test</td></tr>
+<tr><td>Team mostly SQL, simple logic, small dims</td><td><b>Spark SQL</b> end to end</td><td>Readability for the people who maintain it</td></tr>
+<tr><td>Spark 4 (Glue 6.0)</td><td>Either; <code>DataFrame.mergeInto</code> available</td><td>MERGE without SQL strings <span class="v4">Spark 4 only</span></td></tr>
+</table></div>
+
+<h2>The hybrid pattern most teams use</h2>
+<figure class="dg"><svg viewBox="0 0 790 120" role="img" aria-label="Hybrid DataFrame and MERGE pattern">
+<rect x="10" y="30" width="160" height="60" rx="8" class="bxo"/><text x="22" y="54" class="b">Read source</text><text x="22" y="74" class="s">CDC / snapshot</text>
+<path d="M170 60H198" class="ln" marker-end="url(#arr)"/>
+<rect x="200" y="30" width="230" height="60" rx="8" class="bxa"/><text x="212" y="54" class="b">DataFrame function</text><text x="212" y="74" class="s">clean, dedup, hash, classify</text>
+<path d="M430 60H458" class="ln" marker-end="url(#arr)"/>
+<rect x="460" y="30" width="130" height="60" rx="8" class="bxp"/><text x="472" y="54" class="b">temp view</text><text x="472" y="74" class="s">merge source</text>
+<path d="M590 60H618" class="ln" marker-end="url(#arr)"/>
+<rect x="620" y="30" width="160" height="60" rx="8" class="bxt"/><text x="632" y="54" class="b">SQL MERGE</text><text x="632" y="74" class="s">atomic Iceberg commit</text>
+</svg></figure>
+<div class="ex"><div class="exh">Reusable SCD2 job skeleton<span class="tag">pyspark</span></div><pre><code class="py">def apply_scd2(spark, table, stg, key, tracked, load_date):
+    """Prepare in DataFrame code, write with one Iceberg MERGE."""
+    w = W.partitionBy(key).orderBy(F.desc("updated_at"))
+    s = (stg.withColumn("rn", F.row_number().over(w)).filter("rn = 1").drop("rn")      # 1 row per key
+            .withColumn("row_hash", F.sha2(F.concat_ws("||",
+                 *[F.coalesce(F.col(c).cast("string"), F.lit("~")) for c in tracked]), 256)))
+    s.createOrReplaceTempView("stg_hashed")
+    cols = ", ".join(tracked)
+    spark.sql(f"""
+      MERGE INTO {table} t
+      USING (SELECT {key} AS merge_key, * FROM stg_hashed
+             UNION ALL
+             SELECT NULL AS merge_key, s.* FROM stg_hashed s
+             JOIN {table} d ON d.{key} = s.{key} AND d.is_current AND d.row_hash &lt;&gt; s.row_hash) u
+      ON t.{key} = u.merge_key AND t.is_current
+      WHEN MATCHED AND t.row_hash &lt;&gt; u.row_hash THEN
+        UPDATE SET t.valid_to = DATE'{load_date}', t.is_current = false
+      WHEN NOT MATCHED THEN INSERT ({key}_sk, {key}, {cols}, valid_from, valid_to, is_current, row_hash)
+        VALUES (xxhash64(u.{key}, DATE'{load_date}'), u.{key}, {", ".join("u." + c for c in tracked)},
+                DATE'{load_date}', DATE'9999-12-31', true, u.row_hash)""")
+
+apply_scd2(spark, "glue_catalog.dw.dim_customer", stg_df, "customer_id", ["name", "city", "segment"], run_date)</code></pre>
+<div class="exf"><p>Table and column names come from your own config, never from user input. <code>load_date</code> is the batch's business date passed as a Glue job argument, which keeps re-runs idempotent.</p></div></div>
+
+<h2>Performance at scale</h2>
+<ul>
+<li><b>Only touch what changed.</b> Filter staging to changed keys (hash compare) before the MERGE; most days only a small fraction of customers change.</li>
+<li><b>Help the MERGE find files.</b> Iceberg must find target rows for each key. Partition or bucket the dimension by the natural key (<code>bucket(32, customer_id)</code>) or sort it by the key, so the MERGE reads few files. Don't partition by <code>is_current</code>: every change would move rows between partitions.</li>
+<li><b>Merge-on-read</b> for frequent (hourly) SCD loads, with scheduled compaction.</li>
+<li><b>Broadcast</b> small staging data in the DataFrame joins.</li>
+<li><b>Dimensions are usually small</b> (millions of rows). A full DataFrame rebuild of a 5-million-row dimension is seconds on Glue; don't over-engineer.</li>
+<li><b>Very large, fast-changing attributes</b> (a customer's “last login”) don't belong in an SCD2 dimension. Keep them as facts or in a mini-dimension.</li>
+</ul>
+
+<h2>SCD interview questions</h2>
+<details class="iq"><summary>Explain SCD Type 1, 2 and 3 with an example.</summary><p>Using a customer who moves from Pune to Mumbai: Type 1 overwrites the city, so all past orders now show Mumbai. Type 2 closes the Pune row with an end date and inserts a new Mumbai row with its own surrogate key, so orders keep pointing to the version that was true when they happened. Type 3 keeps current_city = Mumbai and previous_city = Pune in one row, so it only remembers one step back.</p></details>
+<details class="iq"><summary>How do you implement SCD2 in PySpark on AWS?</summary><p>On Glue 5.x with Iceberg in the Glue Data Catalog: read the day's source, deduplicate to one row per key, compute a hash of the tracked columns, and run one MERGE that closes the current row of changed keys and inserts new versions, using the NULL merge-key trick so it's a single atomic commit. Effective dates come from the batch's business date or the source change timestamp, surrogate keys are a hash of key and valid_from, so re-runs are idempotent. On plain Parquet I compute the full new dimension with a full outer join and union, write it to a new location and swap the table location.</p></details>
+<details class="iq"><summary>How do you handle late-arriving or out-of-order changes in SCD2?</summary><p>For the affected keys only, I union existing versions with the new changes, deduplicate, drop changes that don't differ from the previous version, sort by business change time and recompute valid_to with lead(). The late version lands in the middle and its neighbours are re-dated. I apply that with a MERGE keyed on natural key plus valid_from. Facts already linked to the re-dated version may need re-keying, so I discuss with the business whether to restate them.</p></details>
+<details class="iq"><summary>How do you detect changes efficiently?</summary><p>A hash (sha2 or xxhash64) of the tracked columns, computed NULL-safely with coalesce before concat_ws, stored on each row. Comparing one hash is cheap and avoids long OR conditions. I normalise values first (trim, case) to avoid false changes, and exclude Type 1 columns from the hash.</p></details>
+<details class="iq"><summary>Why not just use Iceberg time travel instead of SCD2?</summary><p>Time travel tracks load time, not business time, and snapshots are expired after days for cost and GDPR. SCD2 tracks when a value was true in the business, keeps it for years, supports late corrections, and gives facts a stable surrogate key to join on.</p></details>
+<details class="iq"><summary>How do facts get the right surrogate key?</summary><p>At fact load time, join the fact's natural key and event date to the dimension with a point-in-time condition (event_date ≥ valid_from and &lt; valid_to) and store the surrogate key in the fact. If no version exists yet (an early-arriving fact), insert an “inferred member” row with the natural key and unknown attributes, and let the next dimension load fill it in with Type 1.</p></details>
+<details class="iq"><summary>What can go wrong in an SCD2 pipeline?</summary><p>Two current rows for one key (a non-atomic load or a bad re-run), gaps or overlaps in validity ranges, new versions created by noise (trailing spaces, case), duplicates in the source making MERGE fail, NULLs making change detection wrong, and clock-based effective dates making re-runs non-idempotent. I guard with dedup, normalisation, NULL-safe hashing, business dates as parameters, atomic MERGE, and three DQ checks after each load.</p></details>
+
+<div class="say"><p>For SCD2 on our Iceberg tables I prepare the source in PySpark, deduplicating and hashing the tracked columns, then apply it with a single Spark SQL MERGE using the NULL merge-key pattern, so closing old versions and inserting new ones is one atomic commit and safe to re-run. On plain Parquet there's no MERGE, so I rebuild the dimension with DataFrame joins and swap locations. I choose SQL for the write because it's atomic and readable, and DataFrame code for preparation because it's testable and reusable across dimensions.</p></div>
+
+<div class="remember"><ul>
+<li>Iceberg write → SQL MERGE. Plain Parquet → DataFrame rebuild + swap.</li>
+<li>Prepare in DataFrame code (dedup, hash, chains), apply with MERGE.</li>
+<li>Bucket/sort the dimension by natural key; don't partition by is_current.</li>
+</ul></div>
+</section>
+
+<section class="lesson" id="scd-practice" data-ch="Slowly Changing Dimensions" data-t="SCD practice problems" data-lvl="A" data-min="15">
+<h1>SCD practice problems</h1>
+<div class="plain"><p>Write each solution in a blank editor before opening it. All outputs come from Spark 3.5.6. These problems appear in live PySpark rounds for senior data engineering roles because they combine joins, windows and NULL handling in one task.</p></div>
+
+<h2>1. Type 1 upsert where NULL in the source must overwrite</h2>
+<details class="iq"><summary>Show solution</summary>
+<div class="ex"><div class="exh">Solution<span class="tag">pyspark</span></div><pre><code class="py">in_src = F.col("s.customer_id").isNotNull()
+t1 = (stg.alias("s").join(dim.alias("t"), "customer_id", "full")
+         .select("customer_id", *[F.when(in_src, F.col(f"s.{c}")).otherwise(F.col(f"t.{c}")).alias(c)
+                                  for c in ["name", "city", "segment"]]))</code></pre>
+<div class="exf"><p><code>coalesce</code> would keep the old value when the source sends NULL; testing whether the row exists in the source does not.</p></div></div></details>
+
+<h2>2. Build SCD2 ranges from daily full snapshots</h2>
+<p>You have one row per customer per day (a daily snapshot table). Produce one row per continuous period with the same city. Note customer 1 moves back to Hyderabad.</p>
+<details class="iq"><summary>Show solution</summary>
+<div class="ex"><div class="exh">Gaps and islands on attribute changes<span class="tag">pyspark</span></div><pre><code class="py">w = W.partitionBy("customer_id").orderBy("snap_date")
+g = (snaps.withColumn("chg", F.when(F.lag("city").over(w).eqNullSafe(F.col("city")), 0).otherwise(1))
+          .withColumn("version", F.sum("chg").over(w.rowsBetween(W.unboundedPreceding, 0))))
+r = g.groupBy("customer_id", "version", "city").agg(F.min("snap_date").alias("valid_from"))
+wv = W.partitionBy("customer_id").orderBy("valid_from")
+r = (r.withColumn("valid_to", F.coalesce(F.lead("valid_from").over(wv), F.to_date(F.lit("9999-12-31"))))
+      .withColumn("is_current", F.lead("valid_from").over(wv).isNull()))</code></pre>
+<div class="outh">Output</div><pre class="out"><code>+-----------+-------+---------+----------+----------+----------+
+|customer_id|version|     city|valid_from|  valid_to|is_current|
++-----------+-------+---------+----------+----------+----------+
+|          1|      1|Hyderabad|2026-11-01|2026-11-03|     false|
+|          1|      2|    Delhi|2026-11-03|2026-11-05|     false|
+|          1|      3|Hyderabad|2026-11-05|9999-12-31|      true|
+|          2|      1|     Pune|2026-11-01|9999-12-31|      true|
++-----------+-------+---------+----------+----------+----------+</code></pre>
+<div class="exf"><p>Grouping by city alone would merge the two Hyderabad periods into one wrong range (1 to 5 November). The running <code>version</code> counter keeps them apart. This is the most common SCD trick question.</p></div></div></details>
+
+<h2>3. Customers who changed city more than twice in a year</h2>
+<details class="iq"><summary>Show solution</summary>
+<div class="ex"><div class="exh">Solution<span class="tag">pyspark</span></div><pre><code class="py">(dim.filter(F.year("valid_from") == 2026)
+    .groupBy("customer_id").agg(F.countDistinct("customer_sk").alias("versions"))
+    .filter("versions &gt; 3"))          # first version of the year + more than two changes</code></pre>
+<div class="exf"><p>Clarify with the interviewer whether a version created on 1 January counts as a change, and whether to count changes of city only (then compare city with lag(city) instead of counting versions).</p></div></div></details>
+
+<h2>4. Find broken SCD2 rows: overlaps and multiple current rows</h2>
+<details class="iq"><summary>Show solution</summary>
+<div class="ex"><div class="exh">Solution<span class="tag">pyspark</span></div><pre><code class="py">w = W.partitionBy("customer_id").orderBy("valid_from")
+overlaps = (dim.withColumn("next_from", F.lead("valid_from").over(w))
+               .filter(F.col("next_from") &lt; F.col("valid_to")))
+multi_current = (dim.groupBy("customer_id")
+                    .agg(F.sum(F.col("is_current").cast("int")).alias("current_rows"))
+                    .filter("current_rows != 1"))</code></pre>
+<div class="outh">Output on a deliberately broken table</div><pre class="out"><code>overlaps:                                         multi_current:
+|7|A|2026-01-01|2026-05-01|next 2026-04-01|        |8|2|
+|8|C|2026-01-01|9999-12-31|next 2026-03-01|</code></pre></div></details>
+
+<h2>5. Attach the correct dimension version to each fact</h2>
+<p>See the point-in-time join with output in <a href="#scd2-advanced">Type 2 edge cases</a>. Interviewers often follow up: “What if the fact's date is before the customer's first version?” Answer: the inner join drops it; use a left join and map unmatched rows to an <b>unknown member</b> surrogate key (for example <code>-1</code>) so revenue is not lost, then investigate.</p>
+
+<h2>6. Full snapshot input: detect deletes as part of SCD2</h2>
+<details class="iq"><summary>Show solution</summary>
+<div class="ex"><div class="exh">Solution<span class="tag">pyspark</span></div><pre><code class="py">deleted_keys = (dim.filter("is_current").select("customer_id")
+                   .join(stg.select("customer_id"), "customer_id", "left_anti"))   # current but absent today
+# then apply the soft-delete logic to these keys, and the normal SCD2 merge for the rest</code></pre>
+<div class="exf"><p>Only valid when the source is a <b>complete</b> snapshot. Add a safety check: if more than a few percent of customers “disappear” in one day, the extract was probably truncated; stop instead of deleting half the dimension.</p></div></div></details>
+
+<h2>7. Talk-through questions to prepare</h2>
+<ul>
+<li>Your SCD2 MERGE failed with “matched multiple source rows”. Why, and what is the fix? <i>(duplicates per key in staging; deduplicate with row_number on the latest change)</i></li>
+<li>The table suddenly has two current rows for some customers. What happened? <i>(a non-atomic two-step load interrupted and re-run without the anti-join guard, or concurrent jobs)</i></li>
+<li>A source sends “updates” every day for every customer, though nothing changed. Effect? <i>(without hash comparison, a new version per customer per day; dimension explodes)</i></li>
+<li>How would you backfill SCD2 history from three years of daily snapshots? <i>(problem 2, run once over all snapshots, then switch to incremental)</i></li>
+</ul>
+</section>
 <!-- ================= STREAMING ================= -->
 <section class="lesson" id="stream-basics" data-ch="Structured Streaming" data-t="Streaming as an ever-growing table" data-lvl="I" data-min="11">
 <h1>Streaming as an ever-growing table</h1>
@@ -4612,6 +5343,7 @@ posts.groupBy("user_id").agg(F.array_distinct(F.flatten(F.collect_list("tags")))
 <section class="lesson" id="code-pipeline" data-ch="Coding round" data-t="Problems 18–22: pipeline patterns" data-lvl="A" data-min="20">
 <h1>Problems 18–22: pipeline patterns</h1>
 <h2>18. SCD Type 2 for a customer dimension</h2>
+<p>The full topic, with every SCD type, design choices, edge cases and more practice problems, has its own chapter: <a href="#scd-what">Slowly Changing Dimensions</a>.</p>
 <div class="plain"><p><b>Slowly Changing Dimension Type 2</b> keeps history: when a customer's city changes, the old row is closed (end date set, <code>is_current = false</code>) and a new current row is added. Unchanged customers stay as they are; new customers get a new current row.</p></div>
 <div class="tables">
 <table class="mini"><caption>dim_customer (before)</caption><tr><th>id</th><th>name</th><th>city</th><th>start</th><th>end</th><th>current</th></tr>
@@ -4864,13 +5596,14 @@ bad  = checked.filter(F.size("dq_errors") &gt; 0)</code></pre>
 <div><h4>Logs</h4><ul><li>Glue 5.x: /aws-glue/jobs/error, /output; streams &lt;runId&gt;-driver / -N</li><li>EMR: S3 log URI containers/…/stderr.gz</li><li>Python line = action; same task × 4 = data; last Caused by = cause</li></ul></div>
 <div><h4>Writes</h4><ul><li>partitionOverwriteMode=dynamic</li><li>repartition(col) before partitionBy(col)</li><li>128 MB–1 GB files</li><li>Idempotent: overwrite partition or MERGE</li></ul></div>
 <div><h4>Iceberg</h4><ul><li>Catalog → metadata.json → manifest list → manifests → data</li><li>Atomic pointer swap; snapshots; time travel</li><li>COW slow write/fast read; MOR opposite</li><li>Maintain: compact → expire → manifests → orphans</li></ul></div>
+<div><h4>SCD</h4><ul><li>Type 1 overwrite, 2 history rows, 3 previous column</li><li>SCD2 row: sk, natural key, valid_from, valid_to (half-open), is_current, row_hash</li><li>Iceberg: one MERGE with NULL merge key</li><li>Late data: rebuild chain with lag/lead</li></ul></div>
 <div><h4>Versions</h4><ul><li>Glue 5.1 = Spark 3.5.6; Glue 6.0 = Spark 4.1</li><li>EMR 7.14 = Spark 3.5.8</li><li>Spark 4: ANSI on, VARIANT, Connect, Python data sources</li></ul></div>
 </div>
 </section>
 
 <section class="lesson" id="quiz" data-ch="Interview prep" data-t="Final self-check quiz" data-lvl="R" data-min="15">
 <h1>Final self-check quiz</h1>
-<p class="lede">25 questions. Pick an answer to see the explanation. Aim for 22 or more before your interview.</p>
+<p class="lede">28 questions. Pick an answer to see the explanation. Aim for 24 or more before your interview.</p>
 <div class="quiz" id="quizBox"></div>
 <p id="quizScore" class="lede"></p>
 </section>
@@ -4909,7 +5642,9 @@ bad  = checked.filter(F.size("dq_errors") &gt; 0)</code></pre>
 <dt>Partition pruning</dt><dd>Reading only folders matching a filter on the partition column.</dd>
 <dt>Predicate pushdown</dt><dd>Sending filters into the file reader to skip row groups using statistics.</dd>
 <dt>Py4J</dt><dd>Library connecting the Python process to the JVM.</dd>
+<dt>SCD (Slowly Changing Dimension)</dt><dd>Rules for recording changes to dimension attributes: overwrite (Type 1), keep history rows (Type 2), keep a previous value (Type 3) and variants.</dd>
 <dt>Salting</dt><dd>Adding a random component to a hot key to spread its rows across tasks.</dd>
+<dt>Surrogate key</dt><dd>Warehouse-generated key unique per dimension version; stored in fact tables.</dd>
 <dt>Shuffle</dt><dd>Redistributing rows across executors by key; expensive.</dd>
 <dt>Skew</dt><dd>Uneven distribution of rows across keys or partitions.</dd>
 <dt>Snapshot</dt><dd>A complete version of an Iceberg table after one commit.</dd>
@@ -4950,6 +5685,9 @@ window.QUIZ = [
  ["Spark 4's most important behaviour change for existing jobs:", ["RDDs removed", "ANSI SQL mode on by default", "Python dropped", "DataFrames renamed"], 1, "Invalid casts and divide-by-zero now raise errors instead of returning NULL."],
  ["Which Glue version runs Spark 3.5.6?", ["4.0", "5.0", "5.1", "6.0"], 2, "Glue 5.0 is 3.5.4, 5.1 is 3.5.6, 6.0 is Spark 4.1."],
  ["Filter keeps 4 of 6 rows with ~col('status').isin('CANCELLED') when one status is CANCELLED and one is NULL. Why 4?", ["Bug in Spark", "NULL comparisons are NULL and filter drops them", "isin is case sensitive", "Duplicates removed"], 1, "Add col.isNull() | ... to keep NULL rows."],
+ ["In SCD Type 2, what does a fact table store to reference the customer?", ["customer_id (natural key)", "The version's surrogate key", "The customer's name", "is_current"], 1, "The surrogate key points to the exact version that was true at the event time."],
+ ["Why does the SCD2 Iceberg MERGE repeat changed rows with a NULL merge key?", ["To delete them", "NULL keys never match, so they are inserted as new current versions", "To speed up the join", "Iceberg requires it"], 1, "Part 1 closes the old row (matched); part 2 can't match, so it inserts the new version, all in one commit."],
+ ["Daily snapshots: Hyderabad → Delhi → Hyderabad. Grouping by (customer, city) to build ranges gives:", ["Three correct versions", "One wrong Hyderabad range covering Delhi's period", "An error", "Two Delhi rows"], 1, "Use a running change counter (gaps and islands) so the two Hyderabad periods stay separate."],
  ["You doubled executor memory, OOM persists on the same task. Most likely?", ["Not enough memory still", "One oversized (skewed) partition", "Driver issue", "S3 throttling"], 1, "More memory doesn't split a skewed partition. Fix the skew."]
 ];
 </script>
