@@ -1765,6 +1765,159 @@ def flatten(df, sep="_"):
 </ul></div>
 </section>
 
+<section class="lesson" id="messy-json" data-ch="DataFrame API" data-t="Messy JSON: multi-line files and bad records" data-lvl="I" data-min="12">
+<h1>Messy JSON: multi-line files and bad records</h1>
+<div class="oneline">Spark expects one JSON object per line; anything else needs <code>multiLine</code>, and broken records need a plan (keep, drop, or fail).</div>
+
+<div class="cols">
+<div><h4>What is it?</h4><p>Spark's JSON reader by default reads <b>JSON Lines</b>: one complete object per line. API exports and pretty-printed files spread one object over many lines, often inside a <code>[ ... ]</code> array. Real feeds also contain broken lines and wrong types.</p></div>
+<div><h4>Why does it matter?</h4><p>Read a pretty-printed file the default way and every line is “corrupt”: the job fails or silently produces nothing. Read bad records the wrong way and you lose data without noticing.</p></div>
+<div><h4>How does it work?</h4><p><code>multiLine=true</code> makes Spark parse each <b>file</b> as a whole document. The <code>mode</code> option decides what happens to unparseable records: PERMISSIVE (keep, nulls + raw text), DROPMALFORMED (drop), FAILFAST (stop).</p></div>
+<div><h4>How do I check it?</h4><p>Look at <code>printSchema()</code>: a schema with only <code>_corrupt_record</code> means the format is wrong. Count rows where <code>_corrupt_record</code> is not null.</p></div>
+</div>
+
+<h2>Try it: a pretty-printed API export</h2>
+<div class="ex"><div class="exh">orders_pretty.json<span class="tag">input file</span></div><pre><code>[
+  { "order_id": "o1", "customer": {"id": 7, "name": "Asha"},
+    "items": [{"sku": "A1", "qty": 2}, {"sku": "B2", "qty": 1}] },
+  { "order_id": "o2", "customer": {"id": 9, "name": "Ravi"},
+    "items": [{"sku": "C3", "qty": 5}] }
+]</code></pre></div>
+<div class="ex bad"><div class="exh">Default read<span class="tag">real output, Spark 3.5.6</span></div><pre><code class="py">df = spark.read.json("orders_pretty.json")
+df.printSchema(); df.show()</code></pre><pre class="out"><code>root
+ |-- _corrupt_record: string (nullable = true)
+
+AnalysisException: Since Spark 2.3, the queries from raw JSON/CSV files are disallowed when the
+referenced columns only include the internal corrupt record column ...</code></pre>
+<div class="exf"><p>Every line is a fragment, so the only column Spark can infer is <code>_corrupt_record</code>, and Spark refuses to query a raw file by that column alone.</p></div></div>
+<div class="ex good"><div class="exh">With multiLine, then flatten the array<span class="tag">real output, Spark 3.5.6</span></div><pre><code class="py">df = spark.read.option("multiLine", "true").json("orders_pretty.json")
+(df.select("order_id", F.col("customer.name").alias("customer"), F.explode("items").alias("it"))
+   .select("order_id", "customer", "it.sku", "it.qty").show())</code></pre><pre class="out"><code>+--------+--------+---+---+
+|order_id|customer|sku|qty|
++--------+--------+---+---+
+|      o1|    Asha| A1|  2|
+|      o1|    Asha| B2|  1|
+|      o2|    Ravi| C3|  5|
++--------+--------+---+---+</code></pre>
+<div class="exf"><p>A top-level array becomes one row per element. <code>explode</code> turns the nested <code>items</code> array into one row per item.</p></div></div>
+<div class="box warn"><b class="lbl">multiLine has a cost</b><p>With <code>multiLine</code>, a whole file is parsed by one task, because Spark can't split a JSON document in the middle. A single 5 GB pretty-printed file means one slow task. Ask producers for JSON Lines, or pre-split large files.</p></div>
+
+<h2>Try it: bad records</h2>
+<div class="ex"><div class="exh">events.jsonl (row o2 has a text amount, row o4 is broken JSON)<span class="tag">input file</span></div><pre><code>{"order_id":"o1","amount":120.5}
+{"order_id":"o2","amount":"abc"}
+{"order_id":"o3","amount":99}
+{"order_id":"o4", amount: 10</code></pre></div>
+<div class="ex"><div class="exh">PERMISSIVE (the default) with a corrupt-record column<span class="tag">real output, Spark 3.5.6</span></div><pre><code class="py">schema = "order_id STRING, amount DOUBLE, _corrupt_record STRING"
+e = spark.read.schema(schema).json("events.jsonl").cache()     # cache: see the note below
+e.show(truncate=False)
+e.filter("_corrupt_record IS NOT NULL").count()                 # 2</code></pre><pre class="out"><code>+--------+------+--------------------------------+
+|order_id|amount|_corrupt_record                 |
++--------+------+--------------------------------+
+|o1      |120.5 |NULL                            |
+|o2      |NULL  |{"order_id":"o2","amount":"abc"}|
+|o3      |99.0  |NULL                            |
+|NULL    |NULL  |{"order_id":"o4", amount: 10    |
++--------+------+--------------------------------+</code></pre>
+<div class="exf"><p>Good rows load normally; bad rows keep their raw text so you can send them to a quarantine location. Without <code>.cache()</code>, filtering on <code>_corrupt_record</code> alone fails with the same AnalysisException as above.</p></div></div>
+
+<div class="tw"><table class="t">
+<tr><th>mode</th><th>Bad records</th><th>Our test</th><th>Use when</th></tr>
+<tr class="ok"><td><code>PERMISSIVE</code> + <code>_corrupt_record</code></td><td>Kept with nulls; raw text saved</td><td>4 rows, 2 flagged</td><td>Production: quarantine and alert</td></tr>
+<tr><td><code>DROPMALFORMED</code></td><td>Silently dropped</td><td><code>collect()</code> → 2 rows, but <code>count()</code> → 3</td><td>Rarely: you lose data with no record</td></tr>
+<tr class="hot"><td><code>FAILFAST</code></td><td>Job fails on the first one</td><td><code>MALFORMED_RECORD_IN_PARSING</code> error</td><td>Strict contracts where any bad row is an incident</td></tr>
+</table></div>
+<div class="box bad"><b class="lbl">The count() trap (real result)</b><p>With DROPMALFORMED, <code>count()</code> returned <b>3</b> but <code>collect()</code> returned <b>2</b> rows. <code>count()</code> needs no columns, so Spark skips parsing the fields and never notices that <code>"abc"</code> isn't a number. Never validate a load with <code>count()</code> alone when dropping bad records.</p></div>
+
+<div class="ex"><div class="exh">Production pattern: quarantine bad rows<span class="tag">pyspark</span></div><pre><code class="py">raw  = spark.read.schema(schema).json(src).cache()
+bad  = raw.filter("_corrupt_record IS NOT NULL")
+good = raw.filter("_corrupt_record IS NULL").drop("_corrupt_record")
+
+bad.withColumn("run_id", F.lit(run_id)).write.mode("append").json("s3://lake/quarantine/orders/")
+if bad.count() &gt; 0.01 * raw.count():
+    raise ValueError("More than 1% bad records: stopping")   # fail loudly on a broken feed
+good.write.mode("append").parquet(dst)</code></pre></div>
+
+<h2>In a real AWS project</h2>
+<div class="box aws"><b class="lbl">Where it shows up</b><p>A partner API drops hourly JSON exports in S3 as pretty-printed arrays. The Glue job reads them with <code>multiLine</code> and an explicit schema (no inference: faster and stable), explodes the arrays, quarantines bad records to S3 with the run ID, raises a CloudWatch alarm if the bad-record rate passes a threshold, and writes good rows to Iceberg.</p></div>
+
+<h2>In the interview</h2>
+<div class="say"><p>Spark's JSON reader expects JSON Lines. For pretty-printed or array files I set multiLine, knowing each file is parsed by one task. For bad records I use PERMISSIVE with an explicit schema and a _corrupt_record column, cache, split good and bad rows, quarantine the bad ones and fail the job if the rate passes a threshold. I avoid DROPMALFORMED because it loses data silently; even count() can disagree with the real rows.</p></div>
+<details class="iq"><summary>Q: Why give an explicit schema instead of inferring?</summary><p>Inference reads the data an extra time, can guess different types on different days (int one day, string the next), and can't flag type errors as corrupt. An explicit schema is faster, stable, and makes bad values show up as corrupt records.</p></details>
+
+<div class="remember"><ul>
+<li>Pretty-printed or array JSON → <code>multiLine=true</code> (one task per file).</li>
+<li>PERMISSIVE + explicit schema + <code>_corrupt_record</code>, cache, quarantine.</li>
+<li>DROPMALFORMED loses data; <code>count()</code> may not even agree.</li>
+</ul></div>
+</section>
+
+<section class="lesson" id="xml-fixed" data-ch="DataFrame API" data-t="XML and fixed-width files" data-lvl="I" data-min="11">
+<h1>XML and fixed-width files</h1>
+<div class="oneline">XML needs a reader that knows which tag is a row; fixed-width files are plain text that you cut into columns by position.</div>
+
+<div class="cols">
+<div><h4>XML: what and why</h4><p>Banks, insurers, healthcare and government systems still send XML. Each record is an element (for example <code>&lt;order&gt;</code>) inside a big document. You tell the reader the <b>row tag</b>, and it turns each such element into a row, with nested elements as structs and repeated ones as arrays.</p></div>
+<div><h4>XML: which version has it</h4><p><b>Spark 3.5 has no built-in XML reader</b> (real error below). On AWS Glue, use Glue's XML format. On EMR or local Spark 3.5, add the <code>spark-xml</code> package. Native <code>format("xml")</code> arrives in <b>Spark 4.0</b> (so Glue 6.0).</p></div>
+<div><h4>Fixed-width: what and why</h4><p>Mainframe and legacy exports have no separators: each field sits at a fixed position, for example characters 1–7 are the order ID. There's no Spark reader for it; you read lines as text and cut them with <code>substring</code>.</p></div>
+</div>
+
+<h2>XML on Spark 3.5: the real error</h2>
+<div class="ex bad"><div class="exh">format("xml") on Spark 3.5<span class="tag">real output, Spark 3.5.6</span></div><pre><code class="py">spark.read.format("xml").option("rowTag", "order").load(path)</code></pre><pre class="out"><code>[DATA_SOURCE_NOT_FOUND] Failed to find the data source: xml.</code></pre></div>
+
+<h2>Reading XML on AWS</h2>
+<div class="ex"><div class="exh">orders.xml<span class="tag">input</span></div><pre><code>&lt;orders&gt;
+  &lt;order id="o1"&gt;&lt;customer&gt;Asha&lt;/customer&gt;
+    &lt;item sku="A1" qty="2"/&gt;&lt;item sku="B2" qty="1"/&gt;&lt;/order&gt;
+  &lt;order id="o2"&gt;&lt;customer&gt;Ravi&lt;/customer&gt;&lt;item sku="C3" qty="5"/&gt;&lt;/order&gt;
+&lt;/orders&gt;</code></pre></div>
+<div class="ex"><div class="exh">Glue (DynamicFrame), Glue/EMR with spark-xml, or Spark 4<span class="tag">pyspark</span></div><pre><code class="py"># AWS Glue: built-in XML format
+dyf = glueContext.create_dynamic_frame.from_options(
+    connection_type="s3", connection_options={"paths": ["s3://raw/orders/"]},
+    format="xml", format_options={"rowTag": "order"})
+df = dyf.toDF()
+
+# Spark 3.5 elsewhere: add the package (e.g. --packages com.databricks:spark-xml_2.12:0.18.0)
+# Spark 4.0+ (Glue 6.0): built in
+df = spark.read.format("xml").option("rowTag", "order").schema(xml_schema).load("s3://raw/orders/")
+
+# Typical shape: attributes get a "_" prefix, repeated elements become arrays
+flat = df.select(F.col("_id").alias("order_id"), "customer", F.explode("item").alias("it")) \
+         .select("order_id", "customer", F.col("it._sku").alias("sku"), F.col("it._qty").alias("qty"))</code></pre>
+<div class="exf"><p>The two classic XML gotchas: an element that appears <b>once</b> in one record and <b>several times</b> in another is inferred as a struct in one file and an array in another; and inference can be slow on big files. Both are solved by passing an explicit schema (declare <code>item</code> as an array). The row tag can't be a self-closing element.</p></div></div>
+
+<h2>Fixed-width files</h2>
+<div class="ex"><div class="exh">fixed.txt (layout: id 1–7, date 8–15, name 16–30, amount in paise 31–39)<span class="tag">input</span></div><pre><code>O0001  20261101Asha Rao       000012050
+O0002  20261102Ravi Kumar     000000999
+O0003  20261102Meena S        000150000</code></pre></div>
+<div class="ex good"><div class="exh">Cut by position<span class="tag">real output, Spark 3.5.6</span></div><pre><code class="py">layout = [("order_id", 1, 7), ("order_date", 8, 8), ("customer", 16, 15), ("amount", 31, 9)]  # name, start, length
+raw = spark.read.text("fixed.txt")
+cols = {name: F.substring("value", start, length) for name, start, length in layout}
+fw = raw.select(
+    F.trim(cols["order_id"]).alias("order_id"),
+    F.to_date(cols["order_date"], "yyyyMMdd").alias("order_date"),
+    F.trim(cols["customer"]).alias("customer"),
+    (cols["amount"].cast("long") / 100).cast("decimal(12,2)").alias("amount"))
+fw.show()</code></pre><pre class="out"><code>+--------+----------+----------+-------+
+|order_id|order_date|  customer| amount|
++--------+----------+----------+-------+
+|   O0001|2026-11-01|  Asha Rao| 120.50|
+|   O0002|2026-11-02|Ravi Kumar|   9.99|
+|   O0003|2026-11-02|   Meena S|1500.00|
++--------+----------+----------+-------+</code></pre>
+<div class="exf"><p>Keep the layout in a config file (the “copybook” from the source team) rather than in code. <code>substring</code> is 1-based. Validate line length: a line shorter than expected means a broken record; send it to quarantine. Mainframe files may also be EBCDIC-encoded or have packed decimals, which need conversion before this step.</p></div></div>
+
+<h2>In a real AWS project</h2>
+<div class="box aws"><b class="lbl">Where it shows up</b><p>An insurance client sends nightly claims as XML and a legacy policy system exports fixed-width files. Glue jobs read XML with the built-in format and an explicit schema, read fixed-width with a layout file from S3, validate record lengths and required fields, quarantine failures, and write both to Iceberg in the same curated model.</p></div>
+
+<h2>In the interview</h2>
+<div class="say"><p>For XML I set the row tag and pass an explicit schema, because inference can turn a repeated element into a struct in one file and an array in another. On Glue I use the built-in XML format; Spark 3.5 itself needs the spark-xml package, and Spark 4 has XML built in. For fixed-width files I read them as text and cut columns with substring from a layout config, then trim, cast and validate line length.</p></div>
+
+<div class="remember"><ul>
+<li>XML: rowTag + explicit schema. Spark 3.5: Glue format or spark-xml; Spark 4: built in.</li>
+<li>Fixed-width: <code>read.text</code> → <code>substring</code> by layout → trim, cast, validate.</li>
+</ul></div>
+</section>
+
 <section class="lesson" id="dates" data-ch="DataFrame API" data-t="Dates, timestamps and time zones" data-lvl="I" data-min="9">
 <h1>Dates, timestamps and time zones</h1>
 <div class="plain"><p>A <b>timestamp</b> in Spark is a moment in time, stored internally in UTC. When you show it or convert it to a date, Spark uses the <b>session time zone</b>. If one Glue job runs with UTC and another with Asia/Kolkata, the same order can land on different dates. Set the time zone explicitly in every job.</p></div>
@@ -2311,6 +2464,80 @@ spark.conf.set("spark.sql.requireAllClusterKeysForCoPartition", "false")</code><
 <li>Small side → broadcast hash join, zero shuffles.</li>
 <li>Both large → sort-merge join: 2 shuffles + 2 sorts.</li>
 <li>Threshold compares estimated compressed size. AQE re-decides using real sizes.</li>
+</ul></div>
+</section>
+
+<section class="lesson" id="cbo" data-ch="Spark internals" data-t="Cost-based optimizer, statistics and join reorder" data-lvl="A" data-min="12">
+<h1>Cost-based optimizer, statistics and join reorder</h1>
+<div class="oneline">If Spark knows how many rows each table and filter produces, it can choose a better join order and join type.</div>
+
+<div class="cols">
+<div><h4>What is it?</h4><p>Catalyst normally uses <b>rules</b> (push filters down, prune columns). The <b>cost-based optimizer (CBO)</b> adds numbers: row counts, distinct values, min/max, nulls. With them Spark estimates the size of each step and picks the cheapest plan.</p></div>
+<div><h4>Why does it matter?</h4><p>In a query joining a big fact table with several dimensions, the order matters: joining the most selective dimension first shrinks the data before the other joins. Without statistics, Spark joins in the order you wrote them.</p></div>
+<div><h4>How does it work?</h4><p><code>ANALYZE TABLE</code> computes statistics and stores them in the catalog. With <code>spark.sql.cbo.enabled</code> and <code>spark.sql.cbo.joinReorder.enabled</code> on, Spark uses them to reorder joins and estimate sizes.</p></div>
+<div><h4>How do I check it?</h4><p><code>EXPLAIN COST &lt;query&gt;</code> shows <code>Statistics(sizeInBytes=…, rowCount=…)</code> for every step, and you can see the join order.</p></div>
+</div>
+
+<h2>Try it: three tables, before and after</h2>
+<p>We created <code>sales</code> (2 million rows), <code>customers</code> (50,000; only 1% in India) and <code>products</code> (1,000), and ran this query on Spark 3.5.6 (broadcast and AQE turned off to see the optimizer alone):</p>
+<div class="ex"><div class="exh">The query<span class="tag">spark sql</span></div><pre><code class="sql">SELECT c.country, p.category, SUM(s.amount)
+FROM sales s
+JOIN products  p ON s.product_id  = p.product_id
+JOIN customers c ON s.customer_id = c.customer_id
+WHERE c.country = 'IN'
+GROUP BY c.country, p.category</code></pre></div>
+<div class="ex plan"><div class="exh">Before: no statistics, CBO off<span class="tag">real EXPLAIN COST, trimmed</span></div><pre><code>Join Inner, (customer_id = customer_id), Statistics(sizeInBytes=<span class="mk">17.1 PiB</span>)
+:- Join Inner, (product_id = product_id), Statistics(sizeInBytes=133.3 GiB)
+:  :- Relation sales     Statistics(sizeInBytes=23.2 MiB)
+:  +- Relation products  Statistics(sizeInBytes=5.7 KiB)
++- Filter (country = IN) Statistics(sizeInBytes=197.3 KiB)
+   +- Relation customers</code></pre>
+<div class="exf"><p>Spark joins in written order: sales × products first (all 2 million rows), then customers. Size estimates without row counts are wild guesses (17 petabytes!), which can also lead to wrong choices about broadcasting.</p></div></div>
+<div class="ex"><div class="exh">Collect statistics<span class="tag">real output</span></div><pre><code class="sql">ANALYZE TABLE sales     COMPUTE STATISTICS FOR COLUMNS customer_id, product_id;
+ANALYZE TABLE customers COMPUTE STATISTICS FOR COLUMNS customer_id, country;
+ANALYZE TABLE products  COMPUTE STATISTICS FOR COLUMNS product_id;
+DESCRIBE EXTENDED customers country;</code></pre><pre class="out"><code>Statistics = 202068 bytes, 50000 rows          (table level)
+num_nulls = 0   distinct_count = 2   avg_col_len = 2   max_col_len = 2   (column country)</code></pre></div>
+<div class="ex plan"><div class="exh">After: statistics + CBO + join reorder<span class="tag">real EXPLAIN COST, trimmed</span></div><pre><code>Join Inner, (product_id = product_id), Statistics(sizeInBytes=51.4 MiB, rowCount=9.98E+5)
+:- Join Inner, (customer_id = customer_id), Statistics(rowCount=9.98E+5)
+:  :- Relation sales                Statistics(rowCount=2.00E+6)
+:  +- <span class="mk">Filter (country = IN)</span>       Statistics(rowCount=2.50E+4)
+:     +- Relation customers         Statistics(rowCount=5.00E+4)
++- Relation products                Statistics(rowCount=1.00E+3)</code></pre>
+<div class="exf"><p><b>What changed:</b> Spark now joins sales with the <b>filtered customers first</b>, then products, and every estimate has a real row count. <b>What's still off:</b> it estimates 25,000 Indian customers (half, because there are 2 distinct countries) while the truth is 500. Turning on histograms (<code>spark.sql.statistics.histogram.enabled=true</code> before ANALYZE) improves estimates for skewed columns.</p></div></div>
+
+<div class="tw"><table class="t">
+<tr><th>Setting</th><th>Default (3.5)</th><th>Meaning</th></tr>
+<tr><td><code>spark.sql.cbo.enabled</code></td><td>false</td><td>Use statistics to estimate plan costs</td></tr>
+<tr><td><code>spark.sql.cbo.joinReorder.enabled</code></td><td>false</td><td>Reorder multi-way inner joins by cost</td></tr>
+<tr><td><code>spark.sql.statistics.histogram.enabled</code></td><td>false</td><td>Collect value histograms (better selectivity)</td></tr>
+<tr><td><code>spark.sql.cbo.planStats.enabled</code></td><td>false</td><td>Show row counts from the catalog in the plan</td></tr>
+</table></div>
+
+<h2>CBO vs AQE</h2>
+<div class="cols">
+<div><h4>CBO: before running</h4><p>Uses <b>stored</b> statistics from <code>ANALYZE</code>. Can reorder joins. Only as good as the statistics, which go stale when data changes.</p></div>
+<div><h4>AQE: while running</h4><p>Uses <b>real</b> sizes measured after each shuffle. Switches to broadcast, coalesces partitions, splits skew. On by default. Cannot reorder joins that already ran.</p></div>
+</div>
+<p>In practice on AWS, most teams rely on AQE plus good filters and broadcast hints, and use CBO for big star-schema queries on stable catalog tables. Iceberg tables can also store column statistics in Puffin files (<code>CALL ... system.compute_table_stats</code> in recent Iceberg releases), and Glue Data Catalog can compute column statistics for Glue tables.</p>
+
+<h2>When it does not work</h2>
+<div class="tw"><table class="t">
+<tr><th>Problem</th><th>Fix</th></tr>
+<tr><td>Statistics computed once, never refreshed: estimates are wrong after growth</td><td>Re-run ANALYZE after big loads (schedule it), or rely on AQE</td></tr>
+<tr><td>Querying files by path (<code>spark.read.parquet</code>): there is no catalog to store stats</td><td>Use catalog tables for CBO</td></tr>
+<tr><td>Outer joins or joins with complex conditions</td><td>Join reorder only reorders inner joins</td></tr>
+<tr><td>Skewed column, estimate far from reality</td><td>Histograms, or a broadcast hint where you know better</td></tr>
+</table></div>
+
+<h2>In the interview</h2>
+<div class="say"><p>By default Catalyst is rule-based. The cost-based optimizer uses table and column statistics from ANALYZE TABLE, like row counts and distinct values, to estimate the size of each step, choose join types and reorder multi-way inner joins so the most selective joins happen first. It's off by default, the statistics go stale, and it needs catalog tables, so in practice I rely on AQE at runtime and use CBO for large star-schema queries, checking the effect with EXPLAIN COST.</p></div>
+<details class="iq"><summary>Q: CBO or AQE: which would you trust more?</summary><p>AQE, because it uses actual sizes measured at runtime, while CBO uses stored statistics that may be stale. They complement each other: CBO can pick a good join order up front, which AQE can't change later, and AQE corrects size-based decisions as the job runs.</p></details>
+
+<div class="remember"><ul>
+<li><code>ANALYZE TABLE ... COMPUTE STATISTICS FOR COLUMNS</code> → row counts, distinct values.</li>
+<li><code>cbo.enabled</code> + <code>joinReorder.enabled</code> → selective joins first. Check with <code>EXPLAIN COST</code>.</li>
+<li>Stats go stale; AQE uses real runtime sizes.</li>
 </ul></div>
 </section>
 
@@ -4304,6 +4531,240 @@ glue_context.write_dynamic_frame.from_options(
 <div class="remember"><ul><li>Renames are copies: use proper committers or Iceberg.</li><li>Strongly consistent since 2020.</li><li>Rate limits are per prefix: avoid tiny files.</li></ul></div>
 </section>
 
+<section class="lesson" id="sink-dynamodb" data-ch="PySpark on AWS" data-t="Writing to DynamoDB" data-lvl="I" data-min="11">
+<h1>Writing to DynamoDB</h1>
+<div class="oneline">Spark computes the data in bulk; DynamoDB serves it one key at a time in milliseconds. The job's main concern is not to overload the table.</div>
+
+<div class="cols">
+<div><h4>What is it?</h4><p>A common pattern: Spark builds something per customer or per product (a profile, a feature set, the latest status), and writes it to DynamoDB so an API or app can read it by key with low latency.</p></div>
+<div><h4>Why does it matter?</h4><p>DynamoDB has write capacity limits. A Spark job with 200 tasks can write far faster than a table allows, causing throttling, retries and long runtimes, and it can slow down the live application reading the same table.</p></div>
+<div><h4>How does it work?</h4><p>The Glue DynamoDB connector writes items in batches from every executor, and limits its rate to a share of the table's write capacity (<code>dynamodb.throughput.write.percent</code>). Each item is a put: a full replace of the item with that key.</p></div>
+<div><h4>How do I check it?</h4><p>CloudWatch: <code>ConsumedWriteCapacityUnits</code> and <code>WriteThrottleEvents</code> on the table, and the job's runtime.</p></div>
+</div>
+
+<figure class="dg"><svg viewBox="0 0 790 170" role="img" aria-label="Spark to DynamoDB">
+<rect x="10" y="30" width="200" height="110" rx="8" class="bxa"/><text x="22" y="54" class="b">Spark (Glue job)</text><text x="22" y="76" class="s">200 tasks, each with</text><text x="22" y="92" class="s">a slice of the rows</text><text x="22" y="118" class="m">batches of 25 items</text>
+<path d="M210 85H318" class="lno" marker-end="url(#arrO)"/><text x="222" y="76" class="o">rate-limited</text>
+<rect x="320" y="30" width="220" height="110" rx="8" class="bxw"/><text x="332" y="54" class="b">write.percent = 0.5</text><text x="332" y="76" class="s">use at most half of the</text><text x="332" y="92" class="s">table's write capacity,</text><text x="332" y="108" class="s">leave the rest for the app</text>
+<path d="M540 85H598" class="ln" marker-end="url(#arr)"/>
+<rect x="600" y="30" width="180" height="110" rx="8" class="bxt"/><text x="612" y="54" class="b">DynamoDB table</text><text x="612" y="76" class="m">PK = customer_id</text><text x="612" y="98" class="s">API reads by key</text><text x="612" y="114" class="s">in milliseconds</text>
+</svg></figure>
+
+<h2>Try it yourself</h2>
+<div class="ex"><div class="exh">Glue: DynamicFrame writer (all Glue versions)<span class="tag">aws glue</span></div><pre><code class="py">from awsglue.dynamicframe import DynamicFrame
+profiles = DynamicFrame.fromDF(profiles_df, glueContext, "profiles")
+glueContext.write_dynamic_frame_from_options(
+    frame=profiles, connection_type="dynamodb",
+    connection_options={
+        "dynamodb.output.tableName": "customer_profile",
+        "dynamodb.throughput.write.percent": "0.5"})    # default 0.5, allowed 0.1–1.5</code></pre></div>
+<div class="ex"><div class="exh">Glue 5.0+: DataFrame connector (attach a DynamoDB connection to the job)<span class="tag">aws glue 5</span></div><pre><code class="py">(profiles_df.write.format("dynamodb")
+    .option("dynamodb.output.tableName", "customer_profile")
+    .option("dynamodb.throughput.write.ratio", "0.5")
+    .option("dynamodb.item.size.check.enabled", "true")     # catch items over 400 KB
+    .save())</code></pre></div>
+<div class="ex"><div class="exh">Reading big DynamoDB tables: use the export connector<span class="tag">aws glue</span></div><pre><code class="py">dyf = glueContext.create_dynamic_frame.from_options(
+    connection_type="dynamodb",
+    connection_options={"dynamodb.export": "ddb",                    # DynamoDB exports to S3, outside Spark
+                        "dynamodb.tableArn": table_arn,
+                        "dynamodb.s3.bucket": "my-export-bucket", "dynamodb.s3.prefix": "exports/",
+                        "dynamodb.unnestDDBJson": True})</code></pre>
+<div class="exf"><p>The export uses point-in-time recovery, consumes no read capacity and is recommended over scanning for large tables (AWS suggests it above about 80 GB). The normal scan reader is fine for small tables.</p></div></div>
+
+<h2>Design rules</h2>
+<div class="tw"><table class="t">
+<tr><th>Rule</th><th>Why</th></tr>
+<tr><td>One row per key before writing (dedupe)</td><td>Two rows with the same key in one batch: one silently overwrites the other</td></tr>
+<tr><td>Items under 400 KB</td><td>DynamoDB's item size limit; trim big arrays or store them in S3</td></tr>
+<tr><td>Write only what changed</td><td>Use a changelog or a hash comparison; rewriting 50 million unchanged items costs money and capacity</td></tr>
+<tr><td>On-demand tables or raise capacity during the load</td><td>Provisioned tables throttle; pre-scale or switch to on-demand for big backfills</td></tr>
+<tr><td>Keep the run idempotent</td><td>Puts by key overwrite, so a retried job gives the same result</td></tr>
+<tr><td>Fewer, steady writers</td><td><code>coalesce</code> to fewer partitions if a hot table throttles; spread keys so no single partition key is hot</td></tr>
+</table></div>
+
+<h2>In the interview</h2>
+<div class="say"><p>When Spark writes to DynamoDB I deduplicate to one row per key, keep items under 400 KB, write only changed items, and limit throughput with dynamodb.throughput.write.percent so the live application isn't throttled. Writes are puts by key, so the job is idempotent on retry. For big backfills I switch the table to on-demand or raise capacity, and for reading large tables I use the export connector instead of scanning.</p></div>
+<details class="iq"><summary>Q: The job is slow and CloudWatch shows WriteThrottleEvents. What do you do?</summary><p>Throttling means the writers exceed the table's capacity or a hot partition key. Options: raise provisioned WCU or use on-demand during the load, lower write.percent to smooth the rate, write only changed items, and check the key design for hot partitions. Adding Spark workers doesn't help; the table is the bottleneck.</p></details>
+
+<div class="remember"><ul>
+<li>Dedupe by key, items &lt; 400 KB, only changed items.</li>
+<li>Throttle with <code>write.percent</code>; on-demand for backfills.</li>
+<li>Read big tables with the export connector.</li>
+</ul></div>
+</section>
+
+<section class="lesson" id="sink-opensearch" data-ch="PySpark on AWS" data-t="Writing to OpenSearch" data-lvl="I" data-min="9">
+<h1>Writing to OpenSearch</h1>
+<div class="oneline">Spark prepares documents; OpenSearch indexes them for full-text search and dashboards. Use a stable document ID so reruns update instead of duplicating.</div>
+
+<div class="cols">
+<div><h4>What is it?</h4><p>Amazon OpenSearch Service stores JSON documents in <b>indexes</b> for search (products, logs, support tickets). Glue (4.0 and later) has an OpenSearch connection type; on EMR you use the OpenSearch Spark connector.</p></div>
+<div><h4>Why does it matter?</h4><p>Without a document ID, every rerun adds the same documents again and search results show duplicates. Large bulk loads can also overwhelm a small cluster (HTTP 429 “too many requests”).</p></div>
+<div><h4>How does it work?</h4><p>Each executor sends <b>bulk</b> requests of many documents. If you map a column to the document ID, a document with an existing ID is replaced (or updated with an upsert operation).</p></div>
+</div>
+
+<div class="ex"><div class="exh">Glue: write with a stable ID<span class="tag">aws glue</span></div><pre><code class="py">glueContext.write_dynamic_frame.from_options(
+    frame=DynamicFrame.fromDF(products_df, glueContext, "products"),
+    connection_type="opensearch",
+    connection_options={
+        "connectionName": "aos-products",          # Glue connection: endpoint, port, Secrets Manager secret
+        "opensearch.resource": "products",         # index name
+        "opensearch.mapping.id": "product_id",     # document _id → reruns overwrite, no duplicates
+        "opensearch.batch.size.entries": "1000"})</code></pre>
+<div class="exf"><p>Credentials are stored in Secrets Manager and referenced by the Glue connection, and the connection is added to the job as an additional network connection. The Glue connector does not support OpenSearch Serverless collections. Create the index mapping (field types, analyzers) up front instead of letting OpenSearch guess.</p></div></div>
+
+<div class="tw"><table class="t">
+<tr><th>Problem</th><th>Fix</th></tr>
+<tr><td>Duplicates after rerun</td><td>Set the document ID column</td></tr>
+<tr><td>429 errors / rejected bulk requests</td><td>Fewer partitions (<code>coalesce</code>), smaller batches, or scale the cluster</td></tr>
+<tr><td>Slow initial load</td><td>Set index <code>refresh_interval</code> to -1 and replicas to 0 during the load, restore after</td></tr>
+<tr><td>Full reload needed without downtime</td><td>Write to a new index, then switch an alias to it</td></tr>
+</table></div>
+
+<div class="say"><p>For OpenSearch I write with a stable document ID so reruns overwrite instead of duplicating, create the index mapping up front, control bulk size and parallelism to avoid 429 rejections, and for full reloads I build a new index and switch an alias so searches never see a half-built index.</p></div>
+
+<div class="remember"><ul>
+<li><code>opensearch.mapping.id</code> = idempotent writes.</li>
+<li>Throttle parallelism; tune refresh/replicas for bulk loads; alias swap for reloads.</li>
+</ul></div>
+</section>
+
+<section class="lesson" id="sink-redshift" data-ch="PySpark on AWS" data-t="Spark and Redshift: COPY, UNLOAD and the connector" data-lvl="A" data-min="12">
+<h1>Spark and Redshift: COPY, UNLOAD and the connector</h1>
+<div class="oneline">Never move big data to or from Redshift row by row over JDBC: go through S3 with COPY (into Redshift) and UNLOAD (out of Redshift).</div>
+
+<div class="cols">
+<div><h4>COPY</h4><p>A Redshift command that loads files from S3 <b>in parallel</b> across all Redshift slices. The fast way in.</p></div>
+<div><h4>UNLOAD</h4><p>The reverse: Redshift runs a query and writes the result to S3 <b>in parallel</b>, as Parquet if you ask. The fast way out.</p></div>
+<div><h4>The connector</h4><p>The Spark–Redshift connector (built into Glue 4.0+ and EMR) does this for you: a Spark read runs UNLOAD into a temp S3 folder and reads the files; a Spark write stages files in S3 and runs COPY.</p></div>
+<div><h4>Why not plain JDBC?</h4><p>JDBC sends rows through the Redshift leader node one batch at a time. For millions of rows it's many times slower and loads the cluster.</p></div>
+</div>
+
+<figure class="anim">
+<div class="atitle">How the connector moves data</div>
+<div class="stage"><svg viewBox="0 0 790 230" role="img" aria-label="Redshift COPY and UNLOAD">
+<g data-s="1"><rect x="20" y="80" width="170" height="70" rx="8" class="bxa"/><text x="32" y="104" class="b">Spark</text><text x="32" y="126" class="s">Glue / EMR job</text></g>
+<g data-s="1"><rect x="310" y="80" width="170" height="70" rx="8" class="bxw"/><text x="322" y="104" class="b">S3 tempdir</text><text x="322" y="126" class="s">staging files</text></g>
+<g data-s="1"><rect x="600" y="80" width="170" height="70" rx="8" class="bxp"/><text x="612" y="104" class="b">Redshift</text><text x="612" y="126" class="s">all slices in parallel</text></g>
+<g data-s="2"><path d="M190 95H308" class="lno" marker-end="url(#arrO)"/><text x="200" y="86" class="o">1. write files</text><path d="M480 95H598" class="lno" marker-end="url(#arrO)"/><text x="490" y="86" class="o">2. COPY</text><text x="20" y="40" class="b">Write (Spark → Redshift)</text></g>
+<g data-s="3"><path d="M598 135H482" class="lna" marker-end="url(#arrA)"/><text x="490" y="170" class="b">1. UNLOAD</text><path d="M308 135H192" class="lna" marker-end="url(#arrA)"/><text x="200" y="170" class="b">2. read files</text><text x="20" y="210" class="b">Read (Redshift → Spark)</text></g>
+</svg></div>
+<ol class="asteps">
+<li>Both directions go through an S3 staging folder (<code>tempdir</code>).</li>
+<li>Writing: Spark writes files in parallel, then Redshift loads them in parallel with COPY.</li>
+<li>Reading: Redshift UNLOADs the query result to S3 in parallel, then Spark reads those files.</li>
+</ol>
+</figure>
+
+<h2>Try it yourself</h2>
+<div class="ex"><div class="exh">Read and write with the connector (Glue 4.0+/EMR)<span class="tag">pyspark</span></div><pre><code class="py">common = {"url": "jdbc:redshift://wg.123.ap-south-1.redshift-serverless.amazonaws.com:5439/dev",
+          "tempdir": "s3://my-temp/redshift/", "aws_iam_role": "arn:aws:iam::123:role/redshift-s3"}
+
+# Read: the filter and columns are pushed into the UNLOAD query
+sales = (spark.read.format("io.github.spark_redshift_community.spark.redshift").options(**common)
+         .option("query", "SELECT order_id, amount FROM sales WHERE sale_date &gt;= '2026-11-01'").load())
+
+# Write to a staging table, then merge in SQL (idempotent)
+(daily.write.format("io.github.spark_redshift_community.spark.redshift").options(**common)
+   .option("dbtable", "stage.daily_sales")
+   .option("preactions",  "TRUNCATE stage.daily_sales;")
+   .option("postactions", "BEGIN; MERGE INTO public.daily_sales USING stage.daily_sales s "
+                          "ON daily_sales.order_id = s.order_id "
+                          "WHEN MATCHED THEN UPDATE SET amount = s.amount "
+                          "WHEN NOT MATCHED THEN INSERT VALUES (s.order_id, s.sale_date, s.amount); END;")
+   .mode("append").save())</code></pre>
+<div class="exf"><p><code>preactions</code> and <code>postactions</code> run SQL in Redshift before and after the COPY. Loading into a staging table and merging makes reruns safe. In Glue's DynamicFrame writer the same idea uses <code>redshiftTmpDir</code> and the same pre/post actions.</p></div></div>
+<div class="ex"><div class="exh">UNLOAD yourself: export a Redshift table to the lake as Parquet<span class="tag">redshift sql</span></div><pre><code class="sql">UNLOAD ('SELECT * FROM public.daily_sales WHERE sale_date &gt;= ''2026-01-01''')
+TO 's3://lake/exports/daily_sales/'
+IAM_ROLE 'arn:aws:iam::123:role/redshift-s3'
+FORMAT AS PARQUET
+PARTITION BY (sale_date)
+MAXFILESIZE 256 MB;</code></pre>
+<div class="exf"><p>Use this to offload cold history from Redshift to S3 (then query it with Spectrum or Athena), or to hand Redshift data to a Spark job. Quotes inside the query are doubled.</p></div></div>
+
+<h2>When it does not work</h2>
+<div class="tw"><table class="t">
+<tr><th>Problem</th><th>Fix</th></tr>
+<tr><td>Slow load with JDBC <code>format("jdbc")</code></td><td>Switch to the Redshift connector (COPY) or write Parquet + COPY yourself</td></tr>
+<tr><td>Many small COPYs (one per micro-batch)</td><td>Batch up: COPY works best with fewer, larger loads; files sized ~100 MB–1 GB, count a multiple of slices</td></tr>
+<tr><td>Duplicates after a retry</td><td>Staging table + MERGE (or delete-insert) in one transaction</td></tr>
+<tr><td>Access denied on tempdir</td><td>Redshift's IAM role needs S3 read/write on the tempdir; the job role too</td></tr>
+<tr><td>Temp files pile up</td><td>S3 lifecycle rule on the tempdir prefix</td></tr>
+</table></div>
+
+<h2>In the interview</h2>
+<div class="say"><p>To load Redshift from Spark I go through S3: the Spark–Redshift connector stages files in a tempdir and runs COPY, which loads in parallel across slices. I load into a staging table and MERGE in a postaction so retries are idempotent. To read, the connector runs UNLOAD and Spark reads the files; for exports to the lake I UNLOAD to Parquet partitioned by date. I avoid row-by-row JDBC for anything large.</p></div>
+<details class="iq"><summary>Q: Your dashboard needs data in Redshift within 5 minutes of arrival. Batch COPY every 5 minutes?</summary><p>Frequent small COPYs are inefficient and contend with queries. Better options: Redshift streaming ingestion directly from Kinesis or MSK, zero-ETL integrations from supported sources, or querying recent data in Iceberg through Spectrum while a less frequent batch loads Redshift.</p></details>
+
+<div class="remember"><ul>
+<li>In: S3 + COPY. Out: UNLOAD to S3 (Parquet). The connector does both.</li>
+<li>Staging table + MERGE in postactions = idempotent loads.</li>
+<li>No row-by-row JDBC for big data; no tiny frequent COPYs.</li>
+</ul></div>
+</section>
+
+<section class="lesson" id="cost" data-ch="PySpark on AWS" data-t="Cost per run: Flex, auto scaling, Graviton, right-sizing" data-lvl="A" data-min="12">
+<h1>Cost per run: Flex, auto scaling, Graviton, right-sizing</h1>
+<div class="oneline">A Spark job's cost is roughly <b>workers × hours × price</b>; you lower it by reading less, using fewer or cheaper workers, and finishing sooner.</div>
+
+<div class="cols">
+<div><h4>Glue pricing in one line</h4><p>Glue bills in <b>DPU-hours</b>, per second with a 1-minute minimum. One DPU = 4 vCPU and 16 GB. A G.1X worker is 1 DPU, G.2X is 2 DPU.</p></div>
+<div><h4>Why does it matter?</h4><p>Lead engineers are asked about cost. A daily job on 20 G.2X workers for 1 hour is 40 DPU-hours a day. Halving it saves money every single day, and interviewers love a before/after cost number.</p></div>
+<div><h4>How do I measure it?</h4><p>For Glue, <code>DPUSeconds</code> per run in the <code>GetJobRun</code> API (for auto scaling and Flex jobs) or Cost Explorer usage types; for EMR, cluster hours and instance prices; tag every job by team and pipeline.</p></div>
+</div>
+
+<figure class="dg"><svg viewBox="0 0 790 150" role="img" aria-label="Cost formula">
+<rect x="10" y="40" width="170" height="70" rx="8" class="bxa"/><text x="22" y="64" class="b">Workers</text><text x="22" y="86" class="s">right-size, auto scale</text>
+<text x="190" y="82" class="h">×</text>
+<rect x="215" y="40" width="170" height="70" rx="8" class="bxt"/><text x="227" y="64" class="b">Hours</text><text x="227" y="86" class="s">read less, tune, fix skew</text>
+<text x="395" y="82" class="h">×</text>
+<rect x="420" y="40" width="170" height="70" rx="8" class="bxw"/><text x="432" y="64" class="b">Price per unit</text><text x="432" y="86" class="s">Flex, Graviton, Spot</text>
+<text x="600" y="82" class="h">=</text>
+<rect x="625" y="40" width="155" height="70" rx="8" class="bxp"/><text x="637" y="64" class="b">Cost per run</text><text x="637" y="86" class="s">track it per job</text>
+</svg></figure>
+
+<h2>The levers</h2>
+<div class="tw"><table class="t">
+<tr><th>Lever</th><th>What it does</th><th>When to use</th></tr>
+<tr><td><b>Read less</b> (pruning, columns, incremental)</td><td>Shorter runs, fewer workers</td><td>Always first: see <a href="#rd-map">Reading less data</a></td></tr>
+<tr><td><b>Glue auto scaling</b> (<code>--enable-auto-scaling</code>)</td><td>Adds and removes workers as stages need them; you set the maximum</td><td>Jobs with uneven stages (big read, small write)</td></tr>
+<tr><td><b>Glue Flex</b> (<code>--execution-class FLEX</code>)</td><td>Runs on spare capacity at a lower rate; start time can be delayed</td><td>Non-urgent batch: backfills, tests, nightly jobs with slack</td></tr>
+<tr><td><b>Right worker type</b></td><td>G.1X/G.2X for most; memory-heavy (R/G.4X+) only if memory-bound</td><td>Check executor memory use in the UI before upsizing</td></tr>
+<tr><td><b>Graviton</b> (EMR, EMR Serverless)</td><td>ARM instances with better price-performance than x86</td><td>Default choice for new EMR clusters and Serverless apps</td></tr>
+<tr><td><b>Spot instances</b> (EMR task nodes)</td><td>Up to large discounts, can be reclaimed</td><td>Task nodes only; keep primary/core on On-Demand</td></tr>
+<tr><td><b>Timeouts and alerts</b></td><td>A stuck job can't burn money for 48 hours</td><td>Every job: set a timeout near 2–3× normal runtime</td></tr>
+<tr><td><b>Small files, maintenance</b></td><td>Fewer files = faster planning and reads</td><td>Compaction on Iceberg tables</td></tr>
+</table></div>
+
+<h2>Try it: set the levers</h2>
+<div class="ex"><div class="exh">Glue job with auto scaling, Flex and a timeout<span class="tag">aws cli</span></div><pre><code class="sh">aws glue create-job --name nightly-backfill --role GlueJobRole \
+  --command Name=glueetl,ScriptLocation=s3://code/backfill.py \
+  --glue-version 5.1 --worker-type G.2X --number-of-workers 20 \
+  --execution-class FLEX --timeout 180 \
+  --default-arguments '{"--enable-auto-scaling":"true","--enable-metrics":"true"}'</code></pre>
+<div class="exf"><p>With auto scaling, <code>--number-of-workers</code> is the maximum. Flex is for Glue Spark batch jobs; use Standard for anything with a tight SLA.</p></div></div>
+<div class="ex"><div class="exh">EMR Serverless on Graviton<span class="tag">aws cli</span></div><pre><code class="sh">aws emr-serverless create-application --name etl --type SPARK \
+  --release-label emr-7.12.0 --architecture ARM64</code></pre></div>
+
+<h2>A worked example</h2>
+<div class="numbers">
+<div class="badc"><b>40 DPU-h</b><span>Before: 20 × G.2X for 60 min, reading all history</span></div>
+<div><b>14 DPU-h</b><span>Partition filter + early select: 25 min</span></div>
+<div class="good"><b>≈ 8 DPU-h</b><span>+ auto scaling (avg 8 G.2X), Flex price on top</span></div>
+</div>
+<p>Illustrative numbers. The order matters: fix the reads first, then the size, then the price.</p>
+
+<h2>In the interview</h2>
+<div class="say"><p>I treat cost as workers times runtime times price. First I cut runtime by reading less and fixing skew and small files, then right-size with auto scaling, then lower the unit price: Flex for non-urgent Glue jobs, Graviton and Spot task nodes on EMR. I track DPU-seconds per run and tag jobs so each pipeline's cost is visible, and set timeouts so stuck jobs can't run up a bill.</p></div>
+<details class="iq"><summary>Q: When should you NOT use Glue Flex?</summary><p>For jobs with a strict SLA or downstream dependencies waiting on them, because Flex runs on spare capacity and its start time and run time can vary. It suits backfills, tests and batch jobs with slack.</p></details>
+
+<div class="remember"><ul>
+<li>Cost ≈ workers × hours × price. Fix hours first.</li>
+<li>Glue: auto scaling, Flex for non-urgent, right worker type, timeouts.</li>
+<li>EMR: Graviton, Spot task nodes, managed scaling. Measure DPU-seconds per run.</li>
+</ul></div>
+</section>
+
 <section class="lesson" id="orchestration" data-ch="PySpark on AWS" data-t="Orchestration, retries and idempotency" data-lvl="A" data-min="9">
 <h1>Orchestration, retries and idempotency</h1>
 <div class="plain"><p>Production Spark jobs run inside a workflow: Step Functions, MWAA (Airflow) or Glue workflows. The workflow passes parameters (like the run date), retries transient failures, and alerts on real ones. That only works if every job is <b>idempotent</b>: running it twice for the same input gives the same output.</p></div>
@@ -4654,6 +5115,177 @@ spark.sql("ALTER TABLE glue_catalog.sales.orders CREATE TAG `eom_2026_10` RETAIN
 <li>Snapshot = full version of the table per commit.</li>
 <li>TIMESTAMP / VERSION AS OF for time travel; rollback procedures to undo.</li>
 <li>Branch + fast_forward = write-audit-publish; tags keep important versions.</li>
+</ul></div>
+</section>
+
+<section class="lesson" id="iceberg-incremental" data-ch="Apache Iceberg" data-t="Incremental reads: process only what's new" data-lvl="A" data-min="12">
+<h1>Incremental reads: process only what's new</h1>
+<div class="oneline">Every Iceberg commit is a snapshot, so a job can ask “give me only the rows added after snapshot X” instead of re-reading the whole table.</div>
+
+<div class="cols">
+<div><h4>What is it?</h4><p>An <b>incremental read</b> reads the data added between two snapshots: <code>start-snapshot-id</code> (not included) and <code>end-snapshot-id</code> (included). The job remembers the last snapshot it processed (a <b>watermark</b>) and next time starts from there.</p></div>
+<div><h4>Why does it matter?</h4><p>A downstream job (bronze → silver) that re-reads a 5 TB table every hour wastes time and money. Reading only the last hour's commits keeps the run small and constant, no matter how big the table grows.</p></div>
+<div><h4>How does it work?</h4><p>Iceberg looks at the snapshots in the range, collects the data files <b>added</b> by them, and reads only those files. No folder scans, no date filters needed.</p></div>
+<div><h4>The limit</h4><p>Plain incremental reads see <b>appends only</b>. If a snapshot in the range came from an UPDATE, DELETE, MERGE or overwrite, use a <a href="#iceberg-changelog">changelog view</a> instead.</p></div>
+</div>
+
+<figure class="anim">
+<div class="atitle">The watermark pattern</div>
+<div class="stage"><svg viewBox="0 0 790 250" role="img" aria-label="Incremental read with watermark">
+<g data-s="1"><text x="20" y="24" class="h">orders (Iceberg) snapshots</text>
+<rect x="20" y="40" width="130" height="50" rx="6" class="bxg"/><text x="32" y="62" class="m">S101</text><text x="32" y="80" class="s">append 09:00</text>
+<rect x="165" y="40" width="130" height="50" rx="6" class="bxg"/><text x="177" y="62" class="m">S102</text><text x="177" y="80" class="s">append 10:00</text>
+<rect x="310" y="40" width="130" height="50" rx="6" class="bxt" data-hi="3"/><text x="322" y="62" class="m">S103</text><text x="322" y="80" class="s">append 11:00</text>
+<rect x="455" y="40" width="130" height="50" rx="6" class="bxt" data-hi="3"/><text x="467" y="62" class="m">S104</text><text x="467" y="80" class="s">append 12:00</text></g>
+<g data-s="2"><path d="M230 110V96" class="lno" marker-end="url(#arrO)"/><rect x="150" y="112" width="230" height="40" rx="6" class="bxw"/><text x="162" y="137" class="b">watermark = S102 (last run)</text></g>
+<g data-s="3"><rect x="300" y="170" width="300" height="40" rx="6" class="bxa"/><text x="312" y="195" class="b">read start=S102 (excl.) → end=S104</text></g>
+<g data-s="4"><rect x="610" y="40" width="160" height="110" rx="6" class="bxp"/><text x="622" y="62" class="b">silver job</text><text x="622" y="84" class="s">MERGE new rows</text><text x="622" y="104" class="s">then save</text><text x="622" y="124" class="m">watermark = S104</text></g>
+<g data-s="4"><text x="20" y="236" class="g">Each run reads only the commits since the last successful run.</text></g>
+</svg></div>
+<ol class="asteps">
+<li>Every write to the source table created a snapshot.</li>
+<li>The downstream job stored the last snapshot it fully processed: S102.</li>
+<li>This run reads only files added after S102 up to the current snapshot S104.</li>
+<li>After the output is committed, it saves S104 as the new watermark. If the job fails before that, the next run simply re-reads the same range.</li>
+</ol>
+</figure>
+
+<h2>Try it yourself</h2>
+<div class="ex"><div class="exh">Find snapshot IDs, read the increment, save the watermark<span class="tag">pyspark + iceberg</span></div><pre><code class="py">tbl = "glue_catalog.sales.orders"
+
+# 1. What is the current snapshot? (metadata table)
+end_id = spark.sql(f"SELECT snapshot_id FROM {tbl}.snapshots ORDER BY committed_at DESC LIMIT 1").first()[0]
+
+# 2. Last processed snapshot, stored by the previous run (control table, SSM, or a table property)
+start_id = read_watermark("orders_to_silver")          # e.g. 5873119024170
+
+# 3. Rows appended after start_id, up to and including end_id
+new_rows = (spark.read.format("iceberg")
+    .option("start-snapshot-id", str(start_id))         # exclusive
+    .option("end-snapshot-id", str(end_id))             # inclusive
+    .load(tbl))
+
+# 4. Process, write, and only then move the watermark
+upsert_into_silver(new_rows)
+save_watermark("orders_to_silver", end_id)</code></pre>
+<div class="exf"><p>Incremental reads work through the DataFrame reader options, not through plain SQL syntax. Saving the watermark <b>after</b> the write makes a failed run safe to retry: it reads the same range again, and the MERGE into silver makes the retry harmless.</p></div></div>
+
+<div class="ex"><div class="exh">Or run it as a stream: Spark tracks the watermark for you<span class="tag">pyspark + iceberg</span></div><pre><code class="py">(spark.readStream.format("iceberg")
+    .option("stream-from-timestamp", "1763337600000")         # start point in epoch ms
+    .option("streaming-skip-delete-snapshots", "true")        # ignore delete commits
+    .option("streaming-skip-overwrite-snapshots", "true")     # ignore MERGE/overwrite commits
+    .load("glue_catalog.sales.orders")
+  .writeStream.trigger(availableNow=True)                     # process what's there, then stop
+    .option("checkpointLocation", "s3://lake/_chk/orders_to_silver/")
+    .foreachBatch(upsert_batch).start())</code></pre>
+<div class="exf"><p>The checkpoint stores the last snapshot processed, so you don't manage IDs yourself. <code>availableNow</code> lets a scheduled Glue job behave like a batch job that picks up only new commits. By default a streaming read <b>fails</b> on overwrite or delete snapshots; the skip options ignore them (so those changes are not seen).</p></div></div>
+
+<h2>When it does not work</h2>
+<div class="tw"><table class="t">
+<tr><th>Problem</th><th>What happens</th><th>Fix</th></tr>
+<tr><td>A MERGE, UPDATE or DELETE in the range</td><td>Plain incremental read only returns appended data; changes are missed</td><td>Use <code>create_changelog_view</code> (next lesson)</td></tr>
+<tr><td>The start snapshot was expired by maintenance</td><td>The read fails: Iceberg no longer knows that snapshot</td><td>Keep snapshot retention longer than the longest gap between runs; alert on lag</td></tr>
+<tr><td>Compaction (rewrite_data_files) in the range</td><td>Rewrites are “replace” snapshots, not appends, so they are not re-read as new data</td><td>Nothing to do: this is the correct behaviour</td></tr>
+<tr><td>Watermark saved before the output commit</td><td>A failure loses that batch forever</td><td>Always save the watermark last</td></tr>
+</table></div>
+
+<h2>In a real AWS project</h2>
+<div class="box aws"><b class="lbl">Where it shows up</b><p>A Glue streaming job appends clickstream events to a bronze Iceberg table every minute. An hourly Glue batch job builds silver sessions. Instead of reading “the last hour” by timestamp (and missing late files or reading some twice), it reads the snapshots since its last run, MERGEs them, and stores the end snapshot ID in a DynamoDB control table. Runtime stays flat as the table grows.</p></div>
+
+<h2>In the interview</h2>
+<div class="say"><p>Iceberg incremental reads let a job read only the data appended between two snapshots, with start-snapshot-id exclusive and end-snapshot-id inclusive. I store the last processed snapshot as a watermark and update it only after the output is committed, so retries are safe. It only sees appends, so for tables with updates or deletes I use a changelog view, and I keep snapshot retention longer than the run interval so the start snapshot still exists.</p></div>
+<details class="iq"><summary>Q: Why not just filter on an ingestion timestamp?</summary><p>Timestamp windows miss late-arriving data and can double-read at the edges. Snapshot ranges are exact: every committed file is in exactly one range. They also need no scan of older data to find the new rows.</p></details>
+<details class="iq"><summary>Q: How is this different from Glue job bookmarks?</summary><p>Bookmarks track which S3 files or JDBC keys a Glue job has processed, for plain file sources. For Iceberg tables, the snapshot ID is the natural bookmark: precise, engine-independent and visible in metadata.</p></details>
+
+<div class="remember"><ul>
+<li>Read between snapshots: start exclusive, end inclusive. Appends only.</li>
+<li>Save the watermark after the write; keep snapshots long enough.</li>
+<li>Streaming read with <code>availableNow</code> = automatic watermark.</li>
+</ul></div>
+</section>
+
+<section class="lesson" id="iceberg-changelog" data-ch="Apache Iceberg" data-t="Changelog views: CDC out of Iceberg" data-lvl="A" data-min="13">
+<h1>Changelog views: CDC out of Iceberg</h1>
+<div class="oneline">Ask Iceberg “what changed between these snapshots?” and get every insert, update and delete as rows, ready to apply downstream.</div>
+
+<div class="cols">
+<div><h4>What is it?</h4><p><code>create_changelog_view</code> is an Iceberg Spark procedure. It builds a temporary view where each row is a change, with extra columns: <code>_change_type</code> (INSERT, DELETE, UPDATE_BEFORE, UPDATE_AFTER), <code>_change_ordinal</code> and <code>_commit_snapshot_id</code>.</p></div>
+<div><h4>Why does it matter?</h4><p>Silver and gold tables often need to follow a source that gets MERGEs and deletes (customer changes, GDPR deletes). An append-only read misses those. The changelog gives you <b>change data capture (CDC)</b> from a lakehouse table, without a database log.</p></div>
+<div><h4>How does it work?</h4><p>Iceberg compares the data files removed and added by each snapshot in the range. Rows in removed files that are not in the new files are DELETEs; new rows are INSERTs. With identifier columns, a DELETE + INSERT of the same key becomes an UPDATE pair.</p></div>
+<div><h4>The limit</h4><p>It works with <b>copy-on-write</b> tables. Merge-on-read tables, which record deletes in separate delete files, are not supported by the changelog procedure in current releases.</p></div>
+</div>
+
+<figure class="anim">
+<div class="atitle">One MERGE, seen as a changelog</div>
+<div class="stage"><svg viewBox="0 0 790 260" role="img" aria-label="Changelog view">
+<g data-s="1"><text x="20" y="24" class="h">customers before (S201)</text>
+<rect x="20" y="36" width="230" height="90" rx="6" class="bxg"/><text x="32" y="60" class="m">1 · Asha · Pune</text><text x="32" y="82" class="m">2 · Ravi · Delhi</text><text x="32" y="104" class="m">3 · Meena · Goa</text></g>
+<g data-s="2"><path d="M250 80H300" class="lno" marker-end="url(#arrO)"/><text x="254" y="72" class="o">MERGE</text>
+<text x="310" y="24" class="h">after (S202)</text>
+<rect x="310" y="36" width="230" height="90" rx="6" class="bxg"/><text x="322" y="60" class="m">1 · Asha · Hyderabad</text><text x="322" y="82" class="m">2 · Ravi · Delhi</text><text x="322" y="104" class="m">4 · Kiran · Chennai</text></g>
+<g data-s="3"><text x="20" y="160" class="h">changelog view (identifier = id)</text>
+<rect x="20" y="172" width="750" height="76" rx="6" class="bxw"/>
+<text x="32" y="192" class="m">UPDATE_BEFORE</text><text x="150" y="192" class="m">1 · Asha · Pune</text><text x="400" y="192" class="m">UPDATE_AFTER</text><text x="510" y="192" class="m">1 · Asha · Hyderabad</text>
+<text x="32" y="214" class="m">DELETE</text><text x="150" y="214" class="m">3 · Meena · Goa</text><text x="400" y="214" class="m">INSERT</text><text x="510" y="214" class="m">4 · Kiran · Chennai</text>
+<text x="32" y="236" class="s">Ravi didn't change: Iceberg removes such “carry-over” rows from the result.</text></g>
+</svg></div>
+<ol class="asteps">
+<li>The table before the change.</li>
+<li>A MERGE updates Asha's city, deletes Meena and inserts Kiran: one new snapshot.</li>
+<li>The changelog view lists exactly those changes. Ravi's row was rewritten physically (same file) but didn't change, so it is dropped as a carry-over.</li>
+</ol>
+</figure>
+
+<h2>Try it yourself</h2>
+<div class="ex"><div class="exh">Create the view and apply it to a downstream table<span class="tag">spark sql + iceberg</span></div><pre><code class="sql">CALL glue_catalog.system.create_changelog_view(
+  table              =&gt; 'crm.customers',
+  changelog_view     =&gt; 'customers_changes',
+  options            =&gt; map('start-snapshot-id', '5873119024170', 'end-snapshot-id', '5873119025555'),
+  identifier_columns =&gt; array('id'),        -- needed to pair DELETE+INSERT into UPDATE
+  compute_updates    =&gt; true
+);
+
+SELECT _change_type, id, name, city, _commit_snapshot_id
+FROM customers_changes ORDER BY _change_ordinal, id;</code></pre></div>
+<div class="ex"><div class="exh">Expected result for the MERGE above<span class="tag">expected output, not run here</span></div><pre class="out"><code>+-------------+---+-----+---------+-------------------+
+|_change_type |id |name |city     |_commit_snapshot_id|
++-------------+---+-----+---------+-------------------+
+|UPDATE_BEFORE|1  |Asha |Pune     |5873119025555      |
+|UPDATE_AFTER |1  |Asha |Hyderabad|5873119025555      |
+|DELETE       |3  |Meena|Goa      |5873119025555      |
+|INSERT       |4  |Kiran|Chennai  |5873119025555      |
++-------------+---+-----+---------+-------------------+</code></pre>
+<div class="exf"><p>The Iceberg runtime jar couldn't be downloaded in our test environment, so this output is worked out from the documented behaviour rather than captured. Option <code>net_changes =&gt; true</code> instead collapses many changes to the same row across several snapshots into the final one (for example INSERT then DELETE = nothing); it can't be combined with <code>compute_updates</code>.</p></div></div>
+
+<div class="ex"><div class="exh">Apply the changes to a gold table<span class="tag">spark sql</span></div><pre><code class="sql">MERGE INTO glue_catalog.gold.dim_customer t
+USING (SELECT * FROM customers_changes WHERE _change_type IN ('INSERT','UPDATE_AFTER','DELETE')) c
+ON t.id = c.id
+WHEN MATCHED AND c._change_type = 'DELETE' THEN DELETE
+WHEN MATCHED THEN UPDATE SET t.name = c.name, t.city = c.city
+WHEN NOT MATCHED AND c._change_type &lt;&gt; 'DELETE' THEN INSERT (id, name, city) VALUES (c.id, c.name, c.city);</code></pre>
+<div class="exf"><p>If a key can change more than once in the range, first keep only its last change (window by id, order by <code>_change_ordinal</code> desc) or use <code>net_changes</code>; otherwise MERGE fails with “multiple source rows matched”. For SCD Type 2 targets, UPDATE_BEFORE/UPDATE_AFTER map directly to “close the old row, open a new one”.</p></div></div>
+
+<h2>Incremental read vs changelog</h2>
+<div class="tw"><table class="t">
+<tr><th></th><th>Incremental read</th><th>Changelog view</th></tr>
+<tr><td>Sees</td><td>Appended rows only</td><td>Inserts, updates, deletes</td></tr>
+<tr><td>Cost</td><td>Reads only new files</td><td>Reads added and removed files, compares them</td></tr>
+<tr><td>Table mode</td><td>Any</td><td>Copy-on-write</td></tr>
+<tr><td>Use for</td><td>Event/log tables (append-only)</td><td>Dimension/entity tables that get MERGEs</td></tr>
+</table></div>
+
+<h2>In a real AWS project</h2>
+<div class="box aws"><b class="lbl">Where it shows up</b><p>DMS lands RDS changes into a silver <code>customers</code> Iceberg table with MERGE. A gold job must update the customer dimension and also push changes to a DynamoDB profile store. It runs the changelog view from its saved watermark, applies MERGE to gold, writes the UPDATE_AFTER and DELETE rows to DynamoDB, then saves the new watermark. If silver were merge-on-read for write speed, the team would either compact to copy-on-write snapshots before this step or carry change flags themselves (an <code>op</code> column) in silver.</p></div>
+
+<h2>In the interview</h2>
+<div class="say"><p>For CDC out of an Iceberg table I use the create_changelog_view procedure between two snapshots. It returns each change with a change type: insert, delete, or update before/after when I pass identifier columns, and it removes carry-over rows that were only rewritten. I apply it to the target with MERGE, deduplicating to the latest change per key, and keep a snapshot watermark. The main limitation today is that it supports copy-on-write tables, not merge-on-read delete files.</p></div>
+<details class="iq"><summary>Q: What's a carry-over row?</summary><p>With copy-on-write, updating one row rewrites its whole data file, so unchanged rows in that file appear as removed and re-added. The changelog procedure detects identical DELETE/INSERT pairs and drops them, so only real changes remain.</p></details>
+<details class="iq"><summary>Q: Your source table is merge-on-read. How do you get CDC downstream?</summary><p>Options: add an explicit change column (op, updated_at) when writing the source and read increments by that; periodically compact so snapshots are rewritten; or stream the original CDC feed (DMS/Kafka) to both targets instead of deriving it from the table.</p></details>
+
+<div class="remember"><ul>
+<li><code>create_changelog_view</code> → rows with <code>_change_type</code>.</li>
+<li><code>identifier_columns</code> + <code>compute_updates</code> → UPDATE_BEFORE/AFTER; or <code>net_changes</code>.</li>
+<li>Copy-on-write only (today). Apply with MERGE, latest change per key.</li>
 </ul></div>
 </section>
 
@@ -5736,6 +6368,256 @@ deduped = events.withWatermark("event_ts", "1 hour").dropDuplicatesWithinWaterma
 </section>
 
 <!-- ================= PRODUCTION ================= -->
+<section class="lesson" id="stream-kinesis-msk" data-ch="Structured Streaming" data-t="Kinesis and MSK sources in depth" data-lvl="A" data-min="13">
+<h1>Kinesis and MSK sources in depth</h1>
+<div class="oneline">Kinesis splits a stream into shards and MSK (Kafka) into partitions; Spark reads them in parallel and remembers its position in the checkpoint.</div>
+
+<div class="cols">
+<div><h4>Kinesis Data Streams</h4><p>AWS's own stream. Data is split into <b>shards</b>; each shard accepts about 1 MB/s or 1,000 records/s of writes and gives 2 MB/s of reads. Position = <b>sequence number</b>. Read in Spark via Glue's Kinesis connector (Glue) or a Kinesis connector package (EMR).</p></div>
+<div><h4>Amazon MSK (Kafka)</h4><p>Managed Apache Kafka. Data is split into <b>partitions</b> of a <b>topic</b>; position = <b>offset</b>. Spark's built-in Kafka source reads it (Glue has a Kafka connection type too). Auth is usually IAM or SASL/SCRAM over TLS.</p></div>
+<div><h4>Why does it matter?</h4><p>Parallelism, throughput limits, where a new job starts reading, and how much it reads per batch decide whether a streaming job keeps up or falls further behind every minute.</p></div>
+</div>
+
+<figure class="anim">
+<div class="atitle">How Spark reads a stream</div>
+<div class="stage"><svg viewBox="0 0 790 250" role="img" aria-label="Shards to tasks">
+<g data-s="1"><text x="20" y="24" class="h">Stream: 4 shards / partitions</text>
+<rect x="20" y="40" width="200" height="36" rx="5" class="bxp"/><text x="32" y="63" class="m">shard 0 … seq 1050</text>
+<rect x="20" y="84" width="200" height="36" rx="5" class="bxp"/><text x="32" y="107" class="m">shard 1 … seq 980</text>
+<rect x="20" y="128" width="200" height="36" rx="5" class="bxp"/><text x="32" y="151" class="m">shard 2 … seq 1201</text>
+<rect x="20" y="172" width="200" height="36" rx="5" class="bxp"/><text x="32" y="195" class="m">shard 3 … seq 870</text></g>
+<g data-s="2"><path d="M220 124H300" class="lno" marker-end="url(#arrO)"/><rect x="302" y="40" width="200" height="168" rx="8" class="bxa"/><text x="314" y="64" class="b">Micro-batch #42</text><text x="314" y="88" class="s">one task per shard</text><text x="314" y="108" class="s">reads up to a limit</text><text x="314" y="128" class="s">(maxOffsetsPerTrigger /</text><text x="314" y="144" class="s">records per shard)</text></g>
+<g data-s="3"><path d="M502 124H580" class="lno" marker-end="url(#arrO)"/><rect x="582" y="40" width="190" height="80" rx="8" class="bxt"/><text x="594" y="64" class="b">Sink commit</text><text x="594" y="86" class="s">Iceberg / S3 / MERGE</text></g>
+<g data-s="4"><rect x="582" y="128" width="190" height="80" rx="8" class="bxw"/><text x="594" y="152" class="b">Checkpoint (S3)</text><text x="594" y="174" class="s">batch 42 = these</text><text x="594" y="190" class="s">positions per shard</text></g>
+</svg></div>
+<ol class="asteps">
+<li>The stream is split into shards (Kinesis) or partitions (Kafka), each with its own position.</li>
+<li>Each micro-batch reads a range from every shard in parallel, limited per trigger so batches stay a steady size.</li>
+<li>The batch is written to the sink.</li>
+<li>The positions are recorded in the checkpoint. After a restart, Spark continues exactly from there.</li>
+</ol>
+</figure>
+
+<h2>Try it yourself</h2>
+<div class="ex"><div class="exh">MSK with IAM auth (EMR or Glue, Spark's Kafka source)<span class="tag">pyspark</span></div><pre><code class="py">events = (spark.readStream.format("kafka")
+    .option("kafka.bootstrap.servers", "b-1.msk.xxxx.kafka.ap-south-1.amazonaws.com:9098")
+    .option("subscribe", "orders")
+    .option("startingOffsets", "latest")             # first start only; afterwards the checkpoint wins
+    .option("maxOffsetsPerTrigger", 500000)          # cap per micro-batch
+    .option("kafka.security.protocol", "SASL_SSL")
+    .option("kafka.sasl.mechanism", "AWS_MSK_IAM")
+    .option("kafka.sasl.jaas.config", "software.amazon.msk.auth.iam.IAMLoginModule required;")
+    .option("kafka.sasl.client.callback.handler.class",
+            "software.amazon.msk.auth.iam.IAMClientCallbackHandler")
+    .load())
+# value is binary: decode it
+orders = events.select(F.from_json(F.col("value").cast("string"), order_schema).alias("o"), "partition", "offset").select("o.*", "partition", "offset")</code></pre>
+<div class="exf"><p>IAM auth needs the <code>aws-msk-iam-auth</code> library on the classpath. <code>startingOffsets</code> applies only on the very first run; once a checkpoint exists, Spark always resumes from it. Keep <code>partition</code> and <code>offset</code> for debugging and deduplication.</p></div></div>
+<div class="ex"><div class="exh">Kinesis in a Glue streaming job<span class="tag">aws glue</span></div><pre><code class="py">df = glueContext.create_data_frame.from_options(
+    connection_type="kinesis",
+    connection_options={
+        "streamARN": "arn:aws:kinesis:ap-south-1:123:stream/orders",
+        "startingPosition": "TRIM_HORIZON",            # or LATEST, or a timestamp
+        "classification": "json", "inferSchema": "false",
+        "maxFetchRecordsPerShard": "100000"})          # cap per shard per batch
+
+glueContext.forEachBatch(frame=df, batch_function=process_batch,
+    options={"windowSize": "60 seconds", "checkpointLocation": "s3://lake/_chk/orders/"})</code></pre></div>
+
+<h2>Keeping up: the numbers that matter</h2>
+<div class="tw"><table class="t">
+<tr><th>Signal</th><th>Kinesis</th><th>MSK / Kafka</th><th>Meaning</th></tr>
+<tr><td>Lag</td><td><code>GetRecords.IteratorAgeMilliseconds</code> (CloudWatch)</td><td>Consumer lag (offsets behind)</td><td>Growing = the job can't keep up</td></tr>
+<tr><td>Parallelism</td><td>One reader task per shard</td><td>One task per partition</td><td>More shards/partitions = more parallel reads</td></tr>
+<tr><td>Read limit</td><td>2 MB/s per shard, shared by consumers (enhanced fan-out gives each consumer its own)</td><td>Broker throughput</td><td>Several consumers on one Kinesis stream compete</td></tr>
+<tr><td>Batch size control</td><td><code>maxFetchRecordsPerShard</code></td><td><code>maxOffsetsPerTrigger</code></td><td>Steady batches, no giant catch-up batch</td></tr>
+<tr><td>Retention</td><td>24 h default, extendable</td><td>Topic retention setting</td><td>Job down longer than retention = data lost</td></tr>
+</table></div>
+
+<h2>When it does not work</h2>
+<div class="tw"><table class="t">
+<tr><th>Problem</th><th>Fix</th></tr>
+<tr><td>Lag grows every hour</td><td>Batch duration &gt; trigger interval. Speed up the sink (fewer small files, MERGE on fewer partitions), add workers, add shards/partitions</td></tr>
+<tr><td>First batch after a long stop is huge and fails with OOM</td><td>Set <code>maxOffsetsPerTrigger</code> / <code>maxFetchRecordsPerShard</code></td></tr>
+<tr><td>Changed the query and restarted: errors or reprocessing</td><td>Some changes are incompatible with the old checkpoint; start a new checkpoint from a chosen position and make the sink idempotent</td></tr>
+<tr><td>One hot shard/partition</td><td>Producers use a skewed key; choose a better partition key</td></tr>
+<tr><td>Thousands of tiny files</td><td>Longer trigger, write to Iceberg and compact</td></tr>
+</table></div>
+
+<h2>In the interview</h2>
+<div class="say"><p>Kinesis splits data into shards and Kafka into partitions; Spark reads each in parallel and stores the positions, sequence numbers or offsets, in the checkpoint, which always wins over the starting position after the first run. I cap each micro-batch with maxOffsetsPerTrigger or records per shard, watch iterator age or consumer lag, and scale with more shards or partitions plus a faster sink. On MSK I use IAM auth; on Glue I use the built-in Kinesis and Kafka connectors with forEachBatch.</p></div>
+<details class="iq"><summary>Q: Kinesis or MSK: how do you choose?</summary><p>Kinesis is serverless-ish and simplest on AWS, scaled by shards, integrated with Firehose and Lambda. MSK fits when teams already use Kafka, need Kafka's ecosystem (Connect, Debezium CDC, schema registry tooling), longer retention or higher throughput per partition, at the cost of running brokers (or MSK Serverless).</p></details>
+
+<div class="remember"><ul>
+<li>Shards (Kinesis) / partitions (Kafka) = parallel read units; checkpoint holds positions.</li>
+<li>Cap batches; watch iterator age or consumer lag.</li>
+<li>Starting position only applies to the first run.</li>
+</ul></div>
+</section>
+
+<section class="lesson" id="stream-formats" data-ch="Structured Streaming" data-t="Avro, Protobuf and Glue Schema Registry" data-lvl="A" data-min="11">
+<h1>Avro, Protobuf and Glue Schema Registry</h1>
+<div class="oneline">Producers send compact binary messages; a schema registry keeps the schema in one place so producers and consumers agree on what the bytes mean.</div>
+
+<div class="cols">
+<div><h4>Avro and Protobuf</h4><p>Binary formats for messages. Much smaller and faster than JSON, and every message follows a declared schema (field names and types). Avro is common with Kafka; Protobuf is common in microservices.</p></div>
+<div><h4>Schema registry</h4><p>A service that stores schemas and their <b>versions</b>. <b>AWS Glue Schema Registry</b> is free, supports Avro, JSON Schema and Protobuf, and enforces <b>compatibility</b> rules (for example BACKWARD) so a producer can't publish a breaking change.</p></div>
+<div><h4>Why does it matter?</h4><p>Without a contract, a producer renaming a field silently breaks every consumer. With a registry, the breaking change is rejected at the producer, and consumers can read old and new versions.</p></div>
+</div>
+
+<figure class="dg"><svg viewBox="0 0 790 190" role="img" aria-label="Schema registry flow">
+<rect x="10" y="60" width="160" height="70" rx="8" class="bxa"/><text x="22" y="84" class="b">Producer</text><text x="22" y="106" class="s">serializer</text>
+<rect x="300" y="10" width="190" height="60" rx="8" class="bxw"/><text x="312" y="34" class="b">Glue Schema Registry</text><text x="312" y="54" class="s">orders: v1, v2 (BACKWARD)</text>
+<path d="M170 80L298 45" class="lnd" marker-end="url(#arr)"/><text x="180" y="52" class="s">register / check</text>
+<rect x="300" y="110" width="190" height="70" rx="8" class="bxp"/><text x="312" y="134" class="b">Kinesis / MSK message</text><text x="312" y="156" class="m">[header][schema id][Avro]</text>
+<path d="M170 110L298 140" class="lno" marker-end="url(#arrO)"/>
+<path d="M490 145H608" class="lno" marker-end="url(#arrO)"/>
+<rect x="610" y="60" width="170" height="120" rx="8" class="bxt"/><text x="622" y="84" class="b">Spark consumer</text><text x="622" y="106" class="s">look up schema by id,</text><text x="622" y="122" class="s">decode with from_avro /</text><text x="622" y="138" class="s">Glue table schema</text>
+<path d="M610 90L492 45" class="lnd" marker-end="url(#arr)"/>
+</svg></figure>
+
+<h2>Try it yourself</h2>
+<div class="ex"><div class="exh">Plain Avro messages (schema known to the job)<span class="tag">pyspark</span></div><pre><code class="py">from pyspark.sql.avro.functions import from_avro      # needs the spark-avro package on EMR/local
+order_schema_json = open("order_v2.avsc").read()
+
+decoded = events.select(from_avro(F.col("value"), order_schema_json, {"mode": "PERMISSIVE"}).alias("o")).select("o.*")</code></pre></div>
+<div class="ex"><div class="exh">Messages written with the Glue Schema Registry serializer<span class="tag">pyspark</span></div><pre><code class="py"># The GSR serializer prefixes each message with a small header:
+# 1 byte version + 1 byte compression + 16 bytes schema version UUID, then the Avro bytes.
+payload = F.expr("substring(value, 19)")              # skip the 18-byte header (substring is 1-based)
+decoded = events.select(from_avro(payload, order_schema_json).alias("o")).select("o.*")</code></pre>
+<div class="exf"><p>Plain <code>from_avro</code> doesn't understand the registry's header, so feeding it raw messages fails or produces garbage. Either strip the header and use a known schema (as here), fetch the schema version from the registry with boto3 (<code>get_schema_version</code>) at start-up, or in Glue streaming point the source at a Data Catalog table whose schema comes from the registry. If the producer turned on compression in the serializer, the bytes after the header are zlib-compressed and must be decompressed first.</p></div></div>
+<div class="ex"><div class="exh">Protobuf (Spark 3.4+, spark-protobuf package)<span class="tag">pyspark</span></div><pre><code class="py">from pyspark.sql.protobuf.functions import from_protobuf
+decoded = events.select(from_protobuf("value", "Order", descFilePath="s3://code/order.desc").alias("o")).select("o.*")</code></pre></div>
+
+<h2>Compatibility modes in plain words</h2>
+<div class="tw"><table class="t">
+<tr><th>Mode</th><th>Means</th><th>Safe changes</th></tr>
+<tr><td>BACKWARD (common default)</td><td>New consumers can read old data</td><td>Add optional fields (with defaults), remove fields</td></tr>
+<tr><td>FORWARD</td><td>Old consumers can read new data</td><td>Add fields, remove optional fields</td></tr>
+<tr><td>FULL</td><td>Both</td><td>Add or remove optional fields only</td></tr>
+<tr><td>NONE</td><td>No checks</td><td>Anything (risky)</td></tr>
+</table></div>
+
+<h2>In the interview</h2>
+<div class="say"><p>For streaming I prefer Avro or Protobuf with AWS Glue Schema Registry: messages are compact and the registry enforces compatibility, usually BACKWARD, so producers can't publish breaking changes. In Spark I decode with from_avro or from_protobuf; messages from the Glue serializer carry a header with the schema version ID, so I either strip it and use the registered schema, or let Glue streaming resolve the schema through a catalog table. Schema changes then flow into Iceberg with schema evolution.</p></div>
+
+<div class="remember"><ul>
+<li>Avro/Protobuf = compact, typed messages. Registry = versioned contract.</li>
+<li>Glue Schema Registry: Avro, JSON, Protobuf; compatibility modes; free.</li>
+<li>GSR messages have a header: strip it or let Glue resolve the schema.</li>
+</ul></div>
+</section>
+
+<section class="lesson" id="dev-workflow" data-ch="Production engineering" data-t="Developing Glue jobs: interactive sessions, notebooks, Docker" data-lvl="I" data-min="11">
+<h1>Developing Glue jobs: interactive sessions, notebooks, Docker</h1>
+<div class="oneline">Don't develop by editing a script, running the whole job and waiting minutes for an error: use an interactive session or a local Glue container to try code cell by cell.</div>
+
+<div class="cols">
+<div><h4>Interactive sessions</h4><p>A Glue Spark backend you connect to from a notebook (Glue Studio notebooks, SageMaker Unified Studio, or Jupyter/VS Code on your laptop). You run code cell by cell against real data with the job's IAM role. You pay per DPU-hour while the session is up.</p></div>
+<div><h4>Local Docker image</h4><p>AWS publishes the Glue runtime as a container (<code>public.ecr.aws/glue/aws-glue-libs:5</code> for Glue 5.0). It has Spark, the Glue libraries and Python, so you can run and unit test Glue scripts on your laptop or in CI for free.</p></div>
+<div><h4>Why does it matter?</h4><p>Fast feedback means fewer broken deployments. Interviewers ask “how do you develop and test Glue jobs?” to see if you have a real workflow, not just console clicking.</p></div>
+</div>
+
+<figure class="dg"><svg viewBox="0 0 790 150" role="img" aria-label="Development workflow">
+<rect x="10" y="40" width="170" height="70" rx="8" class="bxa"/><text x="22" y="64" class="b">1. Explore</text><text x="22" y="84" class="s">interactive session,</text><text x="22" y="100" class="s">small sample</text>
+<path d="M180 75H208" class="ln" marker-end="url(#arr)"/>
+<rect x="210" y="40" width="170" height="70" rx="8" class="bxt"/><text x="222" y="64" class="b">2. Code + tests</text><text x="222" y="84" class="s">functions in a package,</text><text x="222" y="100" class="s">pytest in Docker</text>
+<path d="M380 75H408" class="ln" marker-end="url(#arr)"/>
+<rect x="410" y="40" width="170" height="70" rx="8" class="bxw"/><text x="422" y="64" class="b">3. CI</text><text x="422" y="84" class="s">same container runs</text><text x="422" y="100" class="s">tests on every PR</text>
+<path d="M580 75H608" class="ln" marker-end="url(#arr)"/>
+<rect x="610" y="40" width="170" height="70" rx="8" class="bxp"/><text x="622" y="64" class="b">4. Deploy</text><text x="622" y="84" class="s">IaC → dev → prod job,</text><text x="622" y="100" class="s">same script</text>
+</svg></figure>
+
+<h2>Try it: an interactive session</h2>
+<div class="ex"><div class="exh">First notebook cell: configure, then code<span class="tag">glue notebook</span></div><pre><code class="py">%glue_version 5.0
+%worker_type G.1X
+%number_of_workers 2
+%idle_timeout 30                         # minutes; the default is 2880 (48 hours!)
+%additional_python_modules great_expectations==1.3.0
+%%configure
+{ "--enable-glue-datacatalog": "true", "--datalake-formats": "iceberg" }</code></pre><pre><code class="py">df = spark.table("sales.orders").filter("dt = '2026-11-17'").limit(1000)
+df.printSchema(); df.show(5)</code></pre>
+<div class="exf"><p>Set <code>%idle_timeout</code> low: a forgotten session otherwise keeps billing for two days. Use few workers and sample data while exploring. <code>%stop_session</code> ends it. Magics must come before the first code cell that starts the session.</p></div></div>
+
+<h2>Try it: the local Docker image</h2>
+<div class="ex"><div class="exh">Run a Glue script and its tests locally<span class="tag">shell</span></div><pre><code class="sh">docker pull public.ecr.aws/glue/aws-glue-libs:5
+
+# run a job script
+docker run -it --rm -v ~/.aws:/home/hadoop/.aws -v $PWD:/home/hadoop/workspace \
+  -e AWS_PROFILE=dev public.ecr.aws/glue/aws-glue-libs:5 \
+  spark-submit /home/hadoop/workspace/src/orders_job.py --JOB_NAME local_test
+
+# run unit tests in the same image (also what CI runs)
+docker run --rm -v $PWD:/home/hadoop/workspace public.ecr.aws/glue/aws-glue-libs:5 \
+  -c "cd /home/hadoop/workspace &amp;&amp; python3 -m pytest tests/"</code></pre>
+<div class="exf"><p>The Glue 5.0 image is a single image for batch and streaming and runs on x86 and ARM (Apple Silicon). Some features only exist in the real service: <b>job bookmarks</b> and the <b>Glue Parquet writer</b> don't work locally, so test those in a dev account.</p></div></div>
+
+<div class="tw"><table class="t">
+<tr><th>Option</th><th>Real data?</th><th>Cost</th><th>Best for</th></tr>
+<tr><td>Interactive session (notebook)</td><td>Yes, with IAM role</td><td>DPU-hours while running</td><td>Exploring data, debugging a prod issue</td></tr>
+<tr><td>Local Docker</td><td>Samples or S3 with your credentials</td><td>Free</td><td>Unit tests, CI, offline work</td></tr>
+<tr><td>Plain local PySpark (pip)</td><td>Samples</td><td>Free</td><td>Pure Spark logic without Glue APIs</td></tr>
+<tr><td>Dev Glue job run</td><td>Yes</td><td>Full job cost</td><td>Integration test before prod</td></tr>
+</table></div>
+
+<div class="box tip"><b class="lbl">Structure the code so it can be tested</b><p>Keep transformations as functions that take and return DataFrames (<code>def clean_orders(df) -&gt; DataFrame</code>) in a Python package; the Glue script only reads, calls them and writes. Then tests can call the functions on tiny DataFrames in Docker without S3. See <a href="#testing">Testing PySpark code</a>.</p></div>
+
+<h2>In the interview</h2>
+<div class="say"><p>I explore with Glue interactive sessions from a notebook with a short idle timeout and few workers, then move the logic into tested functions in a package. Unit tests run locally and in CI inside the official Glue Docker image, so the Spark and library versions match the service. Features like job bookmarks only work in the service, so a dev job run is the last integration step before deploying the same script to prod with infrastructure as code.</p></div>
+
+<div class="remember"><ul>
+<li>Interactive sessions: magics first, low <code>%idle_timeout</code>, small workers.</li>
+<li>Docker image <code>aws-glue-libs:5</code>: local runs, pytest, CI. No bookmarks locally.</li>
+<li>Transformations as testable functions; the script is thin.</li>
+</ul></div>
+</section>
+
+<section class="lesson" id="config-precedence" data-ch="Production engineering" data-t="Which config wins? Spark configuration precedence" data-lvl="I" data-min="10">
+<h1>Which config wins? Spark configuration precedence</h1>
+<div class="oneline">When the same setting is set in several places, the one closest to your code usually wins, and some settings can't be changed once the job has started.</div>
+
+<div class="cols">
+<div><h4>What is it?</h4><p>A Spark setting can come from cluster defaults (<code>spark-defaults.conf</code>, EMR classifications), from <code>spark-submit --conf</code> or Glue job parameters, from the session builder in code, or from <code>spark.conf.set</code> at runtime.</p></div>
+<div><h4>Why does it matter?</h4><p>“I set executor memory to 8g but the job still uses 4g” is a classic. Knowing the order and which settings are fixed at start-up saves hours.</p></div>
+<div><h4>Two kinds of setting</h4><p><b>Runtime SQL settings</b> (<code>spark.sql.shuffle.partitions</code>, AQE…) can change any time. <b>Start-up settings</b> (executor memory and cores, driver memory, <code>spark.sql.warehouse.dir</code>, extensions, catalogs) are fixed when the SparkContext starts.</p></div>
+</div>
+
+<figure class="dg"><svg viewBox="0 0 790 200" role="img" aria-label="Config precedence">
+<rect x="20" y="20" width="560" height="34" rx="6" class="bxt"/><text x="32" y="42" class="b">4. spark.conf.set(...) at runtime   (runtime SQL settings only)</text>
+<rect x="20" y="62" width="560" height="34" rx="6" class="bxa"/><text x="32" y="84" class="b">3. SparkConf / SparkSession.builder.config(...) in code</text>
+<rect x="20" y="104" width="560" height="34" rx="6" class="bxw"/><text x="32" y="126" class="b">2. spark-submit --conf / Glue job parameters / EMR step args</text>
+<rect x="20" y="146" width="560" height="34" rx="6" class="bxg"/><text x="32" y="168" class="b">1. spark-defaults.conf / EMR classifications / Serverless defaults</text>
+<path d="M620 175V25" class="lno" marker-end="url(#arrO)"/><text x="634" y="90" class="o">higher wins</text><text x="634" y="110" class="s">(for the same key)</text>
+</svg></figure>
+
+<h2>Try it: real behaviour on Spark 3.5.6</h2>
+<div class="ex"><div class="exh">Changing settings after the session started<span class="tag">real output</span></div><pre><code class="py">spark.conf.set("spark.executor.memory", "8g")</code></pre><pre class="out"><code>AnalysisException: [CANNOT_MODIFY_CONFIG] Cannot modify the value of the Spark config: "spark.executor.memory".</code></pre><pre><code class="py">spark.conf.set("spark.sql.warehouse.dir", "/tmp/x")</code></pre><pre class="out"><code>AnalysisException: Cannot modify the value of a static config: spark.sql.warehouse.dir.</code></pre><pre><code class="py">s2 = SparkSession.builder.config("spark.sql.shuffle.partitions", "99").getOrCreate()
+s3 = SparkSession.builder.config("spark.executor.memory", "16g").getOrCreate()
+print(s2 is spark, spark.conf.get("spark.sql.shuffle.partitions"))
+print(spark.sparkContext.getConf().get("spark.executor.memory", "(not set)"))</code></pre><pre class="out"><code>True 99
+(not set)</code></pre>
+<div class="exf"><p><b>What to notice:</b> <code>getOrCreate()</code> returns the <b>existing</b> session. It applies runtime SQL settings from the builder (shuffle partitions became 99) but silently <b>ignores</b> start-up settings like executor memory. In Glue, the session already exists when your script runs, so memory must be set by the worker type or job parameters, not in code.</p></div></div>
+
+<h2>Where to set what on AWS</h2>
+<div class="tw"><table class="t">
+<tr><th>Platform</th><th>Start-up settings (memory, cores, catalogs)</th><th>Runtime SQL settings</th></tr>
+<tr><td>Glue</td><td>Worker type and count; job parameters (<code>--conf</code>, <code>--datalake-formats</code>); run arguments override the job's default arguments</td><td><code>spark.conf.set</code> in the script</td></tr>
+<tr><td>EMR on EC2</td><td><code>spark-defaults</code> classification for the cluster; <code>--conf</code> per step overrides it</td><td><code>spark.conf.set</code> or <code>--conf</code></td></tr>
+<tr><td>EMR Serverless</td><td>Application default runtime config; job <code>sparkSubmitParameters</code> override it</td><td><code>spark.conf.set</code></td></tr>
+<tr><td>Local / tests</td><td><code>SparkSession.builder.config(...)</code> before the first <code>getOrCreate()</code></td><td><code>spark.conf.set</code></td></tr>
+</table></div>
+<p>To check what actually took effect, look at the <b>Environment</b> tab of the Spark UI (or History Server): it lists the final value of every property.</p>
+
+<h2>In the interview</h2>
+<div class="say"><p>Spark settings layer up: cluster defaults, then spark-submit or job parameters, then values set in code, and runtime SQL settings can be changed with spark.conf.set at any point. Start-up settings like executor memory, driver memory, warehouse dir and catalog extensions are fixed when the context starts, so setting them in a running Glue script does nothing or fails. I set those through worker types and job parameters, and confirm the final values in the Environment tab.</p></div>
+
+<div class="remember"><ul>
+<li>Code &gt; submit/job params &gt; cluster defaults (same key).</li>
+<li>Memory, cores, catalogs = start-up only. SQL settings = any time.</li>
+<li><code>getOrCreate()</code> on an existing session ignores start-up settings. Check the Environment tab.</li>
+</ul></div>
+</section>
+
 <section class="lesson" id="testing" data-ch="Production engineering" data-t="Testing PySpark code" data-lvl="I" data-min="10">
 <h1>Testing PySpark code</h1>
 <div class="plain"><p>Spark code is easy to test if you write transformations as <b>pure functions</b>: a function takes DataFrames and returns a DataFrame, with no reading or writing inside. Then a test builds a tiny input DataFrame by hand, calls the function, and compares the result with the expected rows. Spark 3.5 ships <code>assertDataFrameEqual</code> for exactly this.</p></div>
@@ -5817,6 +6699,128 @@ def test_keeps_latest_and_breaks_ties(spark):
 </section>
 
 <!-- ================= SPARK 4 ================= -->
+<section class="lesson" id="pii" data-ch="Production engineering" data-t="PII: find it, mask it, hash it, encrypt it, delete it" data-lvl="A" data-min="13">
+<h1>PII: find it, mask it, hash it, encrypt it, delete it</h1>
+<div class="oneline">Personal data (names, emails, phone numbers, IDs) must be found, protected in a way that still lets analysts work, and deletable on request.</div>
+
+<div class="cols">
+<div><h4>What is PII?</h4><p><b>Personally identifiable information</b>: anything that identifies a person, alone or combined (email, phone, PAN/SSN, address, date of birth). Health data (PHI) and card data have extra rules (HIPAA, PCI).</p></div>
+<div><h4>Why does it matter?</h4><p>Laws like GDPR and India's DPDP Act require minimum access, protection and the right to be deleted. A leaked analytics table with raw emails is a serious incident; for healthcare and pharma clients it's a contract breach.</p></div>
+<div><h4>The five moves</h4><p><b>Find</b> it (classify), <b>mask</b> it for display, <b>hash</b> it to keep joins working, <b>encrypt</b> it when someone must read the original, and <b>delete</b> it everywhere when asked.</p></div>
+</div>
+
+<h2>Pick the right technique</h2>
+<div class="tw"><table class="t">
+<tr><th>Technique</th><th>Reversible?</th><th>Still joinable?</th><th>Use for</th></tr>
+<tr><td>Drop the column</td><td>–</td><td>No</td><td>Data nobody downstream needs (the best option)</td></tr>
+<tr><td>Mask (<code>a*******@gmail.com</code>)</td><td>No</td><td>No</td><td>Showing in reports and support tools</td></tr>
+<tr><td>Salted hash (pseudonymise)</td><td>No</td><td>Yes, same input = same hash</td><td>Counting and joining customers across tables</td></tr>
+<tr><td>Encrypt (AES / KMS)</td><td>Yes, with the key</td><td>Only if deterministic</td><td>Fields a few authorised people must read</td></tr>
+<tr><td>Tokenise (vault lookup)</td><td>Yes, via the vault</td><td>Yes</td><td>Card numbers, IDs in regulated systems</td></tr>
+<tr><td>Restrict access (Lake Formation column/row/cell filters)</td><td>–</td><td>–</td><td>Same table, different views per role</td></tr>
+</table></div>
+
+<h2>Try it: mask, hash and encrypt in Spark</h2>
+<div class="ex good"><div class="exh">Built-in functions only<span class="tag">real output, Spark 3.5.6</span></div><pre><code class="py">salt = get_secret("pii/salt")                  # from Secrets Manager, never in code
+key  = get_secret("pii/aes-key")               # 16/24/32-byte key, ideally a KMS data key
+
+protected = people.select(
+    F.sha2(F.concat(F.lower("email"), F.lit(salt)), 256).alias("email_hash"),
+    F.regexp_replace("email", r"(?&lt;=.).(?=[^@]*@)", "*").alias("email_masked"),
+    F.concat(F.lit("******"), F.substring("phone", -4, 4)).alias("phone_masked"),
+    F.base64(F.expr(f"aes_encrypt(pan, '{key}', 'GCM')")).alias("pan_encrypted"))
+protected.show(truncate=False)</code></pre><pre class="out"><code>+----------------------------------------------------------------+------------------+------------+----------------------------------------------------+
+|email_hash                                                      |email_masked      |phone_masked|pan_encrypted                                       |
++----------------------------------------------------------------+------------------+------------+----------------------------------------------------+
+|e659d00aa8f1491d29f00f2d78b5e89a4fe7ad81213d494260aed9038431ab38|a*******@gmail.com|******3210  |+Ai5U2cy8+xt0bk28tCJ7D39qZnnmb1OfBkZU7lMCAE2CHsqgDU=|
++----------------------------------------------------------------+------------------+------------+----------------------------------------------------+</code></pre><pre><code class="py">protected.select(F.expr(f"cast(aes_decrypt(unbase64(pan_encrypted), '{key}', 'GCM') as string)")).show()</code></pre><pre class="out"><code>ABCPK1234Q</code></pre>
+<div class="exf"><p>Why salt the hash: an unsalted SHA-256 of a phone number can be reversed by hashing all possible phone numbers. Normalise before hashing (lower-case, trim) so the same email always gives the same hash. GCM encryption uses a random IV, so the same PAN encrypts differently each time: secure, but not joinable.</p></div></div>
+
+<h2>Finding PII you didn't know about</h2>
+<div class="ex"><div class="exh">Glue's sensitive data detection inside a job<span class="tag">aws glue</span></div><pre><code class="py">from awsglueml.transforms import EntityDetector
+detector = EntityDetector()
+found = detector.classify_columns(dyf, ["EMAIL", "PHONE_NUMBER", "PERSON_NAME"], 0.1, 0.8)
+# → {"contact": ["EMAIL"], "notes": ["PHONE_NUMBER"]}  columns whose sampled values match, above the threshold</code></pre>
+<div class="exf"><p>Glue offers <code>classify_columns()</code> (which columns contain PII) and <code>detect()</code> (per row, with actions to mask or redact) for its managed entity types plus custom ones. For scanning whole S3 buckets, Amazon Macie finds PII across objects. Free-text columns like <code>notes</code> are where PII hides.</p></div></div>
+
+<h2>The hard part: deleting someone everywhere</h2>
+<figure class="dg"><svg viewBox="0 0 790 130" role="img" aria-label="Right to be forgotten">
+<rect x="10" y="30" width="170" height="70" rx="8" class="bxa"/><text x="22" y="54" class="b">1. DELETE rows</text><text x="22" y="74" class="s">in every Iceberg table</text>
+<path d="M180 65H208" class="ln" marker-end="url(#arr)"/>
+<rect x="210" y="30" width="170" height="70" rx="8" class="bxw"/><text x="222" y="54" class="b">2. Expire snapshots</text><text x="222" y="74" class="s">old snapshots still</text><text x="222" y="90" class="s">hold the data!</text>
+<path d="M380 65H408" class="ln" marker-end="url(#arr)"/>
+<rect x="410" y="30" width="170" height="70" rx="8" class="bxt"/><text x="422" y="54" class="b">3. Remove orphans</text><text x="422" y="74" class="s">files no longer used</text>
+<path d="M580 65H608" class="ln" marker-end="url(#arr)"/>
+<rect x="610" y="30" width="170" height="70" rx="8" class="bxp"/><text x="622" y="54" class="b">4. Raw + backups</text><text x="622" y="74" class="s">raw zone, exports,</text><text x="622" y="90" class="s">copies in other stores</text>
+</svg></figure>
+<p>An Iceberg <code>DELETE</code> only creates a new snapshot; time travel can still read the person's data until those snapshots are expired and the files removed. Keep the raw zone short-lived or encrypted per customer, and keep a list of every system that holds the data.</p>
+
+<h2>In a real AWS project</h2>
+<div class="box aws"><b class="lbl">Where it shows up</b><p>In a pharma or healthcare data platform, raw files land in a restricted bucket with short retention. The Glue curation job drops unneeded identifiers, hashes patient and HCP IDs with a salt from Secrets Manager (so analysts can still join and count), encrypts the few fields that support needs with a KMS key, and registers tables in Lake Formation with column-level permissions. Deletion requests run a scheduled job that deletes by hashed ID across tables, then expires snapshots.</p></div>
+
+<h2>In the interview</h2>
+<div class="say"><p>I first minimise: drop PII nobody needs. For identifiers analysts must join on, I use a salted SHA-256 hash with the salt in Secrets Manager. For display I mask. For fields some roles must read, I encrypt with KMS-managed keys and control access with Lake Formation column and row filters. I discover unknown PII with Glue's sensitive data detection or Macie. For deletion requests in Iceberg, I delete the rows and then expire snapshots and remove orphan files, because old snapshots still contain the data.</p></div>
+<details class="iq"><summary>Q: Why isn't hashing alone enough to protect a phone number?</summary><p>Phone numbers have a small set of possible values, so an attacker can hash all of them and look up matches. A secret salt (or a keyed HMAC) prevents that, and the salt must be stored and rotated securely.</p></details>
+
+<div class="remember"><ul>
+<li>Minimise → mask → salted hash (joinable) → encrypt (readable with key) → restrict access.</li>
+<li>Find PII with Glue sensitive data detection or Macie.</li>
+<li>Iceberg delete + expire snapshots + remove orphans = really gone.</li>
+</ul></div>
+</section>
+
+<section class="lesson" id="lineage" data-ch="Production engineering" data-t="Data lineage: where did this number come from?" data-lvl="A" data-min="10">
+<h1>Data lineage: where did this number come from?</h1>
+<div class="oneline">Lineage is a map of which jobs read which tables and wrote which tables (and columns), so you can trace any number back to its source.</div>
+
+<div class="cols">
+<div><h4>What is it?</h4><p>A graph: datasets are nodes, jobs are the arrows between them. Column-level lineage goes further: <code>gold.revenue.net_amount</code> came from <code>silver.orders.amount</code> minus <code>silver.refunds.amount</code>.</p></div>
+<div><h4>Why does it matter?</h4><p>Three daily questions: “This dashboard number looks wrong: where does it come from?” (debugging), “If I change this column, what breaks?” (impact analysis), and “Show the auditor how this report is built” (compliance).</p></div>
+<div><h4>How does it work?</h4><p><b>OpenLineage</b> is an open standard. A Spark listener watches each job, reads the plans, and emits events: inputs, outputs, schema and column mappings. A backend collects them into a graph.</p></div>
+</div>
+
+<figure class="dg"><svg viewBox="0 0 790 150" role="img" aria-label="Lineage graph">
+<rect x="10" y="20" width="150" height="40" rx="6" class="bxg"/><text x="22" y="45" class="m">raw.orders</text>
+<rect x="10" y="90" width="150" height="40" rx="6" class="bxg"/><text x="22" y="115" class="m">raw.refunds</text>
+<rect x="220" y="55" width="150" height="40" rx="20" class="bxa"/><text x="232" y="80" class="b">job: clean</text>
+<path d="M160 40L218 70" class="ln" marker-end="url(#arr)"/><path d="M160 110L218 80" class="ln" marker-end="url(#arr)"/>
+<rect x="430" y="55" width="150" height="40" rx="6" class="bxt"/><text x="442" y="80" class="m">silver.orders</text>
+<path d="M370 75H428" class="ln" marker-end="url(#arr)"/>
+<rect x="640" y="55" width="140" height="40" rx="6" class="bxp"/><text x="652" y="80" class="m">gold.revenue</text>
+<path d="M580 75H638" class="ln" marker-end="url(#arr)"/>
+<text x="10" y="148" class="s">Trace back from gold.revenue to every source; trace forward from raw.refunds to everything it feeds.</text>
+</svg></figure>
+
+<h2>On AWS today</h2>
+<p>Glue 5.0 and later include the OpenLineage libraries for Spark (DataFrame jobs; DynamicFrame operations are not captured). EMR's Spark also includes them. Events go to <b>Amazon SageMaker Unified Studio</b> (built on DataZone), which shows the lineage graph, including column-level lineage, next to the catalog.</p>
+<div class="ex"><div class="exh">Turn on lineage for a Glue 5 job (job parameter --conf)<span class="tag">aws glue</span></div><pre><code>spark.extraListeners=io.openlineage.spark.agent.OpenLineageSparkListener
+--conf spark.openlineage.transport.type=amazon_datazone_api
+--conf spark.openlineage.transport.domainId=dzd_abc123
+--conf spark.glue.accountId=123456789012</code></pre>
+<div class="exf"><p>Use DataFrame or Spark SQL reads and writes on catalog tables (not raw <code>rdd</code> or DynamicFrame tricks) so the listener can see clear inputs and outputs. Outside AWS's tools, the same OpenLineage events can go to Marquez or other backends.</p></div></div>
+
+<h2>Lightweight lineage you control</h2>
+<p>Even without a lineage tool, record each run's inputs and outputs. Iceberg makes it easy: tag every commit with the run, and log which snapshots you read.</p>
+<div class="ex"><div class="exh">Run metadata on every Iceberg commit<span class="tag">pyspark + iceberg</span></div><pre><code class="py">(df.writeTo("glue_catalog.gold.revenue")
+   .option("snapshot-property.job_name", "gold_revenue")
+   .option("snapshot-property.job_run_id", run_id)
+   .option("snapshot-property.source_snapshots", f"silver.orders:{orders_snap}")
+   .overwritePartitions())
+
+# later: which run produced the current data, from which inputs?
+spark.sql("SELECT committed_at, summary['job_run_id'], summary['source_snapshots'] FROM glue_catalog.gold.revenue.snapshots ORDER BY committed_at DESC LIMIT 5").show(truncate=False)</code></pre>
+<div class="exf"><p>With input and output snapshot IDs recorded, you can reproduce any output exactly (time travel to the input snapshots and rerun), which is what auditors in regulated industries want.</p></div></div>
+
+<h2>In the interview</h2>
+<div class="say"><p>Lineage tells us which jobs read and write which tables and columns, for debugging wrong numbers, impact analysis before schema changes, and audits. On AWS, Glue 5 and EMR ship the OpenLineage Spark listener, and SageMaker Unified Studio collects the events into a lineage graph with column-level detail. I also stamp every Iceberg commit with the job run ID and the input snapshot IDs, so any output can be traced and reproduced exactly.</p></div>
+
+<div class="remember"><ul>
+<li>Lineage = graph of datasets and jobs; column-level for impact analysis.</li>
+<li>OpenLineage listener (Glue 5+, EMR) → SageMaker Unified Studio.</li>
+<li>Iceberg snapshot properties: run ID + input snapshots = traceable, reproducible.</li>
+</ul></div>
+</section>
+
 <section class="lesson" id="spark4" data-ch="Spark 4 (what's coming)" data-t="Spark 4: what changes and what to say" data-lvl="A" data-min="12">
 <h1>Spark 4: what changes and what to say</h1>
 <div class="plain"><p>Spark 4.0 was released in 2025 and 4.1 followed; AWS offers it on <b>Glue 6.0</b> (Spark 4.1.1, Python 3.13) since August 2026. Most production code on Glue 5.x and EMR 7.x is still Spark 3.5. Your DataFrame code mostly works unchanged, but some defaults change behaviour, so migrations are deliberate projects. Everything on this page is <span class="v4">Spark 4 only</span> unless noted.</p></div>
