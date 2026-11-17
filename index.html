@@ -57,6 +57,20 @@ h1{font-family:var(--f-display);font-weight:800;font-size:clamp(32px,6vw,54px);l
 .tip{margin-top:36px;border-top:1px solid var(--line);padding-top:18px;font-size:14px;color:var(--muted);max-width:70ch}
 .tip b{color:var(--ink)}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+.search{position:relative;margin:0 0 14px;max-width:560px}
+.search svg{position:absolute;left:14px;top:50%;transform:translateY(-50%);width:18px;height:18px;color:var(--muted);pointer-events:none}
+.search input{width:100%;font:500 16px var(--f-body);color:var(--ink);background:var(--surface);border:1.5px solid var(--line);border-radius:12px;padding:12px 76px 12px 42px;-webkit-appearance:none;appearance:none}
+.search input::placeholder{color:var(--muted)}
+.search input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.search input::-webkit-search-cancel-button{display:none}
+.search .clr{position:absolute;right:8px;top:50%;transform:translateY(-50%);font:600 12px var(--f-mono);border:1px solid var(--line);background:var(--bg);color:var(--muted);border-radius:7px;padding:5px 9px;cursor:pointer}
+.search .kbd{position:absolute;right:10px;top:50%;transform:translateY(-50%);font:600 12px var(--f-mono);color:var(--muted);border:1px solid var(--line);border-radius:6px;padding:2px 7px;pointer-events:none}
+.count{font:600 12px var(--f-mono);color:var(--muted);margin:-8px 0 14px;min-height:1em}
+.empty{border:1px dashed var(--line);border-radius:14px;padding:28px 20px;text-align:center;color:var(--muted)}
+.empty button{margin-top:10px;font:600 13px var(--f-mono);border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:999px;padding:7px 13px;cursor:pointer}
+.card.first{border-color:var(--accent)}
+.card mark{background:var(--accent-soft);color:inherit;border-radius:3px;padding:0 2px}
+@media (max-width:600px){.search .kbd{display:none}}
 </style>
 </head>
 <body>
@@ -64,6 +78,14 @@ h1{font-family:var(--f-display);font-weight:800;font-size:clamp(32px,6vw,54px);l
   <div class="mark"><b>AWS DE</b> Study library</div>
   <h1>Learn AWS data engineering, APIs and agentic AI</h1>
   <p class="lede">Twelve self-study guides with lessons, worked code and quizzes. Open any of them in your browser or on your phone. Your progress is saved on the device you study on.</p>
+
+  <div class="search" role="search">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+    <input id="q" type="search" placeholder="Search guides: SQL, Redshift, Docker, DSA…" aria-label="Search guides" autocomplete="off" enterkeyhint="go">
+    <span class="kbd" id="kbd">/</span>
+    <button type="button" class="clr" id="clr" hidden>Clear</button>
+  </div>
+  <p class="count" id="count" aria-live="polite"></p>
 
   <div class="filters" role="group" aria-label="Filter guides">
     <button type="button" data-f="all" aria-pressed="true">All</button>
@@ -146,17 +168,65 @@ h1{font-family:var(--f-display);font-weight:800;font-size:clamp(32px,6vw,54px);l
       <span class="go">Open guide →</span>
     </a>
   </div>
+  <div class="empty" id="empty" hidden><b>No guide matches “<span id="eq"></span>”.</b><br>Try another word, like <i>SQL</i>, <i>Spark</i> or <i>interview</i>.<br><button type="button" id="reset">Show all guides</button></div>
 
   <p class="tip"><b>On your phone:</b> open this page, then tap <b>Share → Add to Home Screen</b> on iPhone, or <b>⋮ → Add to Home screen</b> in Chrome on Android, to keep the library one tap away.</p>
 </div>
 <script>
 (function(){
-  var btns=document.querySelectorAll('.filters button'),cards=document.querySelectorAll('.card');
+  var btns=document.querySelectorAll('.filters button'),cards=[].slice.call(document.querySelectorAll('.card'));
+  var q=document.getElementById('q'),clr=document.getElementById('clr'),kbd=document.getElementById('kbd'),
+      count=document.getElementById('count'),empty=document.getElementById('empty'),eq=document.getElementById('eq'),cat='all';
+  // keep each card's original text so highlighting can be undone
+  cards.forEach(function(c){
+    var h=c.querySelector('h2'),p=c.querySelector('p');
+    c._h=h.textContent;c._p=p.textContent;c._t=(c._h+' '+c._p+' '+c.querySelector('.tag').textContent+' '+c.getAttribute('href')).toLowerCase();
+  });
+  function esc(t){return t.replace(/[&<>"]/g,function(ch){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch];});}
+  function hl(text,words){
+    var out=esc(text);
+    words.forEach(function(w){
+      if(w.length<2)return;
+      var re=new RegExp('('+esc(w).replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+')','gi');
+      out=out.replace(/(<[^>]*>)|([^<]+)/g,function(m,tag,txt){return tag?tag:txt.replace(re,'<mark>$1</mark>');});
+    });
+    return out;
+  }
+  function apply(){
+    var raw=q.value.trim(),words=raw.toLowerCase().split(/\s+/).filter(Boolean),shown=0,first=null;
+    cards.forEach(function(c){
+      var ok=(cat==='all'||c.getAttribute('data-c')===cat)&&words.every(function(w){return c._t.indexOf(w)>-1;});
+      c.hidden=!ok;c.classList.remove('first');
+      c.querySelector('h2').innerHTML=words.length?hl(c._h,words):esc(c._h);
+      c.querySelector('p').innerHTML=words.length?hl(c._p,words):esc(c._p);
+      var inTitle=ok&&words.length&&words.every(function(w){return c._h.toLowerCase().indexOf(w)>-1;});
+      c.style.order=inTitle?-1:'';
+      if(ok)shown++;
+    });
+    first=cards.filter(function(c){return !c.hidden&&c.style.order==='-1';})[0]||cards.filter(function(c){return !c.hidden;})[0]||null;
+    if(words.length&&first)first.classList.add('first');
+    clr.hidden=!raw;kbd.hidden=!!raw;
+    empty.hidden=shown>0;eq.textContent=raw;
+    count.textContent=(raw||cat!=='all')?(shown+' of '+cards.length+' guides'+(words.length&&shown?' · press Enter to open the first':'')):'';
+    return first;
+  }
   btns.forEach(function(b){b.addEventListener('click',function(){
-    var f=b.getAttribute('data-f');
+    cat=b.getAttribute('data-f');
     btns.forEach(function(x){x.setAttribute('aria-pressed',String(x===b));});
-    cards.forEach(function(c){c.hidden=!(f==='all'||c.getAttribute('data-c')===f);});
+    apply();
   });});
+  q.addEventListener('input',apply);
+  q.addEventListener('keydown',function(e){
+    if(e.key==='Enter'){var f=apply();if(f&&q.value.trim()){location.href=f.getAttribute('href');}}
+    if(e.key==='Escape'){q.value='';apply();}
+  });
+  clr.addEventListener('click',function(){q.value='';apply();q.focus();});
+  document.getElementById('reset').addEventListener('click',function(){
+    q.value='';cat='all';btns.forEach(function(x){x.setAttribute('aria-pressed',String(x.getAttribute('data-f')==='all'));});apply();
+  });
+  document.addEventListener('keydown',function(e){
+    if(e.key==='/'&&document.activeElement!==q&&!e.metaKey&&!e.ctrlKey){e.preventDefault();q.focus();}
+  });
 })();
 </script>
 </body>
