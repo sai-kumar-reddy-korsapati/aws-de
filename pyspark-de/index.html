@@ -1973,7 +1973,7 @@ Project [order_id#26, amount#28]
 <h2>What breaks optimisation</h2>
 <ul>
 <li><b>Python UDFs</b>: Catalyst cannot look inside, so filters on UDF output cannot be pushed down.</li>
-<li><b>Functions on partition or filter columns</b>: <code>substring(dt, 1, 7) = '2026-11'</code> often stops partition pruning; write <code>dt BETWEEN '2026-11-01' AND '2026-11-30'</code> instead.</li>
+<li><b>Functions or casts on filter columns</b>: <code>cast(amount as string) = '300'</code> is not pushed to the Parquet reader. On a partition column Spark still prunes listed folders, but a catalog table can no longer ask the Glue catalog for just the matching partitions. Write <code>dt BETWEEN '2026-11-01' AND '2026-11-30'</code> instead (see <a href="#rd-partitions">Partition pruning, DPP and projection</a>).</li>
 <li><b>Caching early</b>: a filter applied after <code>cache()</code> filters the cached data, not the source.</li>
 <li><b>Going through <code>df.rdd</code></b>: leaves the optimiser entirely.</li>
 <li><b>CSV / JSON sources</b>: filters can be applied during parsing, but there are no statistics to skip data.</li>
@@ -2826,7 +2826,7 @@ AttributeError: 'NoneType' object has no attribute 'split'</code></pre>
 <rect x="24" y="150" width="220" height="22" rx="4" class="bxg"/><text x="34" y="166" class="m">… 1,000 more days (skipped)</text>
 <path d="M260 131H318" class="lno" marker-end="url(#arrO)"/>
 <rect x="320" y="90" width="460" height="82" rx="8" class="bxa"/><text x="332" y="112" class="b">WHERE dt = '2026-11-02'</text><text x="332" y="134" class="s">Plan: PartitionFilters: [(dt = 2026-11-02)]</text><text x="332" y="154" class="s">Reads 1 folder out of 1,003: 99.9% less data and fewer S3 list calls.</text>
-<rect x="320" y="20" width="460" height="58" rx="8" class="bxr"/><text x="332" y="42" class="b">WHERE substring(dt, 1, 7) = '2026-11'</text><text x="332" y="62" class="s">A function on the column can block pruning: write a range on dt instead.</text>
+<rect x="320" y="20" width="460" height="58" rx="8" class="bxr"/><text x="332" y="42" class="b">WHERE dt = '2026-11-02' OR amount &gt; 2900</text><text x="332" y="62" class="s">OR with a data column: no pruning at all, full table read.</text>
 </svg></figure>
 
 <h2>Choosing the partition column</h2>
@@ -2851,7 +2851,7 @@ AttributeError: 'NoneType' object has no attribute 'split'</code></pre>
 <div class="remember"><ul>
 <li>Disk partitioning = folders; enables pruning.</li>
 <li>Partition by what you filter on, usually a date; low cardinality.</li>
-<li>Never wrap the partition column in a function inside the filter.</li>
+<li>Filter partition columns with plain comparisons or ranges; never OR them with data columns.</li>
 </ul></div>
 </section>
 
@@ -3060,18 +3060,18 @@ clean.unpersist()                                              # free memory for
 
 <section class="lesson" id="pruning" data-ch="Performance tuning" data-t="Pushdown, pruning and dynamic partition pruning" data-lvl="A" data-min="10">
 <h1>Pushdown, pruning and dynamic partition pruning</h1>
-<div class="plain"><p>The cheapest data is data you never read. Spark has four ways to avoid reading: skip <b>columns</b> you don't select, skip <b>folders</b> that don't match a partition filter, skip <b>row groups</b> inside Parquet files whose statistics cannot match, and skip <b>fact partitions</b> using values found in a filtered dimension table at run time.</p></div>
+<div class="plain"><p>The cheapest data is data you never read. Spark has four ways to avoid reading: skip <b>columns</b> you don't select, skip <b>folders</b> that don't match a partition filter, skip <b>row groups</b> inside Parquet files whose statistics cannot match, and skip <b>fact partitions</b> using values found in a filtered dimension table at run time.</p><p>This lesson is the summary. The <a href="#rd-map">Reading less data</a> chapter goes deep on every term (projection pushdown, nested pruning, partition projection, bloom filters, Glue catalog predicates) with real Spark 3.5.6 plans.</p></div>
 
 <div class="tw"><table class="t">
 <tr><th>Technique</th><th>Skips</th><th>Shows in plan as</th><th>Breaks when</th></tr>
 <tr><td>Column pruning</td><td>Unused columns</td><td><code>ReadSchema</code> with few columns</td><td><code>select("*")</code> carried to the end; CSV/JSON</td></tr>
-<tr><td>Partition pruning</td><td>Whole folders</td><td><code>PartitionFilters: [...]</code></td><td>Function wrapped around the partition column</td></tr>
+<tr><td>Partition pruning</td><td>Whole folders</td><td><code>PartitionFilters: [...]</code></td><td>OR with a data column; catalog-side pruning lost with functions</td></tr>
 <tr><td>Predicate pushdown</td><td>Parquet row groups / pages</td><td><code>PushedFilters: [...]</code></td><td>Unsorted data (wide min/max), UDF filters</td></tr>
-<tr><td>Dynamic partition pruning</td><td>Fact folders, using a filtered dimension</td><td><code>dynamicpruningexpression(...)</code></td><td>Join key not the fact's partition column</td></tr>
+<tr><td>Dynamic partition pruning</td><td>Fact folders, using a filtered dimension</td><td><code>dynamicpruningexpression(...)</code></td><td>Join key not the fact's partition column; dimension filter not selective</td></tr>
 </table></div>
 
 <figure class="dg"><svg viewBox="0 0 790 190" role="img" aria-label="Dynamic partition pruning">
-<rect x="10" y="20" width="250" height="80" rx="8" class="bxp"/><text x="22" y="42" class="b">dim_date</text><text x="22" y="62" class="m">WHERE is_holiday = true</text><text x="22" y="82" class="s">→ dt IN (2026-10-20, 2026-11-08)</text>
+<rect x="10" y="20" width="250" height="80" rx="8" class="bxp"/><text x="22" y="42" class="b">dim_date</text><text x="22" y="62" class="m">WHERE holiday = 'Diwali'</text><text x="22" y="82" class="s">→ dt IN (2026-10-20, 2026-11-08)</text>
 <path d="M260 60H338" class="lno" marker-end="url(#arrO)"/><text x="266" y="50" class="o">runtime filter</text>
 <rect x="340" y="20" width="440" height="150" rx="8" class="bx"/><text x="352" y="42" class="b">fact_sales partitioned by dt (1,000 folders)</text>
 <rect x="352" y="56" width="120" height="24" rx="4" class="bxg"/><text x="360" y="73" class="m">dt=2026-10-19</text>
@@ -3132,6 +3132,345 @@ spark.sql("ALTER TABLE glue_catalog.db.orders WRITE ORDERED BY customer_id")</co
 </section>
 
 <!-- ================= DEBUGGING ================= -->
+<!-- ================= READING LESS DATA ================= -->
+<section class="lesson" id="rd-map" data-ch="Reading less data" data-t="The read-optimisation map: every term" data-lvl="B" data-min="12">
+<h1>The read-optimisation map: every term</h1>
+<div class="plain"><p>The fastest data is data you never read. Spark, Glue, Athena and Iceberg have many tricks to avoid reading data, and each has a name: column pruning, projection pushdown, predicate pushdown, partition pruning, partition projection, data skipping and more. They all do the same thing at a different <b>level</b>: skip whole folders, skip whole files, skip blocks inside a file, skip columns, or skip rows. Once you see the levels, the terms stop being confusing.</p></div>
+
+<div class="analogy"><p>Think of finding one invoice in an office archive. You go only to the <b>room</b> for November (partition pruning). In that room you check the <b>index card</b> on each cabinet and skip cabinets whose invoice-number range can't contain yours (file pruning with statistics). Inside a cabinet you skip <b>drawers</b> by their labels (row-group skipping). From the right folder you photocopy only the <b>two pages</b> you need, not the whole folder (column pruning). Each skip happens before any reading, so it saves the most work.</p></div>
+
+<figure class="anim">
+<div class="atitle">From 10 TB to a few MB: each level skips more</div>
+<div class="stage"><svg viewBox="0 0 790 360" role="img" aria-label="Read optimisation funnel">
+<g data-s="1"><rect x="40" y="14" width="710" height="44" rx="6" class="bxg" data-hi="1"/><text x="54" y="42" class="b">Table: 1,000 daily partitions · 40,000 files · 10 TB · 60 columns</text></g>
+<g data-s="2"><rect x="100" y="70" width="590" height="44" rx="6" class="bxa" data-hi="2"/><text x="114" y="91" class="b">1. Partition pruning</text><text x="114" y="107" class="s">WHERE dt = '2026-11-03' → 1 folder of 1,000 (40 files, 10 GB)</text></g>
+<g data-s="3"><rect x="160" y="126" width="470" height="44" rx="6" class="bxp" data-hi="3"/><text x="174" y="147" class="b">2. File pruning (Iceberg manifests)</text><text x="174" y="163" class="s">customer_id range per file → 4 files of 40</text></g>
+<g data-s="4"><rect x="210" y="182" width="370" height="44" rx="6" class="bxw" data-hi="4"/><text x="224" y="203" class="b">3. Row-group skipping (pushdown)</text><text x="224" y="219" class="s">min/max, dictionary, bloom → 6 row groups</text></g>
+<g data-s="5"><rect x="260" y="238" width="270" height="44" rx="6" class="bxo" data-hi="5"/><text x="274" y="259" class="b">4. Column pruning</text><text x="274" y="275" class="s">3 of 60 columns</text></g>
+<g data-s="6"><rect x="305" y="294" width="180" height="44" rx="6" class="bxt" data-hi="6"/><text x="319" y="315" class="b">5. Row filter</text><text x="319" y="331" class="s">matching rows only</text></g>
+<g data-s="6"><text x="520" y="322" class="g">≈ 20 MB actually read</text></g>
+</svg></div>
+<ol class="asteps">
+<li>Without any optimisation, a query would list and read everything.</li>
+<li><b>Partition pruning</b> uses folder names (or Iceberg partition metadata) to skip whole partitions. Biggest win, cheapest check.</li>
+<li><b>File pruning</b>: Iceberg manifests store min/max per column for every data file, so files that cannot match are skipped without opening them.</li>
+<li><b>Row-group skipping</b> (the result of predicate pushdown): the Parquet reader uses statistics in each file's footer to skip blocks of about 128 MB.</li>
+<li><b>Column pruning</b>: only the columns the query uses are read from the columnar file.</li>
+<li>Finally Spark applies the filter to each remaining row. Only this last step touches individual rows.</li>
+</ol>
+</figure>
+
+<h2>Every term in one table</h2>
+<div class="tw"><table class="t">
+<tr><th>Term</th><th>What it skips</th><th>Who does it</th><th>How you see it</th></tr>
+<tr><td><b>Column pruning</b></td><td>Columns the query never uses</td><td>Spark optimiser + columnar reader</td><td><code>ReadSchema</code> in the plan</td></tr>
+<tr><td><b>Projection pushdown</b></td><td>Same idea, said from the source's side: the list of needed columns (the “projection”) is pushed into the reader</td><td>Parquet/ORC reader, JDBC source, Athena</td><td><code>ReadSchema</code>; the SQL sent to the database</td></tr>
+<tr><td><b>Nested schema pruning</b></td><td>Unused fields inside a struct</td><td>Spark (on by default)</td><td><code>ReadSchema: struct&lt;address:struct&lt;city:string&gt;&gt;</code></td></tr>
+<tr><td><b>Predicate pushdown</b> (filter pushdown)</td><td>Blocks of rows that cannot match a filter</td><td>Spark sends filters to the reader</td><td><code>PushedFilters</code></td></tr>
+<tr><td><b>Partition pruning</b> (static)</td><td>Partition folders that do not match a filter on partition columns</td><td>Spark file index, Glue catalog, Athena</td><td><code>PartitionFilters</code></td></tr>
+<tr><td><b>Dynamic partition pruning</b> (DPP)</td><td>Fact partitions not matching a filtered dimension, decided at run time</td><td>Spark</td><td><code>dynamicpruningexpression(...)</code></td></tr>
+<tr><td><b>Partition projection</b></td><td>The catalog lookup of partitions: Athena computes partition paths from rules instead</td><td>Athena only</td><td>Table properties <code>projection.*</code></td></tr>
+<tr><td><b>Catalog partition predicate / partition indexes</b></td><td>Fetching unneeded partition metadata from the Glue catalog</td><td>Glue Data Catalog (server side)</td><td>Glue job option <code>catalogPartitionPredicate</code></td></tr>
+<tr><td><b>File pruning / data skipping</b></td><td>Whole files whose statistics cannot match</td><td>Iceberg (manifests), Delta (log stats)</td><td>Fewer “files read” in the SQL tab</td></tr>
+<tr><td><b>Row-group skipping</b></td><td>Row groups inside a Parquet file</td><td>Parquet reader: min/max, dictionary, bloom filter</td><td>Lower “size of files read” than file sizes</td></tr>
+<tr><td><b>Page skipping (column index)</b></td><td>Pages inside a row group</td><td>Parquet reader (column index, on by default)</td><td>Lower bytes read</td></tr>
+<tr><td><b>Bloom filter</b></td><td>Row groups that definitely do not contain a value (for equality filters on high-cardinality columns)</td><td>Parquet/Iceberg if written with bloom filters</td><td>Fewer row groups read</td></tr>
+<tr><td><b>Runtime bloom filter join</b></td><td>Rows of the big join side whose key cannot exist in the small side</td><td>Spark optimiser (on by default in 3.5)</td><td><code>might_contain(...)</code> filter in the plan</td></tr>
+<tr><td><b>Aggregate pushdown</b></td><td>Reading rows at all for MIN/MAX/COUNT: answered from metadata</td><td>Parquet (DataSource V2, off by default), JDBC, Iceberg</td><td><code>PushedAggregation</code></td></tr>
+<tr><td><b>Limit pushdown</b></td><td>Rows after the first N</td><td>JDBC and some V2 sources</td><td>Query sent to the database</td></tr>
+<tr><td><b>Vectorised reader</b></td><td>Not skipping, but decoding columns in batches instead of row by row</td><td>Spark Parquet/ORC reader (on by default)</td><td><code>Batched: true</code>, <code>ColumnarToRow</code></td></tr>
+</table></div>
+
+<div class="say"><p>I think of read optimisation as layers. Partition pruning skips folders, file pruning skips files using table-format statistics, predicate pushdown lets the Parquet reader skip row groups using min/max, dictionaries and bloom filters, and column pruning reads only the columns needed. I verify each in the plan: PartitionFilters, PushedFilters and ReadSchema, and in the SQL tab by files and bytes read.</p></div>
+
+<div class="remember"><ul>
+<li>Levels: partitions → files → row groups → pages → columns → rows.</li>
+<li>Pruning = skipping structure; pushdown = sending work to the reader so it can skip.</li>
+<li>Prove it in the plan: <code>PartitionFilters</code>, <code>PushedFilters</code>, <code>ReadSchema</code>.</li>
+</ul></div>
+</section>
+
+<section class="lesson" id="rd-columns" data-ch="Reading less data" data-t="Column pruning and projection pushdown" data-lvl="I" data-min="11">
+<h1>Column pruning and projection pushdown</h1>
+<div class="plain"><p>In a columnar file each column is stored separately, so a reader can fetch just the columns it needs. <b>Column pruning</b> is Spark working out which columns the whole query uses. <b>Projection pushdown</b> is handing that list (the “projection”, a database word for the selected columns) to the reader. The two terms describe one feature and interviewers use them interchangeably. On a 60-column table where you need 3, it cuts the bytes read by about 95%.</p></div>
+
+<h2>See it in real plans (Spark 3.5.6)</h2>
+<p>The table has six columns: <code>order_id, customer_id, amount, notes, address</code> (a struct) and the partition column <code>dt</code>.</p>
+<div class="ex plan"><div class="exh">orders.filter("amount &gt; 100").explain()  — no select<span class="tag">real plan</span></div><pre><code>FileScan parquet [order_id,customer_id,amount,notes,address,dt] ...
+  ReadSchema: struct&lt;order_id:string,customer_id:string,amount:decimal(12,2),notes:string,address:struct&lt;city:s...</code></pre>
+<div class="exf"><p>Every column is read, including the long <code>notes</code> text and the whole <code>address</code> struct, because the result keeps all of them.</p></div></div>
+<div class="ex plan"><div class="exh">orders.select("order_id", "amount").filter("amount &gt; 100").explain()<span class="tag">real plan</span></div><pre><code>*(1) Project [order_id#24, amount#26]
++- *(1) Filter (isnotnull(amount#26) AND (amount#26 &gt; 100.00))
+   +- FileScan parquet [order_id#24,amount#26,dt#29] ...
+        ReadSchema: <span class="mk">struct&lt;order_id:string,amount:decimal(12,2)&gt;</span></code></pre>
+<div class="exf"><p>Only two data columns are read. Notice that the <code>select</code> came <b>before</b> the filter in the code but Spark still pruned correctly: Catalyst looks at the whole plan, so the order of <code>select</code> and <code>filter</code> in your code does not matter for pruning.</p></div></div>
+<div class="ex plan"><div class="exh">Nested schema pruning: orders.select("order_id", "address.city")<span class="tag">real plan</span></div><pre><code>*(1) Project [order_id#24, address#28.city AS city#39]
++- FileScan parquet [order_id#24,address#28,dt#29] ...
+     ReadSchema: <span class="mk">struct&lt;order_id:string,address:struct&lt;city:string&gt;&gt;</span></code></pre>
+<div class="exf"><p>Only <code>city</code> is read from the <code>address</code> struct, not <code>pin</code> or <code>line1</code>. This is <code>spark.sql.optimizer.nestedSchemaPruning.enabled</code>, on by default. It matters a lot for wide nested clickstream and API data.</p></div></div>
+
+<h2>What defeats column pruning</h2>
+<div class="tw"><table class="t">
+<tr><th>Pattern</th><th>Why</th><th>Fix</th></tr>
+<tr><td>Carrying <code>select("*")</code> to the end, or never selecting</td><td>The output needs every column</td><td>Select needed columns as early as you know them</td></tr>
+<tr><td><code>cache()</code> on the full DataFrame</td><td>Our real plan shows the cached <code>InMemoryRelation</code> was built with all six columns, though the later query used two</td><td>Select and filter <b>before</b> caching</td></tr>
+<tr><td>A Python UDF receiving a whole struct or row</td><td>Spark must deliver every field to Python</td><td>Pass only the fields needed</td></tr>
+<tr><td>CSV and JSON sources</td><td>Row formats: the whole line must be read and parsed anyway</td><td>Convert to Parquet/Iceberg early</td></tr>
+<tr><td><code>df.rdd</code>, <code>toPandas()</code> on full rows</td><td>Leaves the optimiser with all columns</td><td>Select first</td></tr>
+<tr><td>Writing everything “just in case” to the curated layer</td><td>Wide tables cost every downstream reader</td><td>Model tables around what consumers need</td></tr>
+</table></div>
+
+<div class="box aws"><b class="lbl">On AWS this is money</b><p>Athena and Redshift Spectrum charge by bytes scanned. A dashboard query that runs <code>SELECT *</code> on a wide Parquet table pays for every column; selecting the four it displays can cut the bill by an order of magnitude. In Glue, fewer bytes read means shorter runs and fewer DPU-hours.</p></div>
+
+<div class="remember"><ul>
+<li>Column pruning (Spark decides) + projection pushdown (reader obeys) = read only needed columns.</li>
+<li>Check <code>ReadSchema</code>. Nested fields are pruned too.</li>
+<li>Caches, UDFs on whole rows, CSV/JSON and SELECT * defeat it.</li>
+</ul></div>
+</section>
+
+<section class="lesson" id="rd-predicates" data-ch="Reading less data" data-t="Predicate pushdown in depth" data-lvl="I" data-min="15">
+<h1>Predicate pushdown in depth</h1>
+<div class="plain"><p>A <b>predicate</b> is a filter condition such as <code>amount &gt; 100</code>. <b>Predicate pushdown</b> means Spark hands that condition to the data source so the source can skip data before Spark sees it. For Parquet, the reader compares the condition with each row group's min/max statistics (and dictionary or bloom filter) and skips row groups that cannot contain a match. For a database over JDBC, the condition becomes part of the SQL <code>WHERE</code> clause. Spark still re-checks every remaining row, because skipping is coarse.</p></div>
+
+<h2>Three filter lists in every scan</h2>
+<div class="tw"><table class="t">
+<tr><th>Plan field</th><th>Meaning</th></tr>
+<tr><td><code>PartitionFilters</code></td><td>Conditions on partition columns: used to choose folders. Strongest.</td></tr>
+<tr><td><code>DataFilters</code></td><td>Conditions on data columns that Spark would like to push.</td></tr>
+<tr><td><code>PushedFilters</code></td><td>The subset the reader actually accepted, translated into source filters (<code>GreaterThan</code>, <code>In</code>, <code>IsNotNull</code>…). If a condition is in DataFilters but missing here, it was <b>not</b> pushed.</td></tr>
+</table></div>
+
+<h2>What pushes and what doesn't: real results</h2>
+<p>Each row below is a real Spark 3.5.6 plan on the same Parquet table.</p>
+<div class="tw"><table class="t">
+<tr><th>Filter in your code</th><th>PushedFilters</th><th>Pushed?</th></tr>
+<tr class="ok"><td><code>amount &gt; 100</code></td><td><code>IsNotNull(amount), GreaterThan(amount,100.00)</code></td><td>Yes</td></tr>
+<tr class="ok"><td><code>customer_id.isin("1","2","3")</code></td><td><code>In(customer_id, [1,2,3])</code></td><td>Yes</td></tr>
+<tr class="ok"><td><code>order_id.startswith("o12")</code></td><td><code>StringStartsWith(order_id,o12)</code></td><td>Yes</td></tr>
+<tr class="hot"><td><code>amount.cast("string") == "300.00"</code></td><td><code>IsNotNull(amount)</code> only</td><td>No: a function or cast on the column</td></tr>
+<tr class="hot"><td>Python UDF <code>big(amount)</code></td><td>(empty)</td><td>No: Spark can't see inside a UDF</td></tr>
+<tr class="hot"><td><code>(dt == '2026-11-02') | (amount &gt; 2900)</code></td><td>(empty); PartitionFilters also empty</td><td>No: an OR mixing a partition column and a data column can't be split, so neither pruning nor pushdown happens</td></tr>
+</table></div>
+<div class="box warn"><b class="lbl">The OR trap</b><p>An <code>OR</code> across a partition column and a data column reads the <b>whole table</b>. If the business logic allows, rewrite it as a <code>union</code> of two filtered reads, or move the condition so the partition filter is AND-ed with everything else.</p></div>
+
+<h2>Rules for writing pushable filters</h2>
+<ul>
+<li>Compare the column itself with a literal: <code>col &gt; value</code>, <code>=</code>, <code>IN</code>, <code>IS NULL</code>, <code>startswith</code>. Put functions on the literal side instead: <code>order_date &gt;= '2026-11-01'</code>, not <code>date_format(order_date, 'yyyy-MM') = '2026-11'</code>.</li>
+<li>Match types. A string column compared with a number gets cast, and the cast can block pushdown.</li>
+<li>Filter in the same step as the read, not after a <code>cache()</code> or a UDF.</li>
+<li>Sort data on commonly filtered columns when writing, otherwise pushdown is accepted but skips nothing (next lesson shows the numbers).</li>
+</ul>
+
+<h2>Inside Parquet: four levels of skipping</h2>
+<dl class="terms">
+<dt>Row-group statistics</dt><dd>min, max and null count per column per row group. The default and most important (<code>spark.sql.parquet.filterPushdown=true</code>).</dd>
+<dt>Dictionary filtering</dt><dd>For dictionary-encoded columns (few distinct values), the reader checks whether the value is in the row group's dictionary at all.</dd>
+<dt>Column index (page level)</dt><dd>Min/max per page (about 1 MB), so even inside a row group whole pages can be skipped.</dd>
+<dt>Bloom filters</dt><dd>Optional, written per row group for chosen columns; answer “definitely not here” for equality lookups on high-cardinality columns such as IDs or emails, where min/max ranges are useless.</dd>
+</dl>
+<p>Record-level filtering inside the Parquet reader is off by default (<code>spark.sql.parquet.recordLevelFilter.enabled=false</code>) because Spark's own Filter, which runs on vectorised batches, is faster.</p>
+
+<h2>Pushdown to databases over JDBC</h2>
+<div class="ex"><div class="exh">Push work into the database<span class="tag">pyspark</span></div><pre><code class="py">orders = (spark.read.format("jdbc")
+    .option("url", url).option("dbtable", "public.orders")
+    .option("user", user).option("password", password)
+    .option("pushDownPredicate", "true")      # default true: filters become WHERE
+    .option("pushDownAggregate", "true")      # Spark 3.2+: simple aggregates run in the database
+    .option("pushDownLimit", "true")          # Spark 3.3+: LIMIT pushed
+    .load()
+    .filter("order_date &gt;= '2026-11-01'")       # becomes part of the SQL sent to the database
+    .select("order_id", "amount"))            # only these columns are selected in the SQL
+
+# Or write the query yourself: everything inside runs in the database
+spark.read.format("jdbc").option("url", url).option("query",
+    "SELECT customer_id, SUM(amount) AS total FROM orders WHERE order_date &gt;= DATE '2026-11-01' GROUP BY customer_id").load()</code></pre>
+<div class="exf"><p>Aggregate pushdown only applies when the aggregation can be done fully in the database (for example without a partitioned parallel read splitting it). In Glue, the JDBC connection options support the same idea plus <code>hashexpression</code>/<code>hashpartitions</code> for parallel reads.</p></div></div>
+
+<h2>Aggregate pushdown for Parquet</h2>
+<p>With <code>spark.sql.parquet.aggregatePushdown=true</code>, <code>MIN</code>, <code>MAX</code> and <code>COUNT</code> without a filter can be answered from Parquet footers. It is <b>off by default</b> and only works with the DataSource V2 Parquet reader; with the default V1 reader our test plan still read the column. Iceberg answers such queries from its own metadata when it can. Mention it as “available, not something I rely on”.</p>
+
+<details class="iq"><summary>Interview: Is predicate pushdown the same as partition pruning?</summary>
+<p>No. Partition pruning skips whole partition folders using filters on partition columns, before any file is opened; it shows as PartitionFilters. Predicate pushdown sends filters on ordinary data columns into the file reader, which skips row groups or pages inside files using statistics; it shows as PushedFilters. Both reduce data read, at different levels, and they work together.</p></details>
+<details class="iq"><summary>Interview: Your filter is in DataFilters but not in PushedFilters. Why?</summary>
+<p>The reader could not translate it: a cast or function on the column, a Python UDF, a non-deterministic expression, an unsupported type, or an OR combined with a non-pushable branch. I rewrite the condition as a plain comparison of the column with a literal of the same type, or move complex logic after a pushable pre-filter.</p></details>
+
+<div class="remember"><ul>
+<li>PushedFilters = what the reader accepted. DataFilters alone = not pushed.</li>
+<li>Column vs literal of the same type pushes; functions, casts, UDFs and mixed ORs don't.</li>
+<li>Parquet skips by row-group stats, dictionary, page index and optional bloom filters.</li>
+<li>JDBC: pushDownPredicate, pushDownAggregate, pushDownLimit, or write the query yourself.</li>
+</ul></div>
+</section>
+
+<section class="lesson" id="rd-partitions" data-ch="Reading less data" data-t="Partition pruning, DPP and partition projection" data-lvl="A" data-min="16">
+<h1>Partition pruning, DPP and partition projection</h1>
+<div class="plain"><p>Partition pruning can happen in three different places, and senior interviewers like to check you know which is which. <b>Spark</b> prunes folders it has already listed. The <b>Glue Data Catalog</b> can return only the matching partitions instead of all of them, which matters when a table has hundreds of thousands. <b>Athena</b> can skip the catalog entirely and calculate partition locations from rules: that is <b>partition projection</b>. Dynamic partition pruning is a fourth flavour where Spark discovers the partition values at run time from a join.</p></div>
+
+<h2>1. Static pruning in Spark</h2>
+<div class="ex plan"><div class="exh">orders.filter(F.col("dt") == "2026-11-02").select("order_id")<span class="tag">real plan</span></div><pre><code>FileScan parquet [order_id#24,dt#29] ... PartitionFilters: [isnotnull(dt#29), <span class="mk">(dt#29 = 2026-11-02)</span>], PushedFilters: [], ReadSchema: struct&lt;order_id:string&gt;</code></pre></div>
+<div class="ex plan"><div class="exh">A function on the partition column still prunes in Spark<span class="tag">real plan</span></div><pre><code>orders.filter(F.substring("dt", 1, 7) == "2026-11")
+FileScan parquet ... PartitionFilters: [isnotnull(dt#29), <span class="mk">(substring(cast(dt#29 as string), 1, 7) = 2026-11)</span>]</code></pre>
+<div class="exf"><p>Spark evaluates any deterministic expression against the partition <b>values</b> it holds in memory, so this still skips folders. The cost appears elsewhere: for catalog tables, Spark can only ask the Glue catalog or Hive metastore for matching partitions when the filter is a simple comparison. With a function it fetches the metadata of <b>every</b> partition and filters afterwards, which is slow on tables with very many partitions. A plain range (<code>dt BETWEEN '2026-11-01' AND '2026-11-30'</code>) is pushed to the catalog as well, so it is still the better habit.</p></div></div>
+<p>Spark infers partition column types from folder names: <code>dt=2026-11-02</code> became a <code>date</code> column in our test. Set <code>spark.sql.sources.partitionColumnTypeInference.enabled=false</code> to keep them as strings, or read through a catalog table whose schema defines the type.</p>
+
+<h2>2. Pruning in the Glue Data Catalog</h2>
+<div class="tw"><table class="t">
+<tr><th>Glue option</th><th>Where it filters</th><th>Syntax</th><th>Use when</th></tr>
+<tr><td><code>push_down_predicate</code></td><td>Glue lists <b>all</b> partitions from the catalog, then filters them before listing S3 files</td><td>Spark SQL</td><td>Always, on DynamicFrame reads of partitioned tables</td></tr>
+<tr><td><code>catalogPartitionPredicate</code></td><td>The catalog itself returns only matching partitions, using <b>partition indexes</b></td><td>JSQL (more limited)</td><td>Tables with very many partitions, where listing them all takes minutes</td></tr>
+</table></div>
+<div class="ex"><div class="exh">Both together<span class="tag">aws glue</span></div><pre><code class="py">dyf = glue_context.create_dynamic_frame.from_catalog(
+    database="sales", table_name="orders",
+    push_down_predicate="dt &gt;= '2026-11-01' AND region IN ('south', 'west')",    # full Spark SQL
+    additional_options={"catalogPartitionPredicate": "dt &gt;= '2026-11-01'"})       # coarse, server side</code></pre>
+<div class="exf"><p>Use the server-side predicate for the simple, coarse part (it needs a partition index on those keys) and the Spark SQL predicate for the rest. With DataFrames, <code>spark.table("sales.orders").filter(...)</code> on a Glue-catalog table gets the equivalent behaviour from Spark's metastore partition pruning for simple comparisons.</p></div></div>
+
+<h2>3. Athena partition projection</h2>
+<p>For a table with many partitions, Athena normally looks up partitions in the Glue catalog, and someone must keep registering new ones (crawler, <code>MSCK REPAIR</code>, <code>ALTER TABLE ADD PARTITION</code>). With <b>partition projection</b> you describe the partition values as rules in table properties, and Athena computes which S3 paths to read for a query. No partition registration, and no catalog lookup.</p>
+<div class="ex"><div class="exh">Table properties<span class="tag">athena ddl</span></div><pre><code class="sql">ALTER TABLE logs.app_events SET TBLPROPERTIES (
+  'projection.enabled'          = 'true',
+  'projection.dt.type'          = 'date',
+  'projection.dt.format'        = 'yyyy-MM-dd',
+  'projection.dt.range'         = '2024-01-01,NOW',
+  'projection.dt.interval'      = '1',
+  'projection.dt.interval.unit' = 'DAYS',
+  'projection.region.type'      = 'enum',
+  'projection.region.values'    = 'south,north,east,west',
+  'storage.location.template'   = 's3://lake/app_events/dt=${dt}/region=${region}/'
+);</code></pre>
+<div class="exf"><p>Projection types: <code>date</code>, <code>integer</code>, <code>enum</code> and <code>injected</code> (the value must be given in the query's WHERE clause, useful for IDs).</p></div></div>
+<div class="box bad"><b class="lbl">The catch every senior should mention</b><p>Partition projection works <b>only in Athena</b>. Spark on Glue or EMR and Redshift Spectrum read the standard partition metadata in the catalog. If a Glue job reads a projected table whose partitions were never registered, it sees no partitions and returns <b>no rows</b>. Keep registering partitions for those engines, or use Iceberg, whose partitions live in its own metadata and work in every engine.</p></div>
+
+<h2>4. Dynamic partition pruning (DPP)</h2>
+<p>When a large partitioned fact table joins a filtered dimension on the partition column, Spark evaluates the dimension filter first, broadcasts the matching key values, and uses them as a run-time partition filter on the fact scan.</p>
+<div class="ex plan"><div class="exh">SELECT ... FROM orders o JOIN dim_date d ON o.dt = d.dt WHERE d.holiday = 'Diwali'<span class="tag">real plan</span></div><pre><code>FileScan parquet [amount#11,dt#14] ... PartitionFilters: [isnotnull(dt#14), <span class="mk">dynamicpruningexpression(dt#14 IN dynamicpruning#29)</span>]
+   +- SubqueryBroadcast dynamicpruning#29, 0, [dt#21]
+        +- ReusedExchange [dt#21], BroadcastExchange ...</code></pre>
+<div class="exf"><p>The fact scan reads only partitions whose <code>dt</code> appears in the filtered dimension, and the broadcast is reused for the join. In our tests, DPP did <b>not</b> kick in when the dimension was filtered by a bare boolean column (<code>WHERE d.is_holiday</code>); it did with an equality on a string column. Spark only adds DPP when it judges the dimension filter to be selective (equality, IN, comparisons) and when there is a benefit, so always check the plan rather than assume.</p></div></div>
+<p>DPP requirements in short: the join key is the fact table's <b>partition column</b>; the dimension side has a selective filter; it is an equi-join; <code>spark.sql.optimizer.dynamicPartitionPruning.enabled</code> is true (default). Iceberg tables get the same effect through runtime filtering.</p>
+
+<details class="iq"><summary>Interview: What is partition projection and when would you use it?</summary>
+<p>An Athena feature where partition values are described as rules in table properties (date ranges, integer ranges, enums, injected values) and a location template, so Athena computes the S3 paths instead of looking up partitions in the Glue catalog. I'd use it for append-only data with predictable partitions and very many of them, such as logs partitioned by date and hour, because it removes partition registration and speeds up planning. The limitation is that only Athena uses it: Glue Spark jobs, EMR and Redshift Spectrum still need partitions registered in the catalog, so for tables shared across engines I'd still register partitions or use Iceberg.</p></details>
+<details class="iq"><summary>Interview: Explain push_down_predicate vs catalogPartitionPredicate.</summary>
+<p>push_down_predicate takes Spark SQL and is applied after Glue has listed all partitions from the catalog, before listing S3 files. catalogPartitionPredicate is evaluated by the Glue Data Catalog using partition indexes, so only matching partition metadata is returned; it is faster for tables with millions of partitions but supports simpler syntax. I use both: a coarse catalog predicate and a full push-down predicate.</p></details>
+
+<div class="remember"><ul>
+<li>Spark prunes listed folders with any deterministic expression on partition columns.</li>
+<li>Catalog-side pruning needs simple comparisons; Glue adds catalogPartitionPredicate + partition indexes.</li>
+<li>Partition projection = Athena-only rules instead of catalog partitions.</li>
+<li>DPP = run-time partition filter from a selectively filtered dimension; verify in the plan.</li>
+</ul></div>
+</section>
+
+<section class="lesson" id="rd-skipping" data-ch="Reading less data" data-t="Data skipping inside files: sorting, bloom filters, Iceberg" data-lvl="A" data-min="14">
+<h1>Data skipping inside files: sorting, bloom filters, Iceberg</h1>
+<div class="plain"><p>Predicate pushdown only helps if the statistics are useful. Every Parquet row group stores the min and max of each column. If the data is in random order, every row group contains a bit of everything, so every min/max range covers almost all values and nothing can be skipped. If the data is <b>sorted</b> (or clustered) on the filter column, each row group covers a narrow range and most can be skipped. How you <b>write</b> data decides how fast it can be <b>read</b>.</p></div>
+
+<h2>The same data, unsorted and sorted (real numbers)</h2>
+<p>We wrote 300,000 orders twice with 12 row groups per file, once as-is and once with <code>sortWithinPartitions("customer_id")</code>, then read the row-group statistics with PyArrow. Query: <code>customer_id = '42'</code>.</p>
+<div class="tables">
+<table class="mini"><caption>Unsorted: row groups to read = 12 of 12</caption><tr><th>row group</th><th>min</th><th>max</th></tr><tr><td>1</td><td>0</td><td>999</td></tr><tr><td>2</td><td>0</td><td>998</td></tr><tr><td>3</td><td>0</td><td>998</td></tr><tr><td>4</td><td>0</td><td>999</td></tr><tr><td colspan="3">… every range contains 42</td></tr></table>
+<table class="mini"><caption>Sorted: row groups to read = 1 of 12</caption><tr><th>row group</th><th>min</th><th>max</th></tr><tr><td class="new">1</td><td class="new">0</td><td class="new">1391</td></tr><tr><td>2</td><td>1391</td><td>1778</td></tr><tr><td>3</td><td>1778</td><td>2169</td></tr><tr><td>4</td><td>2169</td><td>2568</td></tr><tr><td colspan="3">… only one range contains 42</td></tr></table>
+</div>
+<p>(Customer IDs are strings, so they sort as text: '42' falls between '0' and '1391'.) Same data, same query, same pushdown: 12× less data read, purely from how it was written.</p>
+
+<div class="ex"><div class="exh">Writing for fast reads<span class="tag">pyspark + sql</span></div><pre><code class="py"># Plain Parquet: cluster each date's rows, then sort inside each file
+(df.repartition("dt").sortWithinPartitions("customer_id")
+   .write.partitionBy("dt").parquet("s3://lake/orders/"))
+
+# Iceberg: declare the order once; writers and compaction follow it
+spark.sql("ALTER TABLE glue_catalog.sales.orders WRITE ORDERED BY customer_id")
+spark.sql("CALL glue_catalog.system.rewrite_data_files(table =&gt; 'sales.orders', strategy =&gt; 'sort', "
+          "sort_order =&gt; 'zorder(customer_id, product_id)')")     # two filter columns: z-order</code></pre></div>
+<div class="tw"><table class="t">
+<tr><th>Layout technique</th><th>Helps queries that filter on</th><th>Trade-off</th></tr>
+<tr><td>Partitioning</td><td>Low-cardinality columns (date, region)</td><td>Too fine = small files</td></tr>
+<tr><td>Sort within files</td><td>One high-cardinality column (customer_id)</td><td>Sort cost at write</td></tr>
+<tr><td>Z-order</td><td>Two or three columns used together</td><td>Each column skips less than a pure sort would</td></tr>
+<tr><td>Bloom filters</td><td>Equality on IDs, emails, where ranges don't help</td><td>Bigger files, write cost</td></tr>
+<tr><td>Bucketing (Iceberg <code>bucket(n, col)</code>)</td><td>Equality lookups and joins on a key</td><td>Fixed bucket count</td></tr>
+</table></div>
+
+<h2>Bloom filters</h2>
+<p>A bloom filter is a small bit array that answers “is this value <b>possibly</b> in this row group?” with no false negatives. For a column like <code>email</code> where every row group's min/max range covers almost everything, it lets the reader skip row groups for an equality filter.</p>
+<div class="ex"><div class="exh">Enable when writing<span class="tag">pyspark + sql</span></div><pre><code class="py"># Plain Parquet: Parquet writer option, per column
+df.write.option("parquet.bloom.filter.enabled#email", "true") \
+        .option("parquet.bloom.filter.expected.ndv#email", "5000000").parquet(path)
+
+# Iceberg table property, per column
+spark.sql("""ALTER TABLE glue_catalog.crm.customers SET TBLPROPERTIES (
+  'write.parquet.bloom-filter-enabled.column.email' = 'true',
+  'write.parquet.bloom-filter-fpp.column.email'     = '0.01')""")</code></pre>
+<div class="exf"><p>Only worth it for columns queried with <code>=</code> or <code>IN</code> that have many distinct values. Useless for range filters, and pointless on low-cardinality columns where the dictionary already does the job. Existing files only gain bloom filters when rewritten (compaction).</p></div></div>
+
+<h2>Iceberg file pruning</h2>
+<p>Iceberg manifests store, for every data file, its partition, row count and the lower and upper bound of each column. At planning time Spark reads the manifests and drops files whose bounds can't match, <b>before</b> opening any file or listing S3. This is why a well-sorted Iceberg table answers point lookups quickly even when it isn't partitioned by the lookup column. Check it with <code>SELECT file_path, lower_bounds, upper_bounds FROM glue_catalog.sales.orders.files</code>.</p>
+
+<h2>Runtime bloom filter joins</h2>
+<p>When a large table joins a much smaller, filtered one, Spark 3.5 can build a bloom filter from the small side's join keys and apply it to the big side <b>before</b> the shuffle, so rows that can't match never cross the network. It is on by default (<code>spark.sql.optimizer.runtime.bloomFilter.enabled=true</code> in our 3.5.6 session) and appears as a <code>might_contain(...)</code> filter in the plan. It complements broadcast joins for cases where the small side is too big to broadcast but still much smaller than the fact.</p>
+
+<h2>The vectorised reader</h2>
+<p><code>Batched: true</code> in the FileScan means Spark's vectorised Parquet reader decodes column values in batches of about 4,096 rows instead of row by row, which is several times faster. It is on by default; it falls back to row-by-row for some nested types in older versions. The <code>ColumnarToRow</code> node you see in plans converts those batches to rows for the next operator.</p>
+
+<details class="iq"><summary>Interview: Predicate pushdown is in the plan, but the query still reads almost everything. Why?</summary>
+<p>Pushdown only skips row groups whose statistics exclude the value. If the data isn't sorted or clustered on that column, every row group's min/max range covers the value, so nothing is skipped even though the filter was pushed. The fix is in the write: sort within partitions on the main filter column, z-order for two columns, add bloom filters for equality lookups on high-cardinality columns, and for Iceberg set a write order and compact with the sort strategy.</p></details>
+
+<div class="remember"><ul>
+<li>Pushdown is only as good as the statistics; sorting makes them narrow.</li>
+<li>Sort for one column, z-order for a few, bloom filters for equality on IDs.</li>
+<li>Iceberg prunes files from manifest bounds before opening them.</li>
+<li>Runtime bloom filters cut the big side before a shuffle join.</li>
+</ul></div>
+</section>
+
+<section class="lesson" id="rd-talk" data-ch="Reading less data" data-t="Using it in projects and interviews" data-lvl="A" data-min="14">
+<h1>Using it in projects and interviews</h1>
+<div class="plain"><p>Knowing the terms is half of it. The other half is showing that you applied them: you checked a plan, found that pruning or pushdown wasn't happening, changed something, and measured the result. This lesson gives you an audit checklist for any job, a worked project story, and the questions interviewers ask on this topic.</p></div>
+
+<h2>Audit any job in ten minutes</h2>
+<figure class="dg"><svg viewBox="0 0 790 150" role="img" aria-label="Read audit flow">
+<rect x="10" y="30" width="140" height="70" rx="8" class="bxa"/><text x="22" y="54" class="b">1. explain()</text><text x="22" y="74" class="s">each scan of the job</text>
+<path d="M150 65H168" class="ln" marker-end="url(#arr)"/>
+<rect x="170" y="30" width="140" height="70" rx="8" class="bxa"/><text x="182" y="54" class="b">2. PartitionFilters</text><text x="182" y="74" class="s">present on every</text><text x="182" y="88" class="s">partitioned table?</text>
+<path d="M310 65H328" class="ln" marker-end="url(#arr)"/>
+<rect x="330" y="30" width="140" height="70" rx="8" class="bxa"/><text x="342" y="54" class="b">3. PushedFilters</text><text x="342" y="74" class="s">same as DataFilters?</text>
+<path d="M470 65H488" class="ln" marker-end="url(#arr)"/>
+<rect x="490" y="30" width="140" height="70" rx="8" class="bxa"/><text x="502" y="54" class="b">4. ReadSchema</text><text x="502" y="74" class="s">only needed columns?</text>
+<path d="M630 65H648" class="ln" marker-end="url(#arr)"/>
+<rect x="650" y="30" width="130" height="70" rx="8" class="bxt"/><text x="662" y="54" class="b">5. SQL tab</text><text x="662" y="74" class="s">files and bytes read</text><text x="662" y="88" class="s">vs table size</text>
+<text x="10" y="128" class="s">Then fix: plain partition filters, no mixed ORs or casts, select early, cache after filters, sort, compact.</text>
+</svg></figure>
+
+<h2>A project story you can adapt</h2>
+<dl class="terms">
+<dt>Situation</dt><dd>A daily Glue 5.1 job enriched clickstream events (an Iceberg table, about 2 TB per month, 80 columns, partitioned by event day) and fed an Athena dashboard. It took 55 minutes and the dashboard's Athena cost was rising every month.</dd>
+<dt>Diagnosis</dt><dd>In the Spark UI the first stage read 60 GB for one day of data. <code>explain()</code> showed empty PartitionFilters: the filter was <code>to_date(event_ts) = run_date OR is_late = true</code>, an OR mixing a partition source column with a data column. The scan also read all 80 columns because a cached DataFrame was built before the select. In Athena, analysts filtered by <code>user_id</code>, but files were not sorted, so the scanned bytes stayed high.</dd>
+<dt>Changes</dt><dd>Rewrote the filter as a partition-range read plus a separate small read for late events, unioned. Moved the column selection before the cache. Set the Iceberg write order to <code>user_id</code> and ran sort compaction on recent partitions.</dd>
+<dt>Result</dt><dd>The first stage read 3.1 GB instead of 60 GB, the job dropped to 14 minutes, and Athena bytes scanned for the main dashboard query fell by about 85%.</dd>
+</dl>
+<div class="box tip"><b class="lbl">Make it yours</b><p>Use your own numbers. Even small wins count if you can show the before and after plan fields. Interviewers believe stories that name the evidence: “PartitionFilters were empty”, “ReadSchema had 80 columns”.</p></div>
+
+<h2>Interview questions on this topic</h2>
+<details class="iq"><summary>What is column pruning?</summary><p>Spark works out which columns the whole query actually uses and reads only those from columnar files such as Parquet and ORC. It shows as ReadSchema in the plan and includes nested fields inside structs. It doesn't help row formats like CSV and JSON.</p></details>
+<details class="iq"><summary>Column pruning vs projection pushdown?</summary><p>Two names for the same effect seen from different sides. Column pruning is the optimiser removing unused columns from the plan; projection pushdown is passing the remaining column list down to the data source so it only reads those. For JDBC it means the SELECT sent to the database lists only those columns.</p></details>
+<details class="iq"><summary>How does predicate pushdown work with Parquet?</summary><p>Spark translates filters on data columns into source filters and passes them to the Parquet reader. The reader compares them with each row group's footer statistics (min, max, nulls), dictionaries, page indexes and optional bloom filters, and skips row groups and pages that cannot match. Spark then filters the remaining rows. It shows as PushedFilters.</p></details>
+<details class="iq"><summary>Give examples of filters that are not pushed down.</summary><p>A cast or function on the column (cast(amount as string) = '300'), a Python UDF, a comparison needing an implicit type cast, non-deterministic expressions, and an OR that mixes a pushable condition with a non-pushable one. In a real Spark 3.5.6 plan, an OR between a partition column and a data column produced neither partition filters nor pushed filters.</p></details>
+<details class="iq"><summary>What is partition pruning? Static vs dynamic?</summary><p>Skipping partition folders that can't contain matching rows. Static pruning uses literal filters on partition columns known at planning time. Dynamic partition pruning applies when a partitioned fact joins a filtered dimension on the partition column: Spark computes the matching keys from the dimension at run time and uses them to filter the fact's partitions, shown as dynamicpruningexpression.</p></details>
+<details class="iq"><summary>What is partition projection?</summary><p>An Athena-only feature where partitions are calculated from rules in table properties rather than looked up in the Glue catalog, removing partition registration and catalog lookups for highly partitioned tables. Other engines such as Glue Spark, EMR and Redshift Spectrum still use the catalog's registered partitions.</p></details>
+<details class="iq"><summary>How do you make Athena queries cheaper on data your Spark jobs write?</summary><p>Write Parquet or Iceberg, partition by the main date filter, sort or z-order on the main filter columns, target 128 MB–1 GB files and compact, and keep curated tables narrow. Then ask consumers to select only needed columns and always filter on the partition column. Athena charges by bytes scanned, so every layer of pruning reduces cost directly.</p></details>
+<details class="iq"><summary>Why might a filter after cache() be slow?</summary><p>The cache was built from the full scan without the filter and with all columns, so the later filter runs on cached rows instead of being pushed into the file reader; no partition or row-group skipping and no column pruning happen for that read. Filter and select before caching.</p></details>
+<details class="iq"><summary>What is a bloom filter and when would you add one?</summary><p>A compact probabilistic structure per row group that says whether a value is definitely absent. It speeds up equality lookups on high-cardinality columns (IDs, emails) where min/max statistics can't exclude row groups. I add it only for such columns that are frequently filtered with = or IN, because it adds write cost and file size.</p></details>
+<details class="iq"><summary>Your table is partitioned by date, but queries filter by customer_id. What do you do?</summary><p>Not re-partition by customer_id, which would create millions of tiny partitions. Instead sort or z-order data within each date partition by customer_id (Iceberg write order plus sort compaction), optionally add bloom filters on customer_id, or bucket by customer_id in Iceberg. Iceberg's manifest bounds then prune files and Parquet statistics prune row groups.</p></details>
+<details class="iq"><summary>How do you push work into a database when reading over JDBC?</summary><p>Filters and selected columns are pushed by default; pushDownAggregate and pushDownLimit push simple aggregates and limits in Spark 3.2/3.3+. For anything complex I pass my own SQL through the query option so joins and aggregations run in the database, and I read in parallel with partitionColumn, bounds and numPartitions.</p></details>
+<details class="iq"><summary>How do you prove read optimisation worked?</summary><p>Before and after: the plan's PartitionFilters, PushedFilters and ReadSchema; the SQL tab's number of files read, partitions read and size of files read; stage input size and duration in the Stages tab; and for Athena, bytes scanned per query.</p></details>
+
+<div class="remember"><ul>
+<li>Audit: PartitionFilters, PushedFilters vs DataFilters, ReadSchema, files and bytes read.</li>
+<li>Tell stories with plan evidence and before/after numbers.</li>
+</ul></div>
+</section>
+
 <section class="lesson" id="slow-job" data-ch="Debugging real failures" data-t="Playbook: the job that got slow" data-lvl="A" data-min="12">
 <h1>Playbook: the job that got slow</h1>
 <div class="plain"><p>“Our daily Glue job used to take 40 minutes, now it takes 3 hours.” This is the most common senior interview scenario and the most common real incident. Answer it as an investigation, not a list of guesses: find what changed, find where the time goes, explain why, fix one thing.</p></div>
