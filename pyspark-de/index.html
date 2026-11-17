@@ -327,9 +327,9 @@ figure.anim figcaption{padding:0 16px 12px;font-size:.86rem;color:var(--muted)}
 
 <h2>Pick your path</h2>
 <div class="paths">
-<div><h4>New to Spark (2–3 weeks)</h4><ol><li>Spark basics, every lesson</li><li>DataFrame API, every lesson</li><li>Spark on AWS: Glue lessons</li><li>Coding round: first 10 problems</li></ol></div>
+<div><h4>New to Spark (2–3 weeks)</h4><ol><li>Spark basics, every lesson</li><li>DataFrame API, every lesson</li><li>Spark on AWS: Glue lessons</li><li>Coding round: problems 23–30, then 1–10</li></ol></div>
 <div><h4>Using Spark at work (2 weeks)</h4><ol><li>Spark internals</li><li>Spark UI, History Server and logs</li><li>Performance tuning</li><li>Apache Iceberg</li><li>Debugging real failures</li></ol></div>
-<div><h4>Interview in 7 days</h4><ol><li>Day 1–2: Internals + explain plans</li><li>Day 3: Spark UI + debugging</li><li>Day 4: Tuning + Iceberg</li><li>Day 5: Coding round, all problems</li><li>Day 6–7: Scenarios, rapid fire, quiz, cheat sheet</li></ol></div>
+<div><h4>Interview in 7 days</h4><ol><li>Day 1–2: Internals + explain plans</li><li>Day 3: Spark UI + debugging</li><li>Day 4: Tuning + Iceberg</li><li>Day 5: Coding round, mock rounds</li><li>Day 6–7: Scenarios, rapid fire, quiz, cheat sheet</li></ol></div>
 </div>
 
 <h2>Chapters</h2>
@@ -5476,6 +5476,663 @@ bad  = checked.filter(F.size("dq_errors") &gt; 0)</code></pre>
 +----------+---------+----------------+</code></pre>
 <div class="exf"><p>2 November had users u2 and u3, but u2 was already counted on 1 November, so only one user is new. Days with no new users (3 November) do not appear; join to a calendar if they must.</p></div></div></details>
 </section>
+<section class="lesson" id="code-basic" data-ch="Coding round" data-t="Problems 23–30: warm-up problems" data-lvl="B" data-min="18">
+<h1>Problems 23–30: warm-up problems</h1>
+<div class="plain"><p>Interviewers often start with a simple problem to see whether you can write PySpark fluently without help. These are the ones reported most often in screening rounds: cleaning data, running totals, anti joins, lists, renaming, and conditional aggregation. You should be able to write each in under five minutes. Every output below came from Spark 3.5.6.</p></div>
+<h2>23. Clean a messy orders file</h2>
+<p><b>Approach:</b> trim text, standardise case, convert types safely so bad values become NULL instead of failing, try two date formats, drop rows without a key, then keep one row per order.</p>
+<details class="iq"><summary>Show solution</summary>
+<div class="ex"><div class="exh">Solution<span class="tag">pyspark</span></div><pre><code class="py">clean = (raw.select(
+            F.trim("order_id").alias("order_id"),
+            F.lower(F.trim("customer_id")).alias("customer_id"),
+            F.expr("try_cast(trim(amount) AS DECIMAL(10,2))").alias("amount"),          # 'abc' -&gt; NULL
+            F.coalesce(F.expr("try_to_timestamp(order_date, 'yyyy-MM-dd')"),            # try format 1
+                       F.expr("try_to_timestamp(order_date, 'yyyy/MM/dd')")).cast("date").alias("order_date"),
+            F.upper(F.trim("country")).alias("country"))
+         .filter(F.col("order_id").isNotNull()))
+
+w = W.partitionBy("order_id").orderBy(F.col("amount").isNull(), F.desc("amount"))   # prefer rows with a valid amount
+clean = clean.withColumn("rn", F.row_number().over(w)).filter("rn = 1").drop("rn")</code></pre>
+<div class="outh">Output</div><pre class="out"><code>input rows: (" o1 ","C1"," 120.50","2026-11-01","in")  ("o2","c2","abc",...)  ("o2","c2","80",...)
+            (NULL,"c3","10",...)  ("o4","c3","-5","2026/11/02","US")
++--------+-----------+------+----------+-------+
+|order_id|customer_id|amount|order_date|country|
++--------+-----------+------+----------+-------+
+|      o1|         c1|120.50|2026-11-01|     IN|
+|      o2|         c2| 80.00|2026-11-01|     IN|
+|      o4|         c3| -5.00|2026-11-02|     US|
++--------+-----------+------+----------+-------+</code></pre>
+<div class="exf"><p><b>Talk about:</b> <code>try_cast</code> and <code>try_to_timestamp</code> (Spark 3.5) return NULL on bad input in both ANSI modes. The negative amount survived: say you would send it to a quarantine table with a rule, not silently drop it. In a real job the file is read with an explicit schema of strings first, then cleaned like this.</p></div></div></details>
+
+<h2>24. Running total, first and last order date, order number per customer</h2>
+<p><b>Approach:</b> one window ordered by date for the running total and order number, and one window without ordering for the first and last dates.</p>
+<details class="iq"><summary>Show solution</summary>
+<div class="ex"><div class="exh">Solution<span class="tag">pyspark</span></div><pre><code class="py">w    = W.partitionBy("customer_id").orderBy("d")
+wall = W.partitionBy("customer_id")
+orders.select("customer_id", "d", "amount",
+    F.sum("amount").over(w.rowsBetween(W.unboundedPreceding, 0)).alias("running_total"),
+    F.min("d").over(wall).alias("first_order"),
+    F.max("d").over(wall).alias("last_order"),
+    F.row_number().over(w).alias("order_no")).show()</code></pre>
+<div class="outh">Output</div><pre class="out"><code>+-----------+----------+------+-------------+-----------+----------+--------+
+|customer_id|         d|amount|running_total|first_order|last_order|order_no|
++-----------+----------+------+-------------+-----------+----------+--------+
+|         c1|2026-11-01|   100|          100| 2026-11-01|2026-11-07|       1|
+|         c1|2026-11-03|    50|          150| 2026-11-01|2026-11-07|       2|
+|         c1|2026-11-07|    30|          180| 2026-11-01|2026-11-07|       3|
+|         c2|2026-11-02|    70|           70| 2026-11-02|2026-11-05|       1|
+|         c2|2026-11-05|    20|           90| 2026-11-02|2026-11-05|       2|
++-----------+----------+------+-------------+-----------+----------+--------+</code></pre>
+<div class="exf"><p>Always write the frame (<code>rowsBetween</code>) for running totals. With the default frame, two orders on the same date would both show the combined total.</p></div></div></details>
+
+<h2>25. Customers with no orders, and order counts including zero</h2>
+<p><b>Approach:</b> a left anti join finds customers without orders. For counts including zero, left join and count a column from the orders side (it is NULL when there is no order).</p>
+<details class="iq"><summary>Show solution</summary>
+<div class="ex"><div class="exh">Solution<span class="tag">pyspark</span></div><pre><code class="py">no_orders = cust.join(orders, "customer_id", "left_anti")
+
+counts = (cust.join(orders, "customer_id", "left")
+              .groupBy("customer_id", "name")
+              .agg(F.count("d").alias("orders"),                       # count(col) skips NULL -&gt; 0
+                   F.coalesce(F.sum("amount"), F.lit(0)).alias("total")))</code></pre>
+<div class="outh">Output</div><pre class="out"><code>no_orders:  | c3 | Meena |
+
++-----------+-----+------+-----+
+|customer_id| name|orders|total|
++-----------+-----+------+-----+
+|         c1| Asha|     3|  180|
+|         c2| Ravi|     2|   90|
+|         c3|Meena|     0|    0|
++-----------+-----+------+-----+</code></pre>
+<div class="exf"><p>The classic mistake is <code>F.count("*")</code>, which gives Meena 1 because the left join still produces one row for her.</p></div></div></details>
+
+<h2>26. Rows to a comma-separated list, and back to rows</h2>
+<p><b>Approach:</b> <code>collect_set</code> (or <code>collect_list</code> to keep duplicates) builds an array per group; <code>concat_ws</code> joins it. <code>split</code> + <code>explode</code> reverses it.</p>
+<details class="iq"><summary>Show solution</summary>
+<div class="ex"><div class="exh">Solution<span class="tag">pyspark</span></div><pre><code class="py">lst = items.groupBy("order_id").agg(
+          F.concat_ws(",", F.sort_array(F.collect_set("item"))).alias("items"),   # sort: collect order is not guaranteed
+          F.count("*").alias("n"))
+back = lst.select("order_id", F.explode(F.split("items", ",")).alias("item"))</code></pre>
+<div class="outh">Output</div><pre class="out"><code>+--------+--------+---+         +--------+----+
+|order_id|   items|  n|         |order_id|item|
++--------+--------+---+         +--------+----+
+|      o1|book,pen|  3|         |      o1|book|
+|      o2|     bag|  1|         |      o1| pen|
++--------+--------+---+         |      o2| bag|
+                                +--------+----+</code></pre>
+<div class="exf"><p>Order o1 had “pen” twice: <code>collect_set</code> removed the duplicate (n is still 3). Mention that <code>collect_list</code> on a very popular key can run a task out of memory.</p></div></div></details>
+
+<h2>27. Rename all columns to snake_case and split a full name</h2>
+<p><b>Approach:</b> column names are plain Python strings, so rename them with a list comprehension and <code>toDF</code>. Split the name into an array and pick parts by position, handling one-word names.</p>
+<details class="iq"><summary>Show solution</summary>
+<div class="ex"><div class="exh">Solution<span class="tag">pyspark</span></div><pre><code class="py">import re
+df = raw.toDF(*[re.sub(r"[^0-9a-zA-Z]+", "_", c).strip("_").lower() for c in raw.columns])
+
+p = F.split("full_name", " ")
+df.select("full_name",
+          p.getItem(0).alias("first_name"),
+          F.when(F.size(p) &gt; 1, F.element_at(p, -1)).alias("last_name"),               # -1 = last element
+          F.when(F.size(p) &gt; 2, F.concat_ws(" ", F.slice(p, 2, F.size(p) - 2))).alias("middle"),
+          "home_city").show()</code></pre>
+<div class="outh">Output</div><pre class="out"><code>columns before: ['Full Name', 'Home City']
++---------------+----------+---------+------+---------+
+|      full_name|first_name|last_name|middle|home_city|
++---------------+----------+---------+------+---------+
+|Sai Kumar Reddy|       Sai|    Reddy| Kumar|      Hyd|
+|           Asha|      Asha|     NULL|  NULL|     Pune|
+|         Li Wei|        Li|      Wei|  NULL|   Austin|
++---------------+----------+---------+------+---------+</code></pre>
+<div class="exf"><p><code>toDF(*names)</code> renames every column in one projection, unlike a loop of <code>withColumnRenamed</code>.</p></div></div></details>
+
+<h2>28. Most frequent value (mode) per group</h2>
+<p><b>Approach:</b> count per (group, value), rank the counts inside each group, keep rank 1. Spark 3.4+ also has a built-in <code>mode</code> aggregate.</p>
+<details class="iq"><summary>Show solution</summary>
+<div class="ex"><div class="exh">Solution<span class="tag">pyspark</span></div><pre><code class="py">c = pay.groupBy("country", "method").count()
+(c.withColumn("rk", F.rank().over(W.partitionBy("country").orderBy(F.desc("count"))))
+  .filter("rk = 1").drop("rk").show())
+
+pay.groupBy("country").agg(F.mode("method").alias("mode_method")).show()     # Spark 3.4+</code></pre>
+<div class="outh">Output</div><pre class="out"><code>+-------+------+-----+
+|country|method|count|
++-------+------+-----+
+|     IN|   upi|    2|
+|     UK|  cash|    1|
+|     US|  card|    2|
++-------+------+-----+</code></pre>
+<div class="exf"><p><code>rank</code> keeps all tied values; <code>F.mode</code> returns one of them arbitrarily. Ask the interviewer which they want.</p></div></div></details>
+
+<h2>29. Average salary per department excluding the highest and lowest</h2>
+<p><b>Approach:</b> put the department's max and min on every row with a window, filter them out, then aggregate.</p>
+<details class="iq"><summary>Show solution</summary>
+<div class="ex"><div class="exh">Solution<span class="tag">pyspark</span></div><pre><code class="py">wd = W.partitionBy("dept")
+(emp.withColumn("mx", F.max("salary").over(wd)).withColumn("mn", F.min("salary").over(wd))
+    .filter((F.col("salary") != F.col("mx")) &amp; (F.col("salary") != F.col("mn")))
+    .groupBy("dept").agg(F.round(F.avg("salary"), 1).alias("avg_middle"), F.count("*").alias("n")).show())</code></pre>
+<div class="outh">Output</div><pre class="out"><code>ENG salaries 180,150,150,120 | OPS 90,95,70 | HR 60,80
++----+----------+---+
+|dept|avg_middle|  n|
++----+----------+---+
+| ENG|     150.0|  2|
+| OPS|      90.0|  1|
++----+----------+---+</code></pre>
+<div class="exf"><p>HR disappeared: with only two salaries, both are the max or the min. Say this edge case aloud and ask what the business wants (NULL row, or keep small departments as they are).</p></div></div></details>
+
+<h2>30. Several conditional counts and sums in one pass</h2>
+<p><b>Approach:</b> use <code>count(when(...))</code> and <code>sum(when(...))</code> inside one <code>agg</code> instead of filtering the DataFrame several times.</p>
+<details class="iq"><summary>Show solution</summary>
+<div class="ex"><div class="exh">Solution<span class="tag">pyspark</span></div><pre><code class="py">orders.groupBy("d").agg(
+    F.count("*").alias("orders"),
+    F.count(F.when(F.col("status") == "SHIPPED", 1)).alias("shipped"),
+    F.count(F.when(F.col("status") == "CANCELLED", 1)).alias("cancelled"),
+    F.sum(F.when(F.col("status") != "CANCELLED", F.col("amount")).otherwise(0)).alias("net_revenue"),
+    F.round(F.avg((F.col("status") == "CANCELLED").cast("int")) * 100, 1).alias("cancel_pct")).show()</code></pre>
+<div class="outh">Output</div><pre class="out"><code>+----------+------+-------+---------+-----------+----------+
+|         d|orders|shipped|cancelled|net_revenue|cancel_pct|
++----------+------+-------+---------+-----------+----------+
+|2026-11-01|     3|      2|        1|      170.0|      33.3|
+|2026-11-02|     2|      0|        1|       20.0|      50.0|
++----------+------+-------+---------+-----------+----------+</code></pre>
+<div class="exf"><p>The average of a 0/1 flag is the rate. One scan and one shuffle instead of one per metric; Spark 3.5 also has <code>F.count_if(cond)</code>.</p></div></div></details>
+</section>
+
+<section class="lesson" id="code-mid" data-ch="Coding round" data-t="Problems 31–40: joins and analytics" data-lvl="I" data-min="22">
+<h1>Problems 31–40: joins and analytics</h1>
+<div class="plain"><p>These are the mid-difficulty problems that make up most live rounds: comparing rows with their group, existence checks across products, percentiles, period-over-period growth, retention, funnels and gaps. For each one, state the building blocks first, then code, then mention how it behaves on large data.</p></div>
+<h2>31. Flag the cheapest and the fastest flight for each date</h2>
+<p><b>Approach:</b> compare each row with the group minimum from a window. Ties all get “Yes”.</p>
+<details class="iq"><summary>Show solution</summary>
+<div class="ex"><div class="exh">Solution<span class="tag">pyspark</span></div><pre><code class="py">wd = W.partitionBy("d")
+flights.select("d", "airline", "price", "minutes",
+    F.when(F.col("price")   == F.min("price").over(wd),   "Yes").otherwise("No").alias("cheapest"),
+    F.when(F.col("minutes") == F.min("minutes").over(wd), "Yes").otherwise("No").alias("fastest")).show()</code></pre>
+<div class="outh">Output</div><pre class="out"><code>+----------+-------+-----+-------+--------+-------+
+|         d|airline|price|minutes|cheapest|fastest|
++----------+-------+-----+-------+--------+-------+
+|2026-11-01|     6E| 4800|    165|     Yes|     No|
+|2026-11-01|     AI| 5200|    150|      No|     No|
+|2026-11-01|     UK| 5200|    140|      No|    Yes|
+|2026-11-02|     6E| 6100|    150|     Yes|    Yes|
+|2026-11-02|     AI| 6100|    150|     Yes|    Yes|
++----------+-------+-----+-------+--------+-------+</code></pre>
+</div></details>
+
+<h2>32. Customers who bought A and B but never C</h2>
+<p><b>Approach:</b> collapse each customer to one row with a flag per product, then filter on the flags. This avoids three self-joins.</p>
+<details class="iq"><summary>Show solution</summary>
+<div class="ex"><div class="exh">Solution<span class="tag">pyspark</span></div><pre><code class="py">flags = purchases.groupBy("customer_id").agg(
+    F.max((F.col("product") == "A").cast("int")).alias("a"),
+    F.max((F.col("product") == "B").cast("int")).alias("b"),
+    F.max((F.col("product") == "C").cast("int")).alias("c"))
+flags.filter("a = 1 AND b = 1 AND c = 0").select("customer_id").show()
+
+# same idea with a set
+(purchases.groupBy("customer_id").agg(F.collect_set("product").alias("ps"))
+          .filter(F.array_contains("ps", "A") &amp; F.array_contains("ps", "B") &amp; ~F.array_contains("ps", "C")))</code></pre>
+<div class="outh">Output</div><pre class="out"><code>c1: A,B   c2: A,B,C   c3: A   c4: B,A,A
++-----------+
+|customer_id|
++-----------+
+|         c1|
+|         c4|
++-----------+</code></pre>
+<div class="exf"><p>One shuffle. The join version (semi join for A, semi join for B, anti join for C) works too, but costs three shuffles.</p></div></div></details>
+
+<h2>33. Top 20% of customers by spend</h2>
+<p><b>Approach:</b> <code>ntile(5)</code> splits ordered rows into 5 equal buckets; bucket 1 is the top 20%. <code>percent_rank</code> gives each row's relative position.</p>
+<details class="iq"><summary>Show solution</summary>
+<div class="ex"><div class="exh">Solution<span class="tag">pyspark</span></div><pre><code class="py">w = W.orderBy(F.desc("spend"))          # no partitionBy: fine after aggregation to one row per customer
+(spend.withColumn("pr", F.round(F.percent_rank().over(w), 2))
+      .withColumn("bucket", F.ntile(5).over(w))
+      .filter("bucket = 1").show())</code></pre>
+<div class="outh">Output</div><pre class="out"><code>+-----------+-----+----+------+
+|customer_id|spend|  pr|bucket|
++-----------+-----+----+------+
+|         c1|  900| 0.0|     1|
+|         c2|  850|0.11|     1|
++-----------+-----+----+------+</code></pre>
+<div class="exf"><p>A global window moves everything to one task. That is acceptable for millions of aggregated rows; for billions, compute the cut-off with <code>approxQuantile("spend", [0.8], 0.01)</code> and filter.</p></div></div></details>
+
+<h2>34. Quarter-over-quarter and year-over-year growth per region</h2>
+<p><b>Approach:</b> aggregate to one row per region and quarter, then <code>lag(1)</code> for the previous quarter and <code>lag(4)</code> for the same quarter last year.</p>
+<details class="iq"><summary>Show solution</summary>
+<div class="ex"><div class="exh">Solution<span class="tag">pyspark</span></div><pre><code class="py">q = sales.groupBy("region", F.year("d").alias("yr"), F.quarter("d").alias("qtr")).agg(F.sum("amount").alias("rev"))
+w = W.partitionBy("region").orderBy("yr", "qtr")
+(q.withColumn("prev_q",  F.lag("rev").over(w))
+  .withColumn("qoq_pct", F.round((F.col("rev") - F.col("prev_q")) / F.col("prev_q") * 100, 1))
+  .withColumn("yoy_prev", F.lag("rev", 4).over(w))
+  .withColumn("yoy_pct", F.round((F.col("rev") - F.col("yoy_prev")) / F.col("yoy_prev") * 100, 1)).show())</code></pre>
+<div class="outh">Output</div><pre class="out"><code>+------+----+---+-----+------+-------+--------+-------+
+|region|  yr|qtr|  rev|prev_q|qoq_pct|yoy_prev|yoy_pct|
++------+----+---+-----+------+-------+--------+-------+
+| South|2025|  4|100.0|  NULL|   NULL|    NULL|   NULL|
+| South|2026|  1|120.0| 100.0|   20.0|    NULL|   NULL|
+| South|2026|  2| 90.0| 120.0|  -25.0|    NULL|   NULL|
+| South|2026|  3|135.0|  90.0|   50.0|    NULL|   NULL|
+| South|2026|  4|150.0| 135.0|   11.1|   100.0|   50.0|
++------+----+---+-----+------+-------+--------+-------+</code></pre>
+<div class="exf"><p><code>lag(4)</code> is only “same quarter last year” if no quarter is missing. If quarters can be missing, self-join on (region, yr − 1, qtr) instead. Raise it; it is the follow-up question.</p></div></div></details>
+
+<h2>35. Monthly retention and churn</h2>
+<p><b>Approach:</b> reduce to one row per user per active month. Shift a copy back by one month and left join: a match means the user was also active the next month.</p>
+<details class="iq"><summary>Show solution</summary>
+<div class="ex"><div class="exh">Solution<span class="tag">pyspark</span></div><pre><code class="py">m   = activity.select("user_id", F.trunc("d", "month").alias("m")).distinct()
+nxt = m.select("user_id", F.add_months("m", -1).alias("m"), F.lit(1).alias("back"))     # "I was active the month after m"
+
+(m.join(nxt, ["user_id", "m"], "left")
+  .groupBy("m").agg(F.count("*").alias("active"), F.count("back").alias("retained_next_month"))
+  .withColumn("retention_pct", F.round(F.col("retained_next_month") / F.col("active") * 100, 1))
+  .withColumn("churned", F.col("active") - F.col("retained_next_month")).show())</code></pre>
+<div class="outh">Output</div><pre class="out"><code>+----------+------+-------------------+-------------+-------+
+|         m|active|retained_next_month|retention_pct|churned|
++----------+------+-------------------+-------------+-------+
+|2026-09-01|     2|                  1|         50.0|      1|
+|2026-10-01|     3|                  2|         66.7|      1|
+|2026-11-01|     3|                  0|          0.0|      3|
++----------+------+-------------------+-------------+-------+</code></pre>
+<div class="exf"><p>The latest month always shows 0% because next month has not happened yet: exclude it in the report. The same pattern with days instead of months gives day-1 or day-7 retention.</p></div></div></details>
+
+<h2>36. Funnel conversion: view → cart → purchase</h2>
+<p><b>Approach:</b> one row per user with a 0/1 flag per step, then sum the flags, requiring earlier steps for later ones.</p>
+<details class="iq"><summary>Show solution</summary>
+<div class="ex"><div class="exh">Solution<span class="tag">pyspark</span></div><pre><code class="py">steps = ["view", "cart", "purchase"]
+f = events.groupBy("user_id").agg(*[F.max((F.col("event") == e).cast("int")).alias(e) for e in steps])
+(f.agg(F.sum("view").alias("viewed"),
+       F.sum(F.col("view") * F.col("cart")).alias("carted"),
+       F.sum(F.col("view") * F.col("cart") * F.col("purchase")).alias("purchased"))
+  .withColumn("view_to_cart_pct",     F.round(F.col("carted") / F.col("viewed") * 100, 1))
+  .withColumn("cart_to_purchase_pct", F.round(F.col("purchased") / F.col("carted") * 100, 1)).show())</code></pre>
+<div class="outh">Output</div><pre class="out"><code>+------+------+---------+----------------+--------------------+
+|viewed|carted|purchased|view_to_cart_pct|cart_to_purchase_pct|
++------+------+---------+----------------+--------------------+
+|     4|     2|        1|            50.0|                50.0|
++------+------+---------+----------------+--------------------+</code></pre>
+<div class="exf"><p>User u4 purchased without a cart event and is not counted as a funnel purchase. A stricter funnel also checks that the timestamps are in order (min view time &lt; min cart time).</p></div></div></details>
+
+<h2>37. Find missing invoice numbers</h2>
+<p><b>Approach:</b> sort the numbers and compare each with the next one using <code>lead</code>. A difference above 1 is a gap; <code>sequence</code> expands it into individual numbers.</p>
+<details class="iq"><summary>Show solution</summary>
+<div class="ex"><div class="exh">Solution<span class="tag">pyspark</span></div><pre><code class="py">gaps = (inv.withColumn("nxt", F.lead("invoice_no").over(W.orderBy("invoice_no")))
+           .filter(F.col("nxt") - F.col("invoice_no") &gt; 1)
+           .select((F.col("invoice_no") + 1).alias("missing_from"), (F.col("nxt") - 1).alias("missing_to")))
+missing = gaps.select(F.explode(F.sequence("missing_from", "missing_to")).alias("missing_invoice"))</code></pre>
+<div class="outh">Output</div><pre class="out"><code>invoice numbers: 1001 1002 1003 1006 1007 1010
++------------+----------+        missing_invoice: 1004, 1005, 1008, 1009
+|missing_from|missing_to|
++------------+----------+
+|        1004|      1005|
+|        1008|      1009|
++------------+----------+</code></pre>
+<div class="exf"><p>At scale, partition the window (for example by branch or by <code>floor(invoice_no / 1_000_000)</code>) so it is not a single task; then handle gaps at bucket borders.</p></div></div></details>
+
+<h2>38. Average days between a customer's consecutive orders</h2>
+<p><b>Approach:</b> <code>lag</code> gives the previous order date; <code>datediff</code> the gap; then aggregate. The first order has no gap and is ignored by <code>avg</code>.</p>
+<details class="iq"><summary>Show solution</summary>
+<div class="ex"><div class="exh">Solution<span class="tag">pyspark</span></div><pre><code class="py">w = W.partitionBy("customer_id").orderBy("d")
+(orders.withColumn("gap", F.datediff("d", F.lag("d").over(w)))
+       .groupBy("customer_id")
+       .agg(F.round(F.avg("gap"), 1).alias("avg_days_between"), F.max("gap").alias("max_gap"), F.count("*").alias("orders")).show())</code></pre>
+<div class="outh">Output</div><pre class="out"><code>+-----------+----------------+-------+------+
+|customer_id|avg_days_between|max_gap|orders|
++-----------+----------------+-------+------+
+|         c1|             3.0|      4|     3|
+|         c2|             3.0|      3|     2|
++-----------+----------------+-------+------+</code></pre>
+</div></details>
+
+<h2>39. Daily trip cancellation rate, excluding banned riders and drivers</h2>
+<p><b>Approach:</b> semi-join trips against the list of allowed users twice (client and driver), then the average of a cancelled flag per day.</p>
+<details class="iq"><summary>Show solution</summary>
+<div class="ex"><div class="exh">Solution<span class="tag">pyspark</span></div><pre><code class="py">ok = users.filter("banned = 'no'").select("user_id")
+t = (trips.join(F.broadcast(ok.withColumnRenamed("user_id", "client")), "client", "left_semi")
+          .join(F.broadcast(ok.withColumnRenamed("user_id", "driver")), "driver", "left_semi"))
+(t.groupBy("d").agg(F.round(F.avg(F.col("status").startswith("cancelled").cast("int")), 2).alias("cancel_rate"),
+                    F.count("*").alias("trips")).show())</code></pre>
+<div class="outh">Output</div><pre class="out"><code>+----------+-----------+-----+
+|         d|cancel_rate|trips|
++----------+-----------+-----+
+|2026-11-01|        0.0|    2|
+|2026-11-02|        0.5|    2|
++----------+-----------+-----+</code></pre>
+<div class="exf"><p>A semi join filters without adding columns or duplicating rows. Broadcasting the small users list avoids shuffling the trips table.</p></div></div></details>
+
+<h2>40. First product, latest product and most expensive product per customer</h2>
+<p><b>Approach:</b> <code>min_by(value, ordering)</code> and <code>max_by</code> (Spark 3.3+) return the value from the row with the smallest or largest ordering column, without a window.</p>
+<details class="iq"><summary>Show solution</summary>
+<div class="ex"><div class="exh">Solution<span class="tag">pyspark</span></div><pre><code class="py">purchases.groupBy("customer_id").agg(
+    F.min_by("product", "d").alias("first_product"),
+    F.max_by("product", "d").alias("latest_product"),
+    F.max_by("product", "amount").alias("priciest_product"),
+    F.count("*").alias("orders")).show()</code></pre>
+<div class="outh">Output</div><pre class="out"><code>+-----------+-------------+--------------+----------------+------+
+|customer_id|first_product|latest_product|priciest_product|orders|
++-----------+-------------+--------------+----------------+------+
+|         c1|          pen|           bag|             bag|     3|
+|         c2|         lamp|          lamp|            lamp|     1|
++-----------+-------------+--------------+----------------+------+</code></pre>
+<div class="exf"><p>Cheaper than <code>row_number</code> when you only need a few columns: it is a plain aggregation with a map-side combine. Ties are resolved arbitrarily.</p></div></div></details>
+</section>
+
+<section class="lesson" id="code-adv" data-ch="Coding round" data-t="Problems 41–47: advanced patterns" data-lvl="A" data-min="22">
+<h1>Problems 41–47: advanced patterns</h1>
+<div class="plain"><p>Senior rounds pick one or two harder problems to see how you reason: interval merging, sweep-line counting, hierarchies without recursion, running totals with resets, record matching, reconciliation and log parsing. Getting the edge cases and the scale discussion right matters more than speed.</p></div>
+<h2>41. Merge overlapping bookings per room</h2>
+<p><b>Approach:</b> sort by start time. A booking starts a new merged block when its start is after the <b>largest end seen so far</b> (not just the previous row's end). A running sum of that flag numbers the blocks.</p>
+<details class="iq"><summary>Show solution</summary>
+<div class="ex"><div class="exh">Solution<span class="tag">pyspark</span></div><pre><code class="py">w = W.partitionBy("room").orderBy("s", "e")
+m = (bookings
+     .withColumn("prev_max_end", F.max("e").over(w.rowsBetween(W.unboundedPreceding, -1)))     # all earlier rows
+     .withColumn("new_grp", F.when(F.col("prev_max_end").isNull() | (F.col("s") &gt; F.col("prev_max_end")), 1).otherwise(0))
+     .withColumn("grp", F.sum("new_grp").over(w.rowsBetween(W.unboundedPreceding, 0))))
+merged = m.groupBy("room", "grp").agg(F.min("s").alias("start"), F.max("e").alias("end"), F.count("*").alias("bookings"))</code></pre>
+<div class="outh">Output</div><pre class="out"><code>R1: 09:00-10:00, 09:30-11:00, 11:00-11:30, 13:00-14:00     R2: 09:00-09:30, 10:00-10:30
++----+---+-----+-----+--------+
+|room|grp|start|  end|bookings|
++----+---+-----+-----+--------+
+|  R1|  1|09:00|11:30|       3|
+|  R1|  2|13:00|14:00|       1|
+|  R2|  1|09:00|09:30|       1|
+|  R2|  2|10:00|10:30|       1|
++----+---+-----+-----+--------+</code></pre>
+<div class="exf"><p>Using <code>lag(e)</code> instead of the running max is the common bug: a long booking followed by two short ones inside it would be split. Here touching intervals (end 11:00, start 11:00) merge because the test is <code>&gt;</code>; use <code>&gt;=</code> if they should stay separate.</p></div></div></details>
+
+<h2>42. Maximum number of concurrent sessions</h2>
+<p><b>Approach:</b> turn each session into two events: +1 at the start and −1 at the end. A running sum over time is the number of open sessions; its maximum is the peak.</p>
+<details class="iq"><summary>Show solution</summary>
+<div class="ex"><div class="exh">Solution<span class="tag">pyspark</span></div><pre><code class="py">ev = (sessions.select(F.col("s").alias("t"), F.lit(1).alias("delta"))
+      .unionByName(sessions.select(F.col("e").alias("t"), F.lit(-1).alias("delta"))))
+cc = ev.withColumn("concurrent", F.sum("delta").over(W.orderBy("t", "delta").rowsBetween(W.unboundedPreceding, 0)))
+cc.agg(F.max("concurrent").alias("peak")).show()</code></pre>
+<div class="outh">Output</div><pre class="out"><code>sessions: 10:00-10:30, 10:10-10:40, 10:20-10:25, 10:30-11:00, 10:50-11:10
+t=10:00 +1 → 1 | 10:10 +1 → 2 | 10:20 +1 → 3 | 10:25 −1 → 2 | 10:30 −1 → 1 | 10:30 +1 → 2 | ...
+peak = 3</code></pre>
+<div class="exf"><p>Ordering by <code>(t, delta)</code> processes the −1 before the +1 at the same instant, so a session ending at 10:30 and one starting at 10:30 do not count as overlapping. For big data, partition the window by day or by server and take the max of maxes.</p></div></div></details>
+
+<h2>43. Employee hierarchy: level and reporting path for everyone</h2>
+<p><b>Approach:</b> Spark 3.5 has no recursive query, so loop: start from people with no manager (level 0), then repeatedly join employees to the previous level until no new rows appear.</p>
+<details class="iq"><summary>Show solution</summary>
+<div class="ex"><div class="exh">Solution<span class="tag">pyspark</span></div><pre><code class="py">level = (emp.filter("manager_id IS NULL")
+            .select("emp_id", "name", F.lit(0).alias("level"), F.col("name").alias("path")))
+result = level
+for i in range(1, 20):                                           # safety cap on depth
+    level = (emp.alias("e").join(level.alias("m"), F.col("e.manager_id") == F.col("m.emp_id"))
+                .select("e.emp_id", "e.name", F.lit(i).alias("level"),
+                        F.concat_ws(" &gt; ", "m.path", "e.name").alias("path"))
+                .localCheckpoint())                              # cut lineage so the plan does not grow each loop
+    if level.isEmpty():
+        break
+    result = result.unionByName(level)</code></pre>
+<div class="outh">Output</div><pre class="out"><code>+------+-----+-----+-----------------------+
+|emp_id|name |level|path                   |
++------+-----+-----+-----------------------+
+|1     |Asha |0    |Asha                   |
+|3     |Meena|1    |Asha &gt; Meena           |
+|2     |Ravi |1    |Asha &gt; Ravi            |
+|4     |John |2    |Asha &gt; Ravi &gt; John     |
+|5     |Li   |3    |Asha &gt; Ravi &gt; John &gt; Li|
+|6     |Sara |0    |Sara                   |
+|7     |Omar |1    |Sara &gt; Omar            |
++------+-----+-----+-----------------------+</code></pre>
+<div class="exf"><p>Each loop runs a job (<code>isEmpty</code>), and without the checkpoint the plan gets longer every iteration. Mention the depth cap as protection against cycles in bad data. Spark 4.1 adds recursive CTEs (<code>WITH RECURSIVE</code>) <span class="v4">Spark 4 only</span>; for very deep graphs, GraphFrames.</p></div></div></details>
+
+<h2>44. Running total that restarts at a reset marker</h2>
+<p><b>Approach:</b> a running sum of the reset flag gives every row a segment number. Then compute the running total inside (account, segment).</p>
+<details class="iq"><summary>Show solution</summary>
+<div class="ex"><div class="exh">Solution<span class="tag">pyspark</span></div><pre><code class="py">w = W.partitionBy("acct").orderBy("seq")
+tx2 = (tx.withColumn("grp", F.sum("is_reset").over(w.rowsBetween(W.unboundedPreceding, 0)))
+         .withColumn("running_since_reset",
+                     F.sum("amt").over(W.partitionBy("acct", "grp").orderBy("seq")
+                                        .rowsBetween(W.unboundedPreceding, 0))))</code></pre>
+<div class="outh">Output</div><pre class="out"><code>+----+---+---+--------+---+-------------------+
+|acct|seq|amt|is_reset|grp|running_since_reset|
++----+---+---+--------+---+-------------------+
+|   a|  1| 40|       0|  0|                 40|
+|   a|  2| 50|       0|  0|                 90|
+|   a|  3| 30|       0|  0|                120|
+|   a|  4| 80|       1|  1|                 80|
+|   a|  5| 10|       0|  1|                 90|
+|   a|  6| 95|       0|  1|                185|
++----+---+---+--------+---+-------------------+</code></pre>
+<div class="exf"><p>Follow-up trap: “reset whenever the running total passes 100”. That depends on the previous result, so no window function can express it. Use <code>groupBy("acct").applyInPandas(...)</code> with a simple Python loop per account, and say that each account must fit in memory.</p></div></div></details>
+
+<h2>45. Deduplicate near-duplicate customers and keep the most complete row</h2>
+<p><b>Approach:</b> build a normalised match key (lower-case, trimmed email), score each row by how many fields are filled, and keep the best row per key with the newest as tie-breaker.</p>
+<details class="iq"><summary>Show solution</summary>
+<div class="ex"><div class="exh">Solution<span class="tag">pyspark</span></div><pre><code class="py">fields = ["name", "email", "phone"]
+k = (cust.withColumn("k", F.lower(F.trim("email")))
+         .withColumn("filled", sum(F.col(x).isNotNull().cast("int") for x in fields)))     # Python sum over Columns
+w = W.partitionBy("k").orderBy(F.desc("filled"), F.desc("updated"))
+(k.withColumn("rn", F.row_number().over(w))
+  .withColumn("dupes", F.count("*").over(W.partitionBy("k")))
+  .filter("rn = 1")
+  .select("id", F.initcap(F.trim("name")).alias("name"), F.col("k").alias("email"), "phone", "dupes").show())</code></pre>
+<div class="outh">Output</div><pre class="out"><code>input: (1," Asha K ","ASHA@MAIL.COM",NULL)  (2,"asha k","asha@mail.com","98480")  (3,"Ravi","ravi@mail.com","90000")  (4,"RAVI ","Ravi@Mail.com",NULL)
++---+------+-------------+-----+-----+
+| id|  name|        email|phone|dupes|
++---+------+-------------+-----+-----+
+|  2|Asha K|asha@mail.com|98480|    2|
+|  3|  Ravi|ravi@mail.com|90000|    2|
++---+------+-------------+-----+-----+</code></pre>
+<div class="exf"><p>A “golden record” would also fill each field from whichever duplicate has it: <code>F.first(col, ignorenulls=True)</code> over the ordered window. True fuzzy matching (typos) needs <code>levenshtein</code> or <code>soundex</code> within blocks, never a full cross join.</p></div></div></details>
+
+<h2>46. Reconcile a source table with its target</h2>
+<p><b>Approach:</b> full outer join on the key and classify every row: missing in target, extra in target, value mismatch or match. Then summarise.</p>
+<details class="iq"><summary>Show solution</summary>
+<div class="ex"><div class="exh">Solution<span class="tag">pyspark</span></div><pre><code class="py">r = (src.alias("s").join(tgt.alias("t"), "order_id", "full")
+        .select("order_id", F.col("s.amount").alias("src_amount"), F.col("t.amount").alias("tgt_amount"))
+        .withColumn("status",
+            F.when(F.col("tgt_amount").isNull(), "MISSING_IN_TARGET")
+             .when(F.col("src_amount").isNull(), "EXTRA_IN_TARGET")
+             .when(F.abs(F.col("src_amount") - F.col("tgt_amount")) &gt; 0.005, "MISMATCH")
+             .otherwise("MATCH")))
+r.groupBy("status").count().show()</code></pre>
+<div class="outh">Output</div><pre class="out"><code>+--------+----------+----------+-----------------+
+|order_id|src_amount|tgt_amount|           status|
++--------+----------+----------+-----------------+
+|      o1|     100.0|     100.0|            MATCH|
+|      o2|      50.0|      55.0|         MISMATCH|
+|      o3|      75.0|      NULL|MISSING_IN_TARGET|
+|      o4|      NULL|      10.0|  EXTRA_IN_TARGET|
+|      o5|      20.0|      20.0|            MATCH|
++--------+----------+----------+-----------------+</code></pre>
+<div class="exf"><p>This assumes amount is never NULL; with nullable columns, add a marker column on each side (<code>F.lit(1).alias("in_src")</code>) to test presence. For wide tables compare a row hash instead of each column. First step in practice is always cheap: counts and sums per partition on both sides, and the row-level join only for partitions that differ.</p></div></div></details>
+
+<h2>47. Parse web server logs and find the endpoints with the most 5xx errors</h2>
+<p><b>Approach:</b> one regular expression with capture groups and <code>regexp_extract</code> per field. Lines that do not match give empty strings: count them as bad lines instead of losing them.</p>
+<details class="iq"><summary>Show solution</summary>
+<div class="ex"><div class="exh">Solution<span class="tag">pyspark</span></div><pre><code class="py">pat = r'^(\S+) \S+ \S+ \[([^\]]+)\] "(\S+) (\S+) [^"]*" (\d{3}) (\d+)'
+p = logs.select(
+    F.regexp_extract("value", pat, 1).alias("ip"),
+    F.to_timestamp(F.regexp_extract("value", pat, 2), "dd/MMM/yyyy:HH:mm:ss Z").alias("ts"),
+    F.regexp_extract("value", pat, 3).alias("method"),
+    F.regexp_extract("value", pat, 4).alias("path"),
+    F.regexp_extract("value", pat, 5).cast("int").alias("status"),
+    F.regexp_extract("value", pat, 6).cast("long").alias("bytes"), "value")
+good, bad = p.filter("ip != ''").drop("value"), p.filter("ip = ''")
+
+(good.groupBy("path").agg(F.count("*").alias("hits"), F.sum((F.col("status") &gt;= 500).cast("int")).alias("errors_5xx"))
+     .withColumn("error_pct", F.round(F.col("errors_5xx") / F.col("hits") * 100, 1))
+     .orderBy(F.desc("errors_5xx")).show())</code></pre>
+<div class="outh">Output</div><pre class="out"><code>sample line: 10.0.0.2 - - [03/Nov/2026:10:00:02 +0000] "POST /api/pay HTTP/1.1" 500 87
+bad lines: 1
++-----------+----+----------+---------+
+|       path|hits|errors_5xx|error_pct|
++-----------+----+----------+---------+
+|   /api/pay|   2|         2|    100.0|
+|/api/orders|   1|         0|      0.0|
+|    /health|   1|         0|      0.0|
++-----------+----+----------+---------+</code></pre>
+<div class="exf"><p>Built-in regex functions run in the JVM; a Python UDF with <code>re</code> would be several times slower. Read with <code>spark.read.text</code>; gzip log files are not splittable, so many medium files beat a few huge ones.</p></div></div></details>
+</section>
+
+<section class="lesson" id="code-adv2" data-ch="Coding round" data-t="Problems 48–54 and mock rounds" data-lvl="A" data-min="22">
+<h1>Problems 48–54 and mock rounds</h1>
+<div class="plain"><p>The last set covers schema drift, value streaks, fraud-style comparisons, translating SQL to DataFrame code, calling external services from Spark, rolling distinct counts and dynamic pivots. The lesson ends with timed mock rounds and an index of every problem in the course by pattern.</p></div>
+<h2>48. Detect schema drift between two files and union them safely</h2>
+<p><b>Approach:</b> compare <code>df.dtypes</code> as dictionaries in plain Python to report added, removed and re-typed columns. Then cast to the agreed type and <code>unionByName(..., allowMissingColumns=True)</code>.</p>
+<details class="iq"><summary>Show solution</summary>
+<div class="ex"><div class="exh">Solution<span class="tag">pyspark</span></div><pre><code class="py">sa, sb = dict(a.dtypes), dict(b.dtypes)
+only_a  = sorted(set(sa) - set(sb))
+only_b  = sorted(set(sb) - set(sa))
+changed = {c: (sa[c], sb[c]) for c in set(sa) &amp; set(sb) if sa[c] != sb[c]}
+print(only_a, only_b, changed)
+
+merged = a.unionByName(b.withColumn("amount", F.col("amount").cast("double")), allowMissingColumns=True)</code></pre>
+<div class="outh">Output</div><pre class="out"><code>['name'] ['country'] {'amount': ('double', 'string')}
++---+----+------+-------+
+| id|name|amount|country|
++---+----+------+-------+
+|  1|   x|   1.5|   NULL|
+|  2|NULL|   7.0|     IN|
++---+----+------+-------+</code></pre>
+<div class="exf"><p>In a pipeline: additive changes (a new nullable column) are logged and allowed; type changes and removed columns fail the job or route the file to quarantine. Plain <code>union</code> matches by position and would silently put the string amount under another column.</p></div></div></details>
+
+<h2>49. Longest winning streak per player</h2>
+<p><b>Approach:</b> gaps and islands on a value: the difference between a row number over all matches and a row number within the same result is constant inside each streak.</p>
+<details class="iq"><summary>Show solution</summary>
+<div class="ex"><div class="exh">Solution<span class="tag">pyspark</span></div><pre><code class="py">w = W.partitionBy("player").orderBy("match_no")
+s = games.withColumn("grp", F.row_number().over(w)
+                          - F.row_number().over(W.partitionBy("player", "result").orderBy("match_no")))
+(s.filter("result = 'W'")
+  .groupBy("player", "grp").agg(F.count("*").alias("streak"))
+  .groupBy("player").agg(F.max("streak").alias("longest_win_streak")).show())</code></pre>
+<div class="outh">Output</div><pre class="out"><code>p1: W W L W W W    p2: L W
++------+------------------+
+|player|longest_win_streak|
++------+------------------+
+|    p1|                 3|
+|    p2|                 1|
++------+------------------+</code></pre>
+<div class="exf"><p>Same trick as consecutive login days (problem 9), with “result” playing the role of the calendar.</p></div></div></details>
+
+<h2>50. Same card used in two different cities within 10 minutes</h2>
+<p><b>Approach:</b> compare each transaction with the previous one on the same card using <code>lag</code>: different city and a time gap of at most 10 minutes.</p>
+<details class="iq"><summary>Show solution</summary>
+<div class="ex"><div class="exh">Solution<span class="tag">pyspark</span></div><pre><code class="py">w = W.partitionBy("card").orderBy("ts")
+(tx.withColumn("prev_city", F.lag("city").over(w))
+   .withColumn("mins", (F.col("ts").cast("long") - F.lag("ts").over(w).cast("long")) / 60)
+   .filter((F.col("city") != F.col("prev_city")) &amp; (F.col("mins") &lt;= 10)).show())</code></pre>
+<div class="outh">Output</div><pre class="out"><code>+-----+-------------------+------+---------+----+
+| card|                 ts|  city|prev_city|mins|
++-----+-------------------+------+---------+----+
+|card1|2026-11-03 10:06:00|Mumbai|Hyderabad| 6.0|
++-----+-------------------+------+---------+----+</code></pre>
+<div class="exf"><p><code>lag</code> only looks at the directly preceding transaction. If any pair within 10 minutes counts, use a range self-join on card with a time condition, bucketed by card and hour to keep it an equi-join. In streaming this is a stateful per-card check with a watermark.</p></div></div></details>
+
+<h2>51. Translate SQL to the DataFrame API</h2>
+<p><b>Approach:</b> map clause by clause: WHERE → <code>filter</code> before <code>groupBy</code>; GROUP BY + aggregates → <code>groupBy().agg()</code>; HAVING → <code>filter</code> after <code>agg</code>; window in SELECT → <code>.over(Window…)</code>.</p>
+<details class="iq"><summary>Show solution</summary>
+<div class="ex"><div class="exh">Solution<span class="tag">pyspark</span></div><pre><code class="py"># SQL given by the interviewer
+#   WITH t AS (SELECT country, customer_id, SUM(amount) AS spend, COUNT(*) AS n
+#              FROM orders WHERE status = 'SHIPPED'
+#              GROUP BY country, customer_id HAVING SUM(amount) &gt; 60)
+#   SELECT country, customer_id, spend,
+#          DENSE_RANK() OVER (PARTITION BY country ORDER BY spend DESC) AS rnk FROM t
+
+t = (orders.filter(F.col("status") == "SHIPPED")                              # WHERE
+           .groupBy("country", "customer_id")                                 # GROUP BY
+           .agg(F.sum("amount").alias("spend"), F.count("*").alias("n"))
+           .filter(F.col("spend") &gt; 60))                                      # HAVING
+res = t.select("country", "customer_id", "spend",
+               F.dense_rank().over(W.partitionBy("country").orderBy(F.desc("spend"))).alias("rnk"))</code></pre>
+<div class="outh">Output</div><pre class="out"><code>both versions returned:
++-------+-----------+-----+---+
+|country|customer_id|spend|rnk|
++-------+-----------+-----+---+
+|     IN|         c1|400.0|  1|
+|     US|         c3|500.0|  1|
+|     US|         c4| 90.0|  2|
++-------+-----------+-----+---+</code></pre>
+<div class="exf"><p>Useful mapping to memorise: <code>CASE WHEN</code> → <code>F.when().otherwise()</code>; <code>IN (subquery)</code> → left semi join; <code>NOT EXISTS</code> → left anti join; <code>UNION</code> → <code>unionByName().distinct()</code>; <code>COALESCE</code> → <code>F.coalesce</code>.</p></div></div></details>
+
+<h2>52. Call an external service efficiently, and count problems with an accumulator</h2>
+<p><b>Approach:</b> use <code>mapPartitions</code> so the client or connection is created once per partition and rows are sent in batches. An accumulator counts events on executors and is read on the driver.</p>
+<details class="iq"><summary>Show solution</summary>
+<div class="ex"><div class="exh">Solution<span class="tag">pyspark</span></div><pre><code class="py">def enrich(rows):
+    client = make_client()                 # ONE connection per partition, created on the executor
+    batch = []
+    for r in rows:
+        batch.append(r)
+        if len(batch) == 500:              # send in batches, not one call per row
+            yield from client.lookup(batch); batch = []
+    if batch:
+        yield from client.lookup(batch)
+
+out = orders.repartition(16).rdd.mapPartitions(enrich).toDF("order_id string, country_name string")
+
+bad = spark.sparkContext.accumulator(0)
+def count_bad(rows):
+    for r in rows:
+        if r.status == "CANCELLED":
+            bad.add(1)
+orders.foreachPartition(count_bad)         # action: accumulator updates happen exactly once per successful task
+print(bad.value)</code></pre>
+<div class="outh">Output</div><pre class="out"><code>tested with a dictionary standing in for the client:
+o1 India | o2 India | o3 India | o4 United States | o5 United States | o6 United States
+cancelled seen: 1</code></pre>
+<div class="exf"><p>Things to say: the client must be created <b>inside</b> the function (connections cannot be pickled and shipped from the driver); <code>repartition(16)</code> caps parallel connections so you do not overload the service; retries and timeouts belong in the client; a failed task is retried, so the call must be idempotent. Accumulators updated inside transformations can double-count on retries.</p></div></div></details>
+
+<h2>53. Rolling 7-day distinct active users</h2>
+<p><b>Approach:</b> a window frame cannot do <code>countDistinct</code>. Join each reporting day to the activity rows from its previous 7 days and count distinct users.</p>
+<details class="iq"><summary>Show solution</summary>
+<div class="ex"><div class="exh">Solution<span class="tag">pyspark</span></div><pre><code class="py">days = activity.select("d").distinct()
+(days.alias("x").join(activity.alias("y"),
+        (F.col("y.d") &lt;= F.col("x.d")) &amp; (F.col("y.d") &gt; F.date_sub(F.col("x.d"), 7)))       # range join
+     .groupBy("x.d").agg(F.countDistinct("y.user_id").alias("active_7d")).show())</code></pre>
+<div class="outh">Output</div><pre class="out"><code>activity: 11-01 u1,u2 | 11-03 u1 | 11-05 u3 | 11-09 u2,u4
++----------+---------+
+|         d|active_7d|
++----------+---------+
+|2026-11-01|        2|
+|2026-11-03|        2|
+|2026-11-05|        3|
+|2026-11-09|        4|
++----------+---------+</code></pre>
+<div class="exf"><p>The join has no equality key, so Spark uses a nested-loop join: fine when <code>days</code> is tiny and broadcast. The scalable version explodes each activity row into the 7 report dates it belongs to (<code>F.explode(F.sequence(d, date_add(d, 6)))</code>) and does a normal <code>groupBy</code>. Approximate alternative: <code>F.size(F.array_distinct(F.flatten(F.collect_list(...))))</code> over a range window, or HyperLogLog sketches.</p></div></div></details>
+
+<h2>54. Pivot with unknown values and add a row total</h2>
+<p><b>Approach:</b> pivot without a value list (accepting the extra job), then build the total by adding the pivoted columns with Python's <code>sum</code> over Column objects.</p>
+<details class="iq"><summary>Show solution</summary>
+<div class="ex"><div class="exh">Solution<span class="tag">pyspark</span></div><pre><code class="py">pv = (orders.filter("status = 'SHIPPED'")
+            .groupBy("customer_id").pivot("country").agg(F.sum("amount")).fillna(0))
+value_cols = [c for c in pv.columns if c != "customer_id"]
+pv.withColumn("total", sum(F.col(c) for c in value_cols)).show()</code></pre>
+<div class="outh">Output</div><pre class="out"><code>+-----------+-----+-----+-----+
+|customer_id|   IN|   US|total|
++-----------+-----+-----+-----+
+|         c1|400.0|  0.0|400.0|
+|         c2| 50.0|  0.0| 50.0|
+|         c3|  0.0|500.0|500.0|
+|         c4|  0.0| 90.0| 90.0|
++-----------+-----+-----+-----+</code></pre>
+<div class="exf"><p>Without a value list Spark first runs a job to find distinct countries, and the output schema changes when a new country appears, which breaks downstream tables. In production, take the list from a reference table.</p></div></div></details>
+
+<h2>Mock rounds: test yourself against the clock</h2>
+<div class="tw"><table class="t">
+<tr><th>Mock</th><th>Time</th><th>Problems</th><th>What it simulates</th></tr>
+<tr><td>Screening</td><td>20 min</td><td>23, 25, 30</td><td>First-round call: fluency with basics</td></tr>
+<tr><td>Standard round A</td><td>45 min</td><td>1, 6, 35</td><td>Ranking + dedup + retention</td></tr>
+<tr><td>Standard round B</td><td>45 min</td><td>10, 32, 46</td><td>Sessions + existence + reconciliation</td></tr>
+<tr><td>Senior round A</td><td>60 min</td><td>9, 41, 18 (SCD2) + explain the plan of one</td><td>Islands + intervals + pipeline pattern</td></tr>
+<tr><td>Senior round B</td><td>60 min</td><td>42, 43, 19 + discuss skew for each</td><td>Sweep line + hierarchy + incremental load</td></tr>
+</table></div>
+<div class="box tip"><b class="lbl">How to practise</b><p>Type each solution from an empty file in a local <code>pyspark</code> shell with no autocomplete, build the sample rows yourself, and say your reasoning out loud. After solving, answer three questions without notes: how many shuffles does it have, where could it skew, and what happens with NULLs?</p></div>
+<h2>Every problem by pattern</h2>
+<div class="tw"><table class="t">
+<tr><th>Pattern</th><th>Problems</th></tr>
+<tr><td>Ranking and top-N</td><td>1, 2, 5, 28, 33</td></tr>
+<tr><td>Dedup and latest record</td><td>6, 7, 23, 45</td></tr>
+<tr><td>lag / lead comparisons</td><td>11, 34, 37, 38, 50</td></tr>
+<tr><td>Running totals and frames</td><td>4, 12, 24, 44</td></tr>
+<tr><td>Gaps and islands</td><td>9, 10, 41, 49, SCD practice 2</td></tr>
+<tr><td>Joins: anti, semi, self, range</td><td>3, 8, 25, 39, 46, 53</td></tr>
+<tr><td>Conditional aggregation and pivots</td><td>20, 30, 32, 36, 54</td></tr>
+<tr><td>Dates and calendars</td><td>13, 22, 35</td></tr>
+<tr><td>Strings, arrays, JSON, regex</td><td>14, 15, 16, 17, 26, 27, 47</td></tr>
+<tr><td>Pipelines and data quality</td><td>18, 19, 21, 48, 52, SCD practice 1–6</td></tr>
+<tr><td>Algorithmic</td><td>42, 43</td></tr>
+<tr><td>SQL ↔ DataFrame</td><td>51</td></tr>
+</table></div>
+</section>
+
 <!-- ================= INTERVIEW ================= -->
 <section class="lesson" id="scenarios" data-ch="Interview prep" data-t="Scenario questions with model answers" data-lvl="A" data-min="25">
 <h1>Scenario questions with model answers</h1>
@@ -5525,6 +6182,30 @@ bad  = checked.filter(F.size("dq_errors") &gt; 0)</code></pre>
 <p>Use the <a href="#story">story builder</a>: situation with volumes and SLA, the symptom, how you diagnosed it with the Spark UI and plans, what you changed and why you rejected alternatives, and the measured result. Prepare one performance story, one reliability or data-correctness story, and one design story.</p></details>
 </section>
 
+<section class="lesson" id="scenarios2" data-ch="Interview prep" data-t="More scenarios: AWS pipelines and incidents" data-lvl="A" data-min="30">
+<h1>More scenarios: AWS pipelines and incidents</h1>
+<div class="plain"><p>These scenarios come from questions reported in recent senior and lead data engineering interviews: pipeline design on AWS, Glue specifics, stuck or wrong jobs, writing to databases, late and duplicate data, migrations and backfills. They continue the numbering of the previous lesson. Answer each aloud in about two minutes before opening it.</p></div>
+<details class="iq"><summary>15. Design a pipeline that turns 10 TB of S3 log files per day into daily aggregates.</summary><p><b>Clarify:</b> format and compression, file sizes, lateness, who reads the result. <b>Design:</b> land raw logs partitioned by date and hour. Convert to Parquet or Iceberg early in an hourly job, so the heavy 10 TB parse happens once and in parallel across hours rather than in one giant daily run. Aggregate from the columnar layer: only needed columns, partial aggregates per hour, then a small daily roll-up. <b>Scale:</b> about 80,000 input partitions of 128 MB per day; EMR or EMR Serverless with auto scaling is usually cheaper than Glue at this volume. <b>Risks:</b> small or gzip files, skew on a hot key such as a bot IP, late files (re-run the affected hour; aggregates are overwritten by partition). <b>Operate:</b> row-count reconciliation raw vs parsed, alarms on lag and bad-line ratio.</p></details>
+<details class="iq"><summary>16. A lookup table used in a broadcast join keeps growing. What is your plan?</summary><p>Today it is 50 MB and broadcasts fine. I track its size in the job log and alert at a threshold. As it grows I first prune it (only needed columns and only active rows), then raise the broadcast threshold while executors have memory. Past a few hundred MB I stop broadcasting: sort-merge join with AQE, or bucket both tables on the key. I keep an explicit size check so the job switches strategy instead of failing with a driver out-of-memory error one day.</p></details>
+<details class="iq"><summary>17. When do Glue job bookmarks fail or give wrong results?</summary><p>When sources are read with plain <code>spark.read</code> instead of Glue sources with a <code>transformation_ctx</code>; when <code>job.commit()</code> is not reached; when files are overwritten in place with the same name; when files arrive with older modification times than the bookmark; when the JDBC bookmark key is not strictly increasing or rows are updated in place; and when jobs run concurrently on the same bookmark. After a failure the next run re-reads the batch, so the sink must be idempotent. For anything critical I use an explicit high-water mark in a control table or Iceberg incremental reads.</p></details>
+<details class="iq"><summary>18. Design a daily incremental load from S3 into Redshift.</summary><p>A Glue job reads the new partition, cleans and deduplicates it, and writes Parquet to a staging prefix. Redshift <code>COPY</code> loads that into a staging table (parallel and far faster than JDBC inserts). In one transaction, <code>MERGE</code> (or delete-then-insert by key) from staging into the target, then truncate staging. The load is keyed by run date so a retry replaces the same data. Step Functions orchestrates Glue then the Redshift Data API call, with alerts. For read-mostly history I would leave data in S3 as Iceberg and query it through Spectrum instead of loading it.</p></details>
+<details class="iq"><summary>19. Glue, EMR or Lambda for a transformation: how do you decide?</summary><p>Lambda for small, event-driven work: files up to a few hundred MB, under 15 minutes, no shuffle (validate, route, convert one file). Glue for scheduled Spark ETL from gigabytes to a few terabytes with no cluster to manage. EMR or EMR Serverless when I need full Spark control, very large or long-running jobs, spot pricing, custom libraries or other engines. I also weigh start-up latency, cost per run and what the team can operate.</p></details>
+<details class="iq"><summary>20. A Spark job hangs: no errors, no progress for an hour.</summary><p>I open the Spark UI. If a stage shows one running task, it is skew or one huge unsplittable file: check that task's input and shuffle read. If no tasks are running, the driver is busy: listing millions of S3 objects, planning a huge query, a broadcast being collected, or driver-side Python such as a loop or <code>collect</code>; a driver thread dump from the Executors tab shows which. If tasks are waiting, executors are missing: capacity, subnet IPs or auto scaling limits. Other causes: a JDBC query waiting on a database lock, or an S3 commit of very many files. I add a job timeout so a hang cannot burn cost overnight.</p></details>
+<details class="iq"><summary>21. After someone added cache() the job got slower and executors started dying.</summary><p>The cached DataFrame is probably large and placed before filters, so Spark stores everything, storage memory squeezes execution memory, tasks spill and garbage collection rises. Or it is cached and used only once. I check the Storage tab for size and fraction cached. Fix: cache after filters and projections, only if reused by several actions, unpersist as soon as it is no longer needed, or drop the cache and re-read Parquet, which is often cheaper.</p></details>
+<details class="iq"><summary>22. The job succeeded, but the business says the numbers are wrong.</summary><p>I reproduce with one concrete example (one customer, one day) and trace it through each step, comparing row counts and sums between stages. The usual causes: a join that multiplied rows because of duplicate keys, rows dropped by an inner join or NULL comparisons, a non-deterministic dedup, a time-zone boundary, a partial re-run that appended, late data not included, or an upstream change. I fix the cause, backfill the affected partitions, and add a check that would have caught it: key uniqueness, reconciliation totals against source.</p></details>
+<details class="iq"><summary>23. You must write 50 million rows from Spark to a relational database or DynamoDB.</summary><p>A database is the bottleneck, not Spark. For RDS/Aurora I use the JDBC writer with <code>batchsize</code> around 5,000–10,000 and limit partitions to what the database's connections and CPU can take (for example 8–16), writing to a staging table and merging in the database so retries are safe. For Redshift, S3 plus <code>COPY</code>. For DynamoDB, the Glue DynamoDB connector with a write-capacity percentage, or on-demand capacity, and keys designed to avoid hot partitions. I always ask whether the full 50 million must go there or only an aggregate.</p></details>
+<details class="iq"><summary>24. Data for a day keeps arriving up to three days late. How do you keep daily tables correct?</summary><p>Separate event date from arrival. Each daily run processes what arrived since the last run and writes it to the partitions of the event dates it contains: with Iceberg, a MERGE or <code>overwritePartitions</code> for the affected dates; with plain Parquet, re-compute and dynamically overwrite the last three event-date partitions. Aggregates are recomputed for those dates. Downstream consumers are told that the last three days are provisional, or reports read through a view that marks them.</p></details>
+<details class="iq"><summary>25. A Kinesis stream delivers duplicates and out-of-order events. Design the Spark side.</summary><p>A Glue streaming job (or EMR) reads the stream with a checkpoint in S3. I set a watermark on event time for the tolerated lateness and deduplicate on the event id within the watermark (<code>dropDuplicatesWithinWatermark</code>). The sink is Iceberg: appends for immutable events, or <code>foreachBatch</code> with a MERGE keyed on the id for upserts, which makes replays harmless. I monitor input versus processing rate, state size and iterator age, and run scheduled compaction because streaming creates small files.</p></details>
+<details class="iq"><summary>26. A file lands in S3 and must be queryable within five minutes.</summary><p>S3 event → EventBridge → Step Functions (or SQS to batch bursts) → processing. For small files a Lambda converts and commits directly. For larger ones a Glue job; to avoid cold starts and one job per file, I prefer a micro-batch every one to two minutes using <code>availableNow</code> streaming over the landing prefix, which picks up all new files and commits once. Idempotency by file name or checksum in a control table, a dead-letter queue for failures, and compaction afterwards.</p></details>
+<details class="iq"><summary>27. Design an analytics platform with Glue, Athena and Redshift Spectrum.</summary><p>S3 in three layers: raw as delivered, cleaned (typed, deduplicated, Iceberg), curated (business models and aggregates). Glue jobs move data between layers, orchestrated by Step Functions or MWAA. The Glue Data Catalog is the single metastore; Lake Formation controls access by table, column and row. Athena serves ad-hoc queries on Iceberg; Redshift holds the hot dimensional model for dashboards and reads colder history through Spectrum. Around it: data quality checks, CloudWatch alarms, CI/CD with infrastructure as code, cost tags, and Iceberg table maintenance.</p></details>
+<details class="iq"><summary>28. You own 200 Glue 3.0 and 4.0 jobs. Plan the move to Glue 5.1.</summary><p>Inventory the jobs with their versions, libraries and connectors. Read the migration guide for behaviour changes (Spark 3.1/3.3 → 3.5, Python 3.11, Java 17, dependency versions). Group jobs by pattern and migrate a pilot from each group in dev: run old and new side by side on the same input and compare counts, sums and schema. Fix date-parsing and dependency issues once, in shared code. Roll out in waves from least to most critical with a one-line rollback (the Glue version parameter). Track runtime and cost before and after.</p></details>
+<details class="iq"><summary>29. A pipeline handles personal data. What do you do in the Spark jobs?</summary><p>Minimise first: do not carry columns that are not needed. Mask or tokenise in the cleaning layer (<code>sha2</code> with a secret salt for join keys, partial masking for display), keep the raw copy in a restricted bucket with KMS encryption, and expose only masked data downstream. Access through Lake Formation column and row permissions. No personal values in logs or error messages. Support erasure requests: with Iceberg a DELETE followed by snapshot expiry. Glue's sensitive-data detection can help find unexpected personal data.</p></details>
+<details class="iq"><summary>30. Backfill two years of history while the daily job keeps running.</summary><p>Use the same code path with a date-range parameter so logic cannot diverge. Run the backfill as separate, smaller jobs (a month at a time) with limited concurrency, oldest or newest first as the business needs. Keep it away from the daily job's partitions: different dates mean no conflict; with Iceberg, commits on different partitions do not collide, and I raise commit retries. Throttle to protect S3 prefixes and source systems, checkpoint progress in a control table so it can resume, and validate each chunk before moving on.</p></details>
+<details class="iq"><summary>31. Writes fail with S3 “503 Slow Down”.</summary><p>Too many requests hit one prefix: thousands of tasks each writing small files, or deleting and listing very many objects. I reduce the number of files (repartition before the write, AQE coalescing, larger target size), spread writes across partition prefixes, compact existing small files, and rely on the built-in retry with backoff. With Iceberg, the object-storage layout option adds a hash to data paths to spread load.</p></details>
+<details class="iq"><summary>32. You have 300 source tables to ingest. How do you avoid writing 300 jobs?</summary><p>A metadata-driven framework: one parameterised job and a config table (or YAML) with an entry per source holding the connection, load type (full, incremental by column, CDC), keys, target, schedule and quality rules. The orchestrator fans out over the config with controlled concurrency. Adding a table is a config change with no new code. I add per-table audit records (rows read and written, duration, status) and let exceptions have custom steps, so the framework does not become a tangle of special cases.</p></details>
+<details class="iq"><summary>33. Source and target row counts do not match after a load.</summary><p>First check whether they should match: filters, deduplication and rejected records legitimately change counts, so I reconcile as source = loaded + rejected + filtered. Then compare counts per partition or per day to find where they differ, and for that slice do a key-level full outer join to list missing and extra keys. Typical causes: duplicates removed or created by a join, NULL keys, a time-zone boundary putting rows in another day, a partial load, or the source still changing while it was read.</p></details>
+</section>
+
 <section class="lesson" id="rapid" data-ch="Interview prep" data-t="Rapid-fire questions" data-lvl="I" data-min="20">
 <h1>Rapid-fire questions</h1>
 <div class="plain"><p>Expect 10 to 15 of these in the first quarter of a senior round. Answer each in two to four sentences. The answers below are written to be said out loud.</p></div>
@@ -5556,6 +6237,98 @@ bad  = checked.filter(F.size("dq_errors") &gt; 0)</code></pre>
 <details class="iq"><summary>What is the difference between partitionBy on a window and on a writer?</summary><p>On a window it defines groups of rows for the calculation and causes a shuffle. On a writer it defines the folder layout on storage. Same word, unrelated features.</p></details>
 <details class="iq"><summary>What changes in Spark 4 that could break a job?</summary><p>ANSI mode on by default (invalid casts, overflow and divide-by-zero raise errors), Java 17 and Scala 2.13 only, and Python 3.8 dropped. Most DataFrame code is unchanged.</p></details>
 <details class="iq"><summary>Glue DynamicFrame vs DataFrame?</summary><p>DynamicFrames have per-record schemas with choice types and integrate with bookmarks and Glue connectors; DataFrames have fixed schemas and the full optimised Spark API. Common practice: read and write with DynamicFrames where useful, transform as DataFrames.</p></details>
+</section>
+
+<section class="lesson" id="qbank-basic" data-ch="Interview prep" data-t="Question bank: basics" data-lvl="B" data-min="15">
+<h1>Question bank: basics</h1>
+<div class="plain"><p>Even senior interviews open with fundamentals to check that your base is solid. Answer in two or three clear sentences. These add to the rapid-fire list and do not repeat it.</p></div>
+<details class="iq"><summary>What is PySpark, and when would you use it instead of pandas?</summary><p>PySpark is the Python API for Apache Spark, a distributed engine. pandas runs on one machine and must fit the data in its memory. I use pandas for data up to a few GB on one machine and PySpark when data is larger than memory, lives in a data lake, or the job must run reliably on a cluster such as Glue or EMR. For small data Spark is slower than pandas because of its start-up and scheduling overhead.</p></details>
+<details class="iq"><summary>SparkSession vs SparkContext?</summary><p>SparkContext is the original connection to the cluster and the entry point for RDDs. SparkSession, introduced in Spark 2.0, wraps it and adds the DataFrame and SQL entry points, configuration and the catalog. You create one SparkSession and reach the context through <code>spark.sparkContext</code> when you need low-level features such as accumulators or the log level.</p></details>
+<details class="iq"><summary>In how many ways can you create a DataFrame?</summary><p>From files or tables with <code>spark.read</code> (Parquet, CSV, JSON, JDBC, catalog tables); from Python data with <code>spark.createDataFrame(list_or_pandas_df, schema)</code>; from an RDD with <code>toDF</code>; with <code>spark.range(n)</code>; from a SQL query with <code>spark.sql</code>; and as the result of transforming another DataFrame.</p></details>
+<details class="iq"><summary>What is the difference between a transformation and an action?</summary><p>A transformation (select, filter, join, groupBy) returns a new DataFrame and only extends the plan. An action (count, show, collect, write) asks for a result and makes Spark optimise and run the plan as a job. Nothing is computed until an action runs.</p></details>
+<details class="iq"><summary>select vs withColumn vs filter?</summary><p><code>select</code> chooses or computes the output columns. <code>withColumn</code> adds or replaces one column and keeps the rest. <code>filter</code> (same as <code>where</code>) keeps rows that satisfy a condition. For many new columns, one <code>select</code> or <code>withColumns</code> is better than a chain of <code>withColumn</code> calls.</p></details>
+<details class="iq"><summary>show vs collect vs take vs first?</summary><p><code>show(n)</code> prints the first rows. <code>take(n)</code> and <code>first()</code> return a few rows to the driver as Row objects. <code>collect()</code> returns <b>every</b> row to the driver, so it is only safe on small results; on big data it crashes the driver with an out-of-memory error.</p></details>
+<details class="iq"><summary>How do you turn a DataFrame column into a Python list?</summary><p><code>[r[0] for r in df.select("country").distinct().collect()]</code>. It is only acceptable when the result is small, for example a list of distinct countries to pass to <code>pivot</code> or <code>isin</code>. For a large set, keep it as a DataFrame and join.</p></details>
+<details class="iq"><summary>count(*) vs count(col) vs countDistinct?</summary><p><code>count("*")</code> counts rows. <code>count("col")</code> counts rows where that column is not NULL. <code>countDistinct("col")</code> counts different non-NULL values and is expensive on big data; <code>approx_count_distinct</code> is the cheap approximate version.</p></details>
+<details class="iq"><summary>distinct vs dropDuplicates?</summary><p><code>distinct()</code> removes rows identical in all columns. <code>dropDuplicates([cols])</code> keeps one row per combination of the listed columns, but which row survives is not defined. To keep a specific row, such as the latest, use <code>row_number</code> over an ordered window.</p></details>
+<details class="iq"><summary>How do you handle missing values?</summary><p>Find them with <code>isNull()</code> and a per-column null count. Remove rows with <code>na.drop(subset=[...])</code>, fill defaults with <code>na.fill({col: value})</code>, pick the first available value with <code>coalesce</code>, or replace placeholder values such as "N/A" with <code>na.replace</code>. Which one depends on the meaning: I never fill a key or an amount silently.</p></details>
+<details class="iq"><summary>How do you rename columns and change types?</summary><p><code>withColumnRenamed(old, new)</code> for one, <code>withColumnsRenamed({...})</code> or <code>toDF(*names)</code> for many, and <code>alias</code> inside <code>select</code>. Types change with <code>F.col("c").cast("decimal(12,2)")</code>; use <code>try_cast</code> when bad values should become NULL instead of failing under ANSI mode.</p></details>
+<details class="iq"><summary>Which join types does PySpark support?</summary><p>inner, left, right, full outer, left_semi (rows of the left that have a match, left columns only), left_anti (rows of the left with no match) and cross. Semi and anti joins are the DataFrame forms of EXISTS and NOT EXISTS.</p></details>
+<details class="iq"><summary>What is a partition?</summary><p>A chunk of the DataFrame's rows that one task processes on one core. The number of partitions sets the parallelism; their size sets how much memory each task needs. A good size is 100–200 MB.</p></details>
+<details class="iq"><summary>orderBy vs sortWithinPartitions?</summary><p><code>orderBy</code> (same as <code>sort</code>) produces a total order across the whole DataFrame, which needs a range shuffle. <code>sortWithinPartitions</code> sorts rows inside each partition without a shuffle; it is used before writing files so Parquet statistics are tight.</p></details>
+<details class="iq"><summary>What is a UDF and what does it cost?</summary><p>A user-defined function is custom Python logic applied per row. It costs speed, because each row is serialised to a Python worker and back, and optimisation, because Catalyst cannot see inside it. Prefer built-in functions; if custom logic is unavoidable, use a pandas UDF, which works on Arrow batches.</p></details>
+<details class="iq"><summary>How do you read a CSV file from S3 with a schema?</summary><p><code>spark.read.schema(schema).option("header", "true").option("mode", "PERMISSIVE").csv("s3://bucket/path/")</code>. I pass an explicit schema instead of <code>inferSchema</code>, because inference reads the data an extra time and can guess wrong types, and I capture bad rows with a corrupt-record column.</p></details>
+<details class="iq"><summary>What are the save modes when writing?</summary><p><code>errorifexists</code> (the default), <code>append</code>, <code>overwrite</code> and <code>ignore</code>. With partitioned output, <code>overwrite</code> replaces the whole path unless <code>spark.sql.sources.partitionOverwriteMode</code> is <code>dynamic</code>.</p></details>
+<details class="iq"><summary>explode vs explode_outer vs posexplode?</summary><p><code>explode</code> creates one row per array element and drops rows whose array is empty or NULL. <code>explode_outer</code> keeps those rows with a NULL element. <code>posexplode</code> also returns the element's position.</p></details>
+<details class="iq"><summary>limit vs sample?</summary><p><code>limit(n)</code> returns n rows, usually from the first partitions, so it is not random. <code>sample(fraction, seed)</code> returns an approximately random fraction of all rows and is what you use to test logic on representative data.</p></details>
+<details class="iq"><summary>What does spark-submit do?</summary><p>It launches a Spark application on a cluster: it starts the driver (on your machine in client mode or inside the cluster in cluster mode), passes configuration such as executor memory and cores, ships your Python files and dependencies, and runs your script. Glue and EMR Serverless run the equivalent for you.</p></details>
+</section>
+
+<section class="lesson" id="qbank-mid" data-ch="Interview prep" data-t="Question bank: intermediate" data-lvl="I" data-min="18">
+<h1>Question bank: intermediate</h1>
+<div class="plain"><p>The middle of a PySpark round: how Spark executes your code and how you use the API well. Each answer is written the way you would say it.</p></div>
+<details class="iq"><summary>What happens internally when you call df.count()?</summary><p>The driver takes the logical plan, Catalyst analyses and optimises it, and the planner produces a physical plan. Because <code>count</code> needs no column values, Spark prunes all columns and can answer from Parquet footers for a plain table. The DAG scheduler splits the plan into stages, each task counts its partition, the partial counts are shuffled to one partition, summed, and one number returns to the driver.</p></details>
+<details class="iq"><summary>What do the DAG scheduler and task scheduler do?</summary><p>The DAG scheduler turns a job into stages by cutting the plan at shuffles and submits stages in dependency order, re-submitting them if shuffle data is lost. The task scheduler takes each stage's tasks, assigns them to free executor cores with locality preference, and handles task retries and speculation.</p></details>
+<details class="iq"><summary>Which storage levels exist and when do you use them?</summary><p>MEMORY_AND_DISK is the DataFrame default and the right choice almost always. MEMORY_ONLY recomputes what does not fit. DISK_ONLY is for large intermediate results that are expensive to recompute. The _2 variants replicate for faster recovery. I cache only data reused by several actions and unpersist it afterwards.</p></details>
+<details class="iq"><summary>cache vs checkpoint?</summary><p>Cache keeps the data on executors and keeps the lineage, so lost partitions are recomputed. Checkpoint writes the data to reliable storage and cuts the lineage, which is useful when the plan has grown very long in a loop. <code>localCheckpoint</code> cuts lineage using executor storage: faster, not fault tolerant.</p></details>
+<details class="iq"><summary>How does Spark serialise data?</summary><p>DataFrame rows use Tungsten's compact binary format, so they are shuffled and cached without Java object overhead. RDDs of JVM objects use Java serialisation by default, or Kryo if configured. Data crossing to Python uses pickle for plain UDFs and Apache Arrow for pandas UDFs and <code>toPandas</code>. Closures sent to executors are serialised too, which is why they cannot contain connections.</p></details>
+<details class="iq"><summary>foreach vs foreachPartition? How do you write to an external system?</summary><p><code>foreach</code> calls your function per row; <code>foreachPartition</code> once per partition with an iterator, so you open one connection per partition and write in batches. For databases I prefer the JDBC writer with <code>batchsize</code> and a controlled <code>numPartitions</code>. Writes must be idempotent (upserts keyed on a business key), because tasks are retried.</p></details>
+<details class="iq"><summary>How would you join a 500 GB table with a 50 MB lookup table?</summary><p>Broadcast the lookup: <code>big.join(F.broadcast(small), key)</code>. The small table is sent to every executor as a hash table and the 500 GB table is joined without being shuffled. I select only the needed lookup columns first, and check that 50 MB on disk is not hundreds of MB in memory.</p></details>
+<details class="iq"><summary>When is a cross join legitimate?</summary><p>When you really need every combination of two small sets: a calendar × stores grid to fill missing days, all product pairs for similarity, or generating salt values. On large inputs it explodes, so it must be deliberate and written as <code>crossJoin</code>.</p></details>
+<details class="iq"><summary>How do you count distinct values efficiently at scale?</summary><p>If an approximation is acceptable, <code>approx_count_distinct</code> (HyperLogLog) in a single pass. For exact counts, pre-aggregate to distinct (group, value) pairs first and then count, and avoid several different <code>countDistinct</code> in one query because Spark expands the data for each.</p></details>
+<details class="iq"><summary>How many partitions should a job have?</summary><p>Enough that each holds 100–200 MB and at least two to three times the number of cores. For a shuffle of 300 GB that is about 1,500–3,000. With AQE I set a generous number and let it merge small partitions.</p></details>
+<details class="iq"><summary>What is predicate pushdown and why does Parquet help?</summary><p>Spark sends filters to the file reader. Parquet stores min/max statistics per row group in its footer, so the reader skips row groups that cannot match, and being columnar it reads only the needed columns. CSV and JSON have no statistics, so every byte is read.</p></details>
+<details class="iq"><summary>What is executor memory overhead?</summary><p>Memory outside the JVM heap that the executor's container may use: Python worker processes, Arrow buffers, network buffers and thread stacks. By default it is the larger of 384 MB and 10% of executor memory. Exceeding it gets the container killed by YARN, typically in jobs with Python UDFs.</p></details>
+<details class="iq"><summary>What types of pandas UDFs are there?</summary><p>Series to Series (a vectorised column function), Iterator of Series to Iterator of Series (lets you load a model once per task), Series to scalar (a grouped aggregate), and the function APIs <code>applyInPandas</code> for grouped map, <code>mapInPandas</code>, and cogrouped map.</p></details>
+<details class="iq"><summary>How do you tune JDBC reads and writes?</summary><p>Reads: <code>partitionColumn</code>, <code>lowerBound</code>, <code>upperBound</code> and <code>numPartitions</code> for parallel range queries, <code>fetchsize</code> for rows per round trip, and a pushdown query in <code>dbtable</code>/<code>query</code> to filter in the database. Writes: <code>batchsize</code>, a limited number of partitions so the database is not overloaded, and for big loads into Redshift, write to S3 and <code>COPY</code> instead of row inserts.</p></details>
+<details class="iq"><summary>Window function or groupBy plus join?</summary><p>A window keeps all rows and adds the group value in one shuffle. GroupBy plus a join back needs an aggregation and a join. Windows are simpler and usually cheaper, but they must sort each partition; for a single aggregate on a very skewed key, aggregate first (map-side combine) and broadcast-join the small result back.</p></details>
+<details class="iq"><summary>What is dynamic partition pruning?</summary><p>When a partitioned fact table joins a filtered dimension, Spark first evaluates the dimension filter, collects the matching partition values, and uses them at run time to read only those fact partitions. It shows as <code>dynamicpruningexpression</code> in the plan.</p></details>
+<details class="iq"><summary>Partitioning vs bucketing?</summary><p>Partitioning splits data into folders by column value and enables skipping folders on filters; use it for low-cardinality filter columns like date. Bucketing hashes rows into a fixed number of files by key, which lets joins and aggregations on that key avoid a shuffle; use it for high-cardinality join keys.</p></details>
+<details class="iq"><summary>How do NULLs behave in joins and aggregations?</summary><p>NULL keys never match in equi-joins (use <code>eqNullSafe</code> if they should). Aggregates such as sum, avg and count(col) skip NULLs; <code>count(*)</code> does not. In <code>groupBy</code>, NULL forms its own group. In sorting, NULLs come first ascending by default.</p></details>
+<details class="iq"><summary>Sort-merge join vs shuffled hash join?</summary><p>Both shuffle both sides by the key. Sort-merge then sorts each partition and merges; it handles any size because sorting can spill. Shuffled hash builds a hash table from the smaller side per partition and skips the sort; it is faster when the build side fits in memory but can run out of memory if it does not.</p></details>
+<details class="iq"><summary>How does explain() help you optimise?</summary><p>It shows what Spark will actually do: whether partition filters and pushed filters are applied, which columns are read, the join strategy, and every Exchange (shuffle). I use it to confirm pruning, to spot unexpected sort-merge or nested-loop joins and Python UDF nodes, and after a run to see what AQE changed.</p></details>
+</section>
+
+<section class="lesson" id="qbank-adv" data-ch="Interview prep" data-t="Question bank: advanced" data-lvl="A" data-min="20">
+<h1>Question bank: advanced</h1>
+<div class="plain"><p>Questions that separate senior candidates: execution details, streaming guarantees, failure behaviour, AWS-specific judgement and Spark 4 awareness.</p></div>
+<details class="iq"><summary>Does data have to fit in memory for Spark to process it?</summary><p>No. Spark processes one partition per task and streams rows through operators. Sorts, aggregations and joins that exceed execution memory spill to local disk. What must fit is a single partition's working set per task, a broadcast table, and anything you collect to the driver. That is why partition sizing and skew matter more than total data size.</p></details>
+<details class="iq"><summary>How do you control partitioning without a custom partitioner?</summary><p>In the DataFrame API I repartition by an expression: <code>repartition(n, key)</code> for hash, <code>repartitionByRange</code> for sorted ranges, or by a derived column such as a salted key or <code>pmod(hash(key), n)</code>. A true custom partitioner exists only on pair RDDs (<code>rdd.partitionBy(n, func)</code>) and is rarely needed.</p></details>
+<details class="iq"><summary>How does Spark choose a join strategy?</summary><p>For equi-joins it checks hints first, then whether a side is below the broadcast threshold (broadcast hash join), then whether a shuffled hash join is allowed and one side is much smaller, otherwise sort-merge join. Non-equi joins use broadcast nested loop if a side is small, otherwise a Cartesian product. AQE re-checks the choice with real sizes after shuffles.</p></details>
+<details class="iq"><summary>What is the cost-based optimiser and when does it matter?</summary><p>With <code>spark.sql.cbo.enabled</code> and statistics from <code>ANALYZE TABLE ... COMPUTE STATISTICS FOR COLUMNS</code>, Spark estimates row counts after filters and joins and can reorder multi-way joins. Without statistics it only knows file sizes. On AWS lakes statistics are often missing, so AQE's runtime statistics do most of the work; Iceberg supplies file-level statistics itself.</p></details>
+<details class="iq"><summary>When does whole-stage code generation not apply?</summary><p>Around Python UDFs, some complex expressions, and when the generated method would be too large (very wide tables or huge CASE expressions), in which case Spark falls back to interpreting operators. In the plan, operators without the <code>*(n)</code> prefix are not fused.</p></details>
+<details class="iq"><summary>How do you get exactly-once results in Structured Streaming?</summary><p>Three parts together: a replayable source such as Kafka or Kinesis offsets, a checkpoint that records which offsets each micro-batch covered, and an idempotent or transactional sink. With Iceberg the commit is transactional; with <code>foreachBatch</code> I use a keyed MERGE or record the batch id so a replayed batch has no extra effect.</p></details>
+<details class="iq"><summary>What makes streaming state grow without bound, and how do you stop it?</summary><p>Stateful operations (aggregations, dedup, stream-stream joins) keep state per key. Without a watermark Spark can never drop old keys. I set a watermark on event time, add time-range conditions to stream-stream joins, use <code>dropDuplicatesWithinWatermark</code>, monitor state rows in the Streaming tab, and use the RocksDB state store for large state.</p></details>
+<details class="iq"><summary>How do spot interruptions affect a Spark job on EMR?</summary><p>A reclaimed node takes its executors and their shuffle files with it. Running tasks are retried, and stages whose shuffle output was lost are partly re-run after fetch failures. I keep core nodes on-demand, put only task nodes on spot with diverse instance types, and enable graceful decommissioning so blocks are migrated before the node disappears.</p></details>
+<details class="iq"><summary>Why can speculation be dangerous with S3 writes?</summary><p>Two attempts of the same task may both write output. With a committer that renames files this could leave duplicates or partial files; non-idempotent side effects (database inserts, API calls) run twice. With the EMRFS S3-optimised committer or Iceberg, only the winning attempt's files are committed, so file output is safe; side effects are still your responsibility.</p></details>
+<details class="iq"><summary>How do you recognise and reduce garbage-collection problems?</summary><p>The Executors tab shows GC time in red when it exceeds about 10% of task time, and tasks slow down or time out on heartbeats. Causes are large partitions, many Python or JVM objects, and too many cores sharing a heap. I make partitions smaller, replace UDFs and RDD code with built-ins, reduce cores per executor or add memory; G1GC is already the default on Java 17.</p></details>
+<details class="iq"><summary>A single 100 GB gzip CSV arrives daily. How do you process it?</summary><p>Gzip is not splittable, so Spark reads it with one task. Best fix is upstream: deliver many smaller files, or bzip2/zstd-splittable or Parquet. If I cannot change the source, I read it once with one task, immediately <code>repartition</code> to spread the rows, and write Parquet to a staging area; all later steps use that. I size that executor's disk and memory for the single long task.</p></details>
+<details class="iq"><summary>How do you design a Spark job to be idempotent?</summary><p>The run date is a parameter, never the wall clock. Output for a run goes to deterministic locations and replaces what was there (dynamic partition overwrite) or is merged by business key. Surrogate keys and hashes are deterministic. Side effects such as notifications or control-table updates happen only after the data commit succeeds.</p></details>
+<details class="iq"><summary>What is Spark Connect?</summary><p>A client-server mode: a thin client (Python without a local JVM) sends unresolved plans over gRPC to a Spark server that executes them. It separates the application from the cluster, improves stability and allows upgrades of each side independently. It matured in Spark 4; some RDD and SparkContext APIs are not available through it.</p></details>
+<details class="iq"><summary>Are Python UDFs still slow in Spark 4?</summary><p>They are faster but not free. Spark 3.5 added Arrow-optimised Python UDFs as an option, Spark 4 improved them and added Arrow-native UDFs and UDTFs, which cut serialisation cost. Catalyst still cannot optimise through a UDF, so built-in functions remain the first choice.</p></details>
+<details class="iq"><summary>Glue Data Catalog vs Hive metastore?</summary><p>The Glue Data Catalog is a managed, serverless metastore that is Hive-compatible: it stores databases, tables, partitions and schemas. It is shared by Glue, Athena, EMR and Redshift Spectrum, integrates with IAM and Lake Formation, and needs no database to operate. A Hive metastore is self-managed, usually on RDS, and is only needed for specific compatibility cases.</p></details>
+<details class="iq"><summary>Would you run Glue crawlers in production?</summary><p>For discovering unknown data and for quick starts, yes. For production tables I prefer explicit DDL or schema managed in code, because a crawler can change a table's schema or create unwanted tables when a bad file lands, and it adds cost and delay. Iceberg tables need no crawler: the writer commits the metadata. If I use crawlers, I restrict them to add partitions only.</p></details>
+<details class="iq"><summary>How does Lake Formation fit with Glue jobs?</summary><p>Lake Formation adds database-style grants on catalog tables: table, column, row and cell level. A Glue job's role needs the grants as well as IAM. Glue 5.x enforces fine-grained access natively in Spark for DataFrames and SQL, so a job only sees the columns and rows its role is allowed to read.</p></details>
+<details class="iq"><summary>Delta Lake vs Iceberg: what would you say?</summary><p>Both add ACID transactions, MERGE, time travel and schema evolution over Parquet. Delta keeps a JSON transaction log in <code>_delta_log</code> and is deepest on Databricks; Iceberg uses a metadata and manifest tree with a catalog pointer, hidden partitioning and partition evolution, and has the broadest AWS support (Athena, Glue, EMR, Redshift, S3 Tables). I choose by the engines that must read and write the table.</p></details>
+<details class="iq"><summary>What are the limits of AQE?</summary><p>It only acts at shuffle boundaries, so it cannot help the scan stage. Skew handling covers joins, and for outer joins only the preserved side; not aggregations or windows. It relies on thresholds (5× median and 256 MB) that may not fit the data. It does not apply to streaming queries.</p></details>
+<details class="iq"><summary>How would you size a Glue job for 1 TB of daily input?</summary><p>Start from the data: 1 TB of Parquet is roughly 8,000 partitions of 128 MB. G.1X has 4 cores, so 50 workers give about 200 task slots and 40 waves of tasks. I begin with G.1X, auto scaling on with a maximum around 50–100, run once, and read the Spark UI: spill or OOM means move to G.2X; idle executors mean lower the maximum; one slow task means skew, which more workers will not fix.</p></details>
+</section>
+
+<section class="lesson" id="lead" data-ch="Interview prep" data-t="Lead-level and experience questions" data-lvl="A" data-min="14">
+<h1>Lead-level and experience questions</h1>
+<div class="plain"><p>For senior and lead roles, part of the round is about how you work: reviewing code, sizing, setting standards, handling incidents and people. There is no single right answer; these are sound structures to adapt with examples from your own projects.</p></div>
+<details class="iq"><summary>How do you review a PySpark pull request?</summary><p>Correctness first: join types and key uniqueness, NULL handling, deterministic dedup, time zones, idempotent writes with the right overwrite mode. Then efficiency: filters and column selection early, no <code>collect</code> or <code>toPandas</code> on large data, no avoidable UDFs, no repeated actions without a cache, sensible repartitioning before writes. Then maintainability: transformations as testable functions, explicit schemas, parameters instead of hard-coded paths and dates, tests with edge cases, logging of counts. I ask for the explain plan of any new heavy join.</p></details>
+<details class="iq"><summary>How do you estimate the cluster for a new pipeline?</summary><p>From the data: daily volume, format and compression give the partition count at 128 MB each. The heaviest shuffle (largest join or aggregation) gives the memory needed per task. I pick a target runtime, derive the cores needed, then run on a representative sample at 10% and at full size, and read the Spark UI for spill, GC and idle time before fixing the size. I state the assumptions and revisit after a week of production runs.</p></details>
+<details class="iq"><summary>What standards do you set for your team's Spark jobs?</summary><p>Explicit schemas at ingestion; idempotent, date-parameterised jobs; dynamic partition overwrite or MERGE, never blind append; UTC session time zone; built-in functions before UDFs; a shared library for common logic such as SCD2 and data-quality checks; unit tests in CI; event logs and metrics enabled on every job; target file sizes and table maintenance schedules; and a short runbook for each pipeline.</p></details>
+<details class="iq"><summary>Describe how you handle a production incident.</summary><p>Stabilise first: stop the damage (pause downstream loads, prevent bad data from publishing), tell stakeholders what is affected and when the next update comes. Diagnose with evidence: orchestrator error, logs, Spark UI. Restore service with the safest fix or a rollback, then re-run and validate the affected dates. Afterwards a blameless review: timeline, root cause, what detection was missing, and concrete actions such as a new check or alarm.</p></details>
+<details class="iq"><summary>You disagree with an architect's design. What do you do?</summary><p>I make sure I understand their constraints, then put the disagreement in measurable terms: cost per run, runtime, operational effort, risk. If it is cheap, I run a small proof of concept on real data so we compare numbers instead of opinions. I present options with trade-offs, and once a decision is made I commit to it and document the reasoning.</p></details>
+<details class="iq"><summary>A junior engineer keeps using collect() and Python UDFs. How do you coach them?</summary><p>I show the effect instead of quoting a rule: we open the Spark UI on their job, look at the driver memory and the Python evaluation node, then rewrite one case with built-in functions and compare runtimes. I pair on the next task, point them to the internals behind it, and add the pattern to the review checklist so the feedback is about the code, not the person.</p></details>
+<details class="iq"><summary>How do you balance delivery pressure against technical debt?</summary><p>I separate debt that risks correctness or operability (no idempotency, no tests on core logic, no monitoring) from cosmetic debt. The first kind is part of “done”. For the rest I record it with its cost, agree a date, and reserve a fixed share of each sprint for it. When I take a shortcut for a deadline, the business knows the trade-off and the follow-up is scheduled.</p></details>
+<details class="iq"><summary>How do you agree a data contract with an upstream team?</summary><p>We write down the schema with types and nullability, keys and their uniqueness, delivery time and frequency, how changes and deletes are represented, volume expectations, and how breaking changes are announced. I enforce it at ingestion with schema and quality checks that fail fast or quarantine, and share a dashboard of violations so problems are fixed at the source.</p></details>
+<details class="iq"><summary>What do you monitor for a pipeline, and what are your SLAs?</summary><p>Freshness (data available by an agreed time), completeness (row counts and reconciliation against source), correctness (quality rule pass rates, NULL and duplicate rates), and health (run duration trend, failure and retry counts, cost per run, small-file and snapshot counts for Iceberg). Alerts go to the on-call channel with the job run id and a runbook link, and are tuned so they are acted on.</p></details>
+<details class="iq"><summary>How do you control cost across many Spark jobs?</summary><p>Make cost visible first: tags per pipeline, DPU-hours or vCPU-hours per run tracked over time. Then the standard levers: auto scaling and right-sized workers, Flex or spot for non-urgent work, incremental processing instead of full reloads, fixing skew and small files, timeouts, and retiring unused pipelines. I review the top ten jobs by cost each month, because they are usually most of the bill.</p></details>
+<details class="iq"><summary>What would you redesign in your current pipeline if you could?</summary><p>Have an honest, specific answer ready from your own project: for example moving a full daily reload to incremental MERGE, replacing a crawler-managed table with Iceberg, or adding reconciliation that is missing today. Explain why it was built the way it was, what it costs now, and how you would migrate safely. Interviewers use this question to see whether you think critically about your own work.</p></details>
+<details class="iq"><summary>How do you explain a technical trade-off to a non-technical stakeholder?</summary><p>In their terms: time, money and risk. For example: “Option A delivers the report by 6 a.m. and costs about X more per month; option B is cheaper but the report arrives at 9 a.m. on heavy days.” I give a recommendation, the main risk, and what I need from them to proceed.</p></details>
 </section>
 
 <section class="lesson" id="story" data-ch="Interview prep" data-t="Project story builder" data-lvl="A" data-min="10">
