@@ -71,6 +71,9 @@ h1{font-family:var(--f-display);font-weight:800;font-size:clamp(32px,6vw,54px);l
 .card.first{border-color:var(--accent)}
 .card mark{background:var(--accent-soft);color:inherit;border-radius:3px;padding:0 2px}
 @media (max-width:600px){.search .kbd{display:none}}
+[hidden]{display:none!important}
+.card .tag{cursor:pointer}
+.card .tag:hover{outline:1.5px solid currentColor}
 </style>
 </head>
 <body>
@@ -221,6 +224,15 @@ h1{font-family:var(--f-display);font-weight:800;font-size:clamp(32px,6vw,54px);l
     btns.forEach(function(x){x.setAttribute('aria-pressed',String(x===b));});
     apply();
   });});
+  function setCat(f){
+    cat=f;btns.forEach(function(x){x.setAttribute('aria-pressed',String(x.getAttribute('data-f')===f));});apply();
+  }
+  // tapping the coloured tag on a card filters to that category instead of opening the guide
+  cards.forEach(function(c){
+    var t=c.querySelector('.tag');t.title='Show all '+t.textContent+' guides';
+    t.addEventListener('click',function(e){e.preventDefault();e.stopPropagation();setCat(c.getAttribute('data-c'));
+      document.querySelector('.filters').scrollIntoView({behavior:'smooth',block:'nearest'});});
+  });
   q.addEventListener('input',apply);
   q.addEventListener('keydown',function(e){
     if(e.key==='Enter'){var f=apply();if(f&&q.value.trim()){location.href=f.getAttribute('href');}}
